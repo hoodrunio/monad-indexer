@@ -7,6 +7,6 @@ services:
     container_name: smart-contract-verifier
     restart: always
     env_file:
-      -  ./envs/common-smart-contract-verifier.env
+      -  ../envs/common-smart-contract-verifier.env
     ports:
       - 8150:8050

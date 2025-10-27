@@ -7,6 +7,6 @@ services:
     container_name: visualizer
     restart: always
     env_file:
-      -  ./envs/common-visualizer.env
+      -  ../envs/common-visualizer.env
     ports:
       - 8081:8050

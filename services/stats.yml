@@ -33,7 +33,7 @@ services:
     container_name: stats
     restart: always
     env_file:
-      - ./envs/common-stats.env
+      - ../envs/common-stats.env
     environment:
       STATS__DB_URL: postgresql://postgres:${POSTGRES_PASSWORD:-changeme}@stats-db:5432/stats
       STATS__BLOCKSCOUT_DB_URL: postgresql://postgres:${POSTGRES_PASSWORD:-changeme}@db:5432/blockscout

@@ -88,3 +88,8 @@ services:
     extends:
       file: ./services/nginx.yml
       service: proxy
+
+volumes:
+  blockscout-db-data:
+  stats-db-data:
+  redis-data-volume:

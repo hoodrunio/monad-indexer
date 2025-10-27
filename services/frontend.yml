@@ -7,4 +7,4 @@ services:
     container_name: frontend
     restart: always
     env_file:
-      -  ./envs/common-frontend.env
+      -  ../envs/common-frontend.env

@@ -7,6 +7,6 @@ services:
     container_name: sig-provider
     restart: always
     env_file:
-      -  ./envs/common-sig-provider.env
+      -  ../envs/common-sig-provider.env
     ports:
       - 8151:8050
