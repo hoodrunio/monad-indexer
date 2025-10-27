@@ -6,7 +6,7 @@
 services/blockscout-db-data/
 services/stats-db-data/
 services/redis-data/
-
+data/
 # Logs and temporary data
 services/logs/
 services/dets/
