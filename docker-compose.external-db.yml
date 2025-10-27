@@ -1,0 +1,9 @@
+# External database configuration
+# Use this when database is hosted externally (e.g., managed PostgreSQL/Redis)
+services:
+  backend:
+    environment:
+      # Override database connection
+      DATABASE_URL: ${DATABASE_URL}
+      # Override Redis connection
+      REDIS_URL: ${REDIS_URL:-redis://redis-db:6379}

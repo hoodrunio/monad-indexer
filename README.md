@@ -1,93 +1,194 @@
-# Docker-compose configuration
+# Monad Testnet Indexer
 
-Runs Blockscout locally in Docker containers with [docker-compose](https://github.com/docker/compose).
+Full-featured blockchain indexer and API service for Monad testnet, powered by Blockscout.
 
-## Prerequisites
+## Services
 
-- Docker v20.10+
-- Docker-compose 2.x.x+
-- Running Ethereum JSON RPC client
+### Core Services
+- **Backend (Indexer + API)**: Port 4000 - Indexes blocks, transactions, logs, addresses
+- **PostgreSQL Database**: Port 7432 - Complete blockchain data storage
+- **Redis Cache**: Internal only - Caching layer
 
-## Building Docker containers from source
+### Microservices (Full Data Indexing)
+- **Smart Contract Verifier**: Contract verification service
+- **Sig-Provider**: Function signature provider (resolves method names)
+- **Visualizer**: Sol2UML contract visualization
+- **Stats**: Blockchain statistics and analytics service (with separate database)
 
-**Note**: in all below examples, you can use `docker compose` instead of `docker-compose`, if compose v2 plugin is installed in Docker.
+## Quick Start
 
+### Deployment Options
+
+The indexer supports modular deployment for different use cases:
+
+#### 1. Full Stack (Recommended)
+All services including backend, microservices, and statistics:
 ```bash
-cd ./docker-compose
-docker-compose up --build
+docker compose up -d
 ```
 
-**Note**: if you don't need to make backend customizations, you can run `docker-compose up` in order to launch from pre-build backend Docker image. This will be much faster.
-
-This command uses `docker-compose.yml` by-default, which builds the backend of the explorer into the Docker image and runs 9 Docker containers:
-
-- Postgres 14.x database, which will be available at port 7432 on the host machine.
-- Redis database of the latest version.
-- Blockscout backend with api at /api path.
-- Nginx proxy to bind backend, frontend and microservices.
-- Blockscout explorer at http://localhost.
-
-and 5 containers for microservices (written in Rust):
-
-- [Stats](https://github.com/blockscout/blockscout-rs/tree/main/stats) service with a separate Postgres 14 DB.
-- [Sol2UML visualizer](https://github.com/blockscout/blockscout-rs/tree/main/visualizer) service.
-- [Sig-provider](https://github.com/blockscout/blockscout-rs/tree/main/sig-provider) service.
-- [User-ops-indexer](https://github.com/blockscout/blockscout-rs/tree/main/user-ops-indexer) service.
-
-**Note for Linux users**: Linux users need to run the local node on http://0.0.0.0/ rather than http://127.0.0.1/
-
-## Configs for different Ethereum clients
-
-The repo contains built-in configs for different JSON RPC clients without need to build the image.
-
-| __JSON RPC Client__    | __Docker compose launch command__ |
-| -------- | ------- |
-| Erigon  | `docker-compose -f erigon.yml up -d`    |
-| Geth (suitable for Reth as well) | `docker-compose -f geth.yml up -d`     |
-| Geth Clique    | `docker-compose -f geth-clique-consensus.yml up -d`    |
-| Nethermind, OpenEthereum    | `docker-compose -f nethermind.yml up -d`    |
-| Anvil    | `docker-compose -f anvil.yml up -d`    |
-| HardHat network    | `docker-compose -f hardhat-network.yml up -d`    |
-
-- Running only explorer without DB: `docker-compose -f external-db.yml up -d`. In this case, no db container is created. And it assumes that the DB credentials are provided through `DATABASE_URL` environment variable on the backend container.
-- Running explorer with external backend: `docker-compose -f external-backend.yml up -d`
-- Running explorer with external frontend: `FRONT_PROXY_PASS=http://host.docker.internal:3000/ docker-compose -f external-frontend.yml up -d`
-- Running all microservices: `docker-compose -f microservices.yml up -d`
-- Running only explorer without microservices: `docker-compose -f no-services.yml up -d`
-
-All of the configs assume the Ethereum JSON RPC is running at http://localhost:8545.
-
-In order to stop launched containers, run `docker-compose -f config_file.yml down`, replacing `config_file.yml` with the file name of the config which was previously launched.
-
-You can adjust BlockScout environment variables:
-
-- for backend in `./envs/common-blockscout.env`
-- for frontend in `./envs/common-frontend.env`
-- for stats service in `./envs/common-stats.env`
-- for visualizer in `./envs/common-visualizer.env`
-- for user-ops-indexer in `./envs/common-user-ops-indexer.env`
-
-Descriptions of the ENVs are available
-
-- for [backend](https://docs.blockscout.com/setup/env-variables)
-- for [frontend](https://github.com/blockscout/frontend/blob/main/docs/ENVS.md).
-
-## Running Docker containers via Makefile
-
-Prerequisites are the same, as for docker-compose setup.
-
-Start all containers:
-
+#### 2. Minimal Setup
+Only core indexer and database (no microservices):
 ```bash
-cd ./docker
-make start
+docker compose -f docker-compose.base.yml -f docker-compose.backend.yml up -d
 ```
 
-Stop all containers:
-
+#### 3. With Statistics
+Core indexer + statistics service:
 ```bash
-cd ./docker
-make stop
+docker compose -f docker-compose.base.yml -f docker-compose.backend.yml -f docker-compose.stats.yml up -d
 ```
 
-***Note***: Makefile uses the same .env files since it is running docker-compose services inside.
+#### 4. With Microservices
+Core indexer + all microservices (no stats):
+```bash
+docker compose -f docker-compose.base.yml -f docker-compose.backend.yml -f docker-compose.microservices.yml up -d
+```
+
+### Check Status
+
+```bash
+docker compose ps
+```
+
+### View Logs
+
+```bash
+# All services
+docker compose logs -f
+
+# Specific service
+docker logs -f backend
+docker logs -f stats
+```
+
+### Stop Services
+
+```bash
+docker compose down
+```
+
+## API Endpoints
+
+Backend API is accessible at: `http://localhost:4000`
+
+### Example API Calls
+
+```bash
+# General statistics
+curl http://localhost:4000/api/v2/stats | jq
+
+# List blocks
+curl http://localhost:4000/api/v2/blocks | jq
+
+# List transactions
+curl http://localhost:4000/api/v2/transactions | jq
+
+# Get specific block
+curl http://localhost:4000/api/v2/blocks/{block_number} | jq
+
+# Get specific address
+curl http://localhost:4000/api/v2/addresses/{address} | jq
+```
+
+## Configuration
+
+### RPC Endpoints
+
+By default, uses Monad testnet RPC:
+- HTTP: `https://testnet-rpc.monad.xyz`
+- WebSocket: `wss://testnet-rpc.monad.xyz`
+- Chain ID: `10143`
+
+To use a different RPC, set environment variables:
+
+```bash
+export ETHEREUM_JSONRPC_HTTP_URL=https://your-rpc-url
+export ETHEREUM_JSONRPC_WS_URL=wss://your-rpc-url
+docker compose -f docker-compose.monad.yml up -d
+```
+
+### Database
+
+PostgreSQL database settings in `services/db.yml`:
+- User: `blockscout`
+- Password: `ceWb1MeLBEeOIfk65gU8EjF8`
+- Database: `blockscout`
+- Port: `7432` (host) → `5432` (container)
+
+### Backend Settings
+
+Backend configuration is in `envs/common-blockscout.env`
+
+## Troubleshooting
+
+### Rate Limit Errors
+
+Monad testnet public RPC has rate limits. You may see this error in logs:
+
+```
+25/second request limit reached - reduce calls per second or upgrade your account
+```
+
+This is normal. The backend automatically retries. For faster indexing:
+- Run your own Monad node
+- Use a paid RPC service
+
+### Containers Won't Start
+
+```bash
+# Check logs
+docker compose -f docker-compose.monad.yml logs
+
+# Fresh start
+docker compose -f docker-compose.monad.yml down -v
+docker compose -f docker-compose.monad.yml up -d
+```
+
+### Database Issues
+
+```bash
+# Connect to PostgreSQL
+docker exec -it db psql -U blockscout -d blockscout
+
+# Check table count
+\dt
+
+# Exit
+\q
+```
+
+## Technical Details
+
+- **Platform**: Docker Compose
+- **Blockscout Version**: Latest (9.0.2+)
+- **PostgreSQL**: Version 17
+- **Redis**: Alpine
+- **Architecture**: AMD64 emulation for ARM64 (Apple Silicon)
+
+## API Documentation
+
+Blockscout API v2 documentation:
+https://docs.blockscout.com/for-users/api
+
+## Indexed Data
+
+✅ **Blocks** - All block details and metadata
+✅ **Transactions** - Transaction details, input data, gas information
+✅ **Logs** - Event logs and contract events
+✅ **Addresses** - All address information and balances
+✅ **Contracts** - Smart contract information
+✅ **Internal Transactions** - Internal calls and traces
+✅ **Token Transfers** - ERC20/ERC721/ERC1155 transfers
+✅ **NFTs** - NFT metadata, images, and ownership tracking
+✅ **Function Signatures** - Method signature resolution
+✅ **Contract Verification** - Smart contract source code verification
+✅ **Statistics** - Daily transaction counts, charts, trends, and analytics
+
+## Notes
+
+- Initial startup runs database migrations (1-2 minutes)
+- Indexing starts from genesis block and continues to latest blocks
+- Full sync may take time due to rate limits
+- **Only backend + microservices are running**, UI services disabled for performance
+- All blockchain data is accessible via API

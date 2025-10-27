@@ -1,0 +1,21 @@
+# Core backend indexer and API
+services:
+  backend:
+    depends_on:
+      db:
+        condition: service_healthy
+      redis-db:
+        condition: service_started
+    extends:
+      file: ./services/backend.yml
+      service: backend
+    links:
+      - db:database
+    ports:
+      - "4000:4000"
+    environment:
+      # Monad Testnet RPC
+      ETHEREUM_JSONRPC_HTTP_URL: ${ETHEREUM_JSONRPC_HTTP_URL:-https://testnet-rpc.monad.xyz}
+      ETHEREUM_JSONRPC_TRACE_URL: ${ETHEREUM_JSONRPC_TRACE_URL:-https://testnet-rpc.monad.xyz}
+      ETHEREUM_JSONRPC_WS_URL: ${ETHEREUM_JSONRPC_WS_URL:-wss://testnet-rpc.monad.xyz}
+      CHAIN_ID: '10143'

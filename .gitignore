@@ -1,5 +1,12 @@
+# Environment files
 .env*
-blockscout-db-data/
-stats-db-data/
-dets
-logs
+!.env.example
+
+# Database data
+services/blockscout-db-data/
+services/stats-db-data/
+services/redis-data/
+
+# Logs and temporary data
+services/logs/
+services/dets/
