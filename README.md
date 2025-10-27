@@ -85,10 +85,10 @@ curl http://localhost:4000/api/v2/blocks | jq
 curl http://localhost:4000/api/v2/transactions | jq
 
 # Get specific block by number
-curl http://localhost:4000/api/v2/blocks/45716150 | jq
+curl http://localhost:4000/api/v2/blocks/45731997 | jq
 
 # Get specific transaction by hash
-curl http://localhost:4000/api/v2/transactions/0x5c67f487a8647699b3e6567ad3a243772773ea7a89efddd680ed32648f2efaba | jq
+curl http://localhost:4000/api/v2/transactions/0xf1e193ea441daa5d5272b5a31dfb536fc1a06592dd454c37b6d155bf6823dbf7 | jq
 
 # Get address information
 curl http://localhost:4000/api/v2/addresses/0x41Ab79C87CDC385B8e35a63Fe62737998C1553B1 | jq

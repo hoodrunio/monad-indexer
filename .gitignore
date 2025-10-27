@@ -8,5 +8,6 @@ services/stats-db-data/
 services/redis-data/
 data/
 # Logs and temporary data
+logs/
 services/logs/
 services/dets/
