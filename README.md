@@ -78,17 +78,26 @@ Backend API is accessible at: `http://localhost:4000`
 # General statistics
 curl http://localhost:4000/api/v2/stats | jq
 
-# List blocks
+# List recent blocks
 curl http://localhost:4000/api/v2/blocks | jq
 
-# List transactions
+# List recent transactions
 curl http://localhost:4000/api/v2/transactions | jq
 
-# Get specific block
-curl http://localhost:4000/api/v2/blocks/{block_number} | jq
+# Get specific block by number
+curl http://localhost:4000/api/v2/blocks/45716150 | jq
 
-# Get specific address
-curl http://localhost:4000/api/v2/addresses/{address} | jq
+# Get specific transaction by hash
+curl http://localhost:4000/api/v2/transactions/0x5c67f487a8647699b3e6567ad3a243772773ea7a89efddd680ed32648f2efaba | jq
+
+# Get address information
+curl http://localhost:4000/api/v2/addresses/0x41Ab79C87CDC385B8e35a63Fe62737998C1553B1 | jq
+
+# Get address transactions
+curl http://localhost:4000/api/v2/addresses/0x41Ab79C87CDC385B8e35a63Fe62737998C1553B1/transactions | jq
+
+# Get address token balances
+curl http://localhost:4000/api/v2/addresses/0x41Ab79C87CDC385B8e35a63Fe62737998C1553B1/tokens | jq
 ```
 
 ## Configuration

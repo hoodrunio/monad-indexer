@@ -5,9 +5,18 @@ services:
     image: ghcr.io/blockscout/${DOCKER_REPO:-blockscout}:${DOCKER_TAG:-latest}
     pull_policy: always
     restart: always
-    stop_grace_period: 5m
+    stop_grace_period: 30s
+    stop_signal: SIGTERM
     container_name: 'backend'
     command: sh -c "bin/blockscout eval \"Elixir.Explorer.ReleaseTasks.create_and_migrate()\" && bin/blockscout start"
+    init: true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        mode: "non-blocking"
+        max-buffer-size: "4m"
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     env_file:
