@@ -1,0 +1,15 @@
+version: '3.9'
+
+services:
+  proxy:
+    image: nginx:alpine
+    container_name: proxy
+    volumes:
+      - "./proxy/default.conf.template:/etc/nginx/templates/default.conf.template"
+    environment:
+      BACK_PROXY_PASS: ${BACK_PROXY_PASS:-http://backend:4000}
+      FRONT_PROXY_PASS: ${FRONT_PROXY_PASS:-http://frontend:3000}
+    ports:
+      - "80:80"
+      - "8080:8080"
+      - "8081:8081"
