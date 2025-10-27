@@ -3,6 +3,7 @@ version: '3.9'
 services:
   backend:
     image: ghcr.io/blockscout/blockscout:latest
+    platform: linux/amd64
     pull_policy: always
     container_name: backend
     restart: always

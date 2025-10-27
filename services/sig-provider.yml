@@ -3,6 +3,7 @@ version: '3.9'
 services:
   sig-provider:
     image: ghcr.io/blockscout/sig-provider:latest
+    platform: linux/amd64
     pull_policy: always
     container_name: sig-provider
     restart: always

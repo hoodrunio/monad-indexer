@@ -29,6 +29,7 @@ services:
 
   stats:
     image: ghcr.io/blockscout/stats:latest
+    platform: linux/amd64
     pull_policy: always
     container_name: stats
     restart: always
