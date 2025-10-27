@@ -2,11 +2,8 @@ version: '3.9'
 
 services:
   redis-db:
-    image: redis:alpine
-    command: redis-server
+    image: 'redis:alpine'
     container_name: redis-db
+    command: redis-server
     volumes:
-      - redis-data-volume:/data
-
-volumes:
-  redis-data-volume:
+      - ./redis-data:/data

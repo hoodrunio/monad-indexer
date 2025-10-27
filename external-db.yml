@@ -6,50 +6,14 @@ services:
       file: ./services/redis.yml
       service: redis-db
 
-  db-init:
-    extends:
-      file: ./services/db.yml
-      service: db-init
-
-  db:
-    depends_on:
-      db-init:
-        condition: service_completed_successfully
-    extends:
-      file: ./services/db.yml
-      service: db
-
   backend:
     depends_on:
-      - db
       - redis-db
     extends:
       file: ./services/backend.yml
       service: backend
-    build:
-      context: ..
-      dockerfile: ./docker/Dockerfile
-      args:
-        RELEASE_VERSION: 9.0.2
-    links:
-      - db:database
     environment:
-        ETHEREUM_JSONRPC_HTTP_URL: http://host.docker.internal:8545/
-        ETHEREUM_JSONRPC_TRACE_URL: http://host.docker.internal:8545/
-        ETHEREUM_JSONRPC_WS_URL: ws://host.docker.internal:8545/
-        CHAIN_ID: '1337'
-
-  nft_media_handler:
-    depends_on:
-      - backend
-    extends:
-      file: ./services/nft_media_handler.yml
-      service: nft_media_handler
-    build:
-      context: ..
-      dockerfile: ./docker/Dockerfile
-      args:
-        RELEASE_VERSION: 9.0.2
+        ETHEREUM_JSONRPC_VARIANT: 'geth'
 
   visualizer:
     extends:
@@ -91,7 +55,6 @@ services:
 
   user-ops-indexer:
     depends_on:
-      - db
       - backend
     extends:
       file: ./services/user-ops-indexer.yml

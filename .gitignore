@@ -1,1 +1,5 @@
 .env*
+blockscout-db-data/
+stats-db-data/
+dets
+logs

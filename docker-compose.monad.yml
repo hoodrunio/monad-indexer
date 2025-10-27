@@ -1,0 +1,70 @@
+version: '3.9'
+
+services:
+  redis-db:
+    extends:
+      file: ./services/redis.yml
+      service: redis-db
+
+  db-init:
+    extends:
+      file: ./services/db.yml
+      service: db-init
+
+  db:
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    extends:
+      file: ./services/db.yml
+      service: db
+
+  # Microservices for full blockchain data indexing
+  smart-contract-verifier:
+    extends:
+      file: ./services/smart-contract-verifier.yml
+      service: smart-contract-verifier
+
+  sig-provider:
+    extends:
+      file: ./services/sig-provider.yml
+      service: sig-provider
+
+  visualizer:
+    extends:
+      file: ./services/visualizer.yml
+      service: visualizer
+
+  backend:
+    depends_on:
+      db:
+        condition: service_healthy
+      redis-db:
+        condition: service_started
+      smart-contract-verifier:
+        condition: service_started
+      sig-provider:
+        condition: service_started
+      visualizer:
+        condition: service_started
+    extends:
+      file: ./services/backend.yml
+      service: backend
+    links:
+      - db:database
+    ports:
+      - "4000:4000"
+    environment:
+      # Monad Testnet RPC endpoints
+      ETHEREUM_JSONRPC_HTTP_URL: ${ETHEREUM_JSONRPC_HTTP_URL:-https://testnet-rpc.monad.xyz}
+      ETHEREUM_JSONRPC_TRACE_URL: ${ETHEREUM_JSONRPC_TRACE_URL:-https://testnet-rpc.monad.xyz}
+      ETHEREUM_JSONRPC_WS_URL: ${ETHEREUM_JSONRPC_WS_URL:-wss://testnet-rpc.monad.xyz}
+      CHAIN_ID: '10143'
+      # Microservices - Full blockchain data indexing
+      MICROSERVICE_SC_VERIFIER_ENABLED: 'true'
+      MICROSERVICE_SC_VERIFIER_URL: 'http://smart-contract-verifier:8050/'
+      MICROSERVICE_SC_VERIFIER_TYPE: 'sc_verifier'
+      MICROSERVICE_VISUALIZE_SOL2UML_ENABLED: 'true'
+      MICROSERVICE_VISUALIZE_SOL2UML_URL: 'http://visualizer:8050/'
+      MICROSERVICE_SIG_PROVIDER_ENABLED: 'true'
+      MICROSERVICE_SIG_PROVIDER_URL: 'http://sig-provider:8050/'
