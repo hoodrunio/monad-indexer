@@ -185,10 +185,53 @@ https://docs.blockscout.com/for-users/api
 ✅ **Contract Verification** - Smart contract source code verification
 ✅ **Statistics** - Daily transaction counts, charts, trends, and analytics
 
+## Advanced Deployment
+
+### External Database
+
+Use managed PostgreSQL/Redis services:
+
+```bash
+# Set environment variables
+export DATABASE_URL="postgresql://user:pass@host:5432/blockscout"
+export REDIS_URL="redis://host:6379"
+
+# Deploy without local databases
+docker compose -f docker-compose.backend.yml -f docker-compose.external-db.yml up -d
+```
+
+### Kubernetes Ready
+
+The modular structure supports Kubernetes deployment:
+
+1. **Stateful Services**: `db`, `stats-db`, `redis-db` → StatefulSets
+2. **Stateless Services**: `backend`, microservices → Deployments
+3. **Horizontal Scaling**: Scale microservices independently
+4. **Storage**: Use PersistentVolumeClaims for databases
+
+Example service separation:
+```yaml
+# Backend: High CPU/Memory for indexing
+# Microservices: Lower resources, can scale horizontally
+# Databases: Persistent storage with backups
+```
+
+### Docker Compose Files Reference
+
+| File | Purpose | Services |
+|------|---------|----------|
+| `docker-compose.yml` | Full stack (includes all below) | All |
+| `docker-compose.base.yml` | Core infrastructure | Databases, Redis |
+| `docker-compose.backend.yml` | Indexer and API | Backend only |
+| `docker-compose.microservices.yml` | Enhanced features | Verifier, Sig-provider, Visualizer |
+| `docker-compose.stats.yml` | Analytics | Stats service + DB |
+| `docker-compose.external-db.yml` | External DB config | Config overrides |
+
 ## Notes
 
 - Initial startup runs database migrations (1-2 minutes)
 - Indexing starts from genesis block and continues to latest blocks
 - Full sync may take time due to rate limits
-- **Only backend + microservices are running**, UI services disabled for performance
+- Modular architecture enables flexible deployment strategies
 - All blockchain data is accessible via API
+- Ready for Kubernetes and cloud-native deployments

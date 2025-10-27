@@ -18,21 +18,3 @@ services:
       file: ./services/visualizer.yml
       service: visualizer
 
-  # Backend with microservices enabled
-  backend:
-    depends_on:
-      smart-contract-verifier:
-        condition: service_started
-      sig-provider:
-        condition: service_started
-      visualizer:
-        condition: service_started
-    environment:
-      # Enable microservices
-      MICROSERVICE_SC_VERIFIER_ENABLED: 'true'
-      MICROSERVICE_SC_VERIFIER_URL: 'http://smart-contract-verifier:8050/'
-      MICROSERVICE_SC_VERIFIER_TYPE: 'sc_verifier'
-      MICROSERVICE_VISUALIZE_SOL2UML_ENABLED: 'true'
-      MICROSERVICE_VISUALIZE_SOL2UML_URL: 'http://visualizer:8050/'
-      MICROSERVICE_SIG_PROVIDER_ENABLED: 'true'
-      MICROSERVICE_SIG_PROVIDER_URL: 'http://sig-provider:8050/'
