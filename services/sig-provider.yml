@@ -7,3 +7,5 @@ services:
     platform: linux/amd64
     restart: always
     container_name: 'sig-provider'
+    env_file:
+      - ../envs/common-sig-provider.env
