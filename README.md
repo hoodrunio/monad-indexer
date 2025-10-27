@@ -6,13 +6,14 @@ Full-featured blockchain indexer and API service for Monad testnet, powered by B
 
 ### Core Services
 - **Backend (Indexer + API)**: Port 4000 - Indexes blocks, transactions, logs, addresses
+- **Frontend (Web UI)**: Port 3000 - Next.js web interface for blockchain explorer
 - **PostgreSQL Database**: Port 7432 - Complete blockchain data storage
 - **Redis Cache**: Internal only - Caching layer
 
 ### Microservices (Full Data Indexing)
-- **Smart Contract Verifier**: Contract verification service
-- **Sig-Provider**: Function signature provider (resolves method names)
-- **Visualizer**: Sol2UML contract visualization
+- **Smart Contract Verifier**: Port 8051 - Contract verification service
+- **Sig-Provider**: Port 8050 - Function signature provider (resolves method names)
+- **Visualizer**: Port 8050 - Sol2UML contract visualization
 - **Stats**: Blockchain statistics and analytics service (with separate database)
 
 ## Quick Start

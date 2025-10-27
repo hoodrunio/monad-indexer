@@ -1,0 +1,6 @@
+# Frontend web application
+services:
+  frontend:
+    extends:
+      file: ./services/frontend.yml
+      service: frontend

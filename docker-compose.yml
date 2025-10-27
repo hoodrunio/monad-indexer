@@ -11,5 +11,6 @@
 include:
   - docker-compose.base.yml
   - docker-compose.backend.yml
+  - docker-compose.frontend.yml
   - docker-compose.microservices.yml
   - docker-compose.stats.yml
