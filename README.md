@@ -93,19 +93,32 @@ curl http://localhost:4000/api/v2/addresses/{address} | jq
 
 ## Configuration
 
-### RPC Endpoints
+**For detailed configuration options, see [CONFIG.md](CONFIG.md)**
+
+### Quick Configuration
+
+#### RPC Endpoints
 
 By default, uses Monad testnet RPC:
 - HTTP: `https://testnet-rpc.monad.xyz`
 - WebSocket: `wss://testnet-rpc.monad.xyz`
 - Chain ID: `10143`
 
-To use a different RPC, set environment variables:
+To use a different RPC, edit `.env`:
 
 ```bash
-export ETHEREUM_JSONRPC_HTTP_URL=https://your-rpc-url
-export ETHEREUM_JSONRPC_WS_URL=wss://your-rpc-url
-docker compose -f docker-compose.monad.yml up -d
+ETHEREUM_JSONRPC_HTTP_URL=https://your-rpc-url
+ETHEREUM_JSONRPC_WS_URL=wss://your-rpc-url
+```
+
+#### Enable/Disable Microservices
+
+Edit `.env`:
+
+```bash
+MICROSERVICE_SC_VERIFIER_ENABLED=true
+MICROSERVICE_VISUALIZE_SOL2UML_ENABLED=true
+MICROSERVICE_SIG_PROVIDER_ENABLED=true
 ```
 
 ### Database
