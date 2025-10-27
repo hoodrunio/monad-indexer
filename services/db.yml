@@ -4,14 +4,15 @@ services:
   db-init:
     image: postgres:14
     container_name: postgres-init
-    command: bash -c "psql -U $${POSTGRES_USER} -d postgres -c 'CREATE DATABASE IF NOT EXISTS blockscout;'"
+    command: bash -c "until pg_isready -h db -U postgres; do sleep 1; done && psql -h db -U postgres -d postgres -c 'CREATE DATABASE blockscout;' || true"
     environment:
       POSTGRES_HOST: 'db'
       POSTGRES_DB: 'postgres'
       POSTGRES_USER: 'postgres'
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
-    volumes:
-      - blockscout-db-data:/var/lib/postgresql/data
+      PGPASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    depends_on:
+      - db
 
   db:
     image: postgres:14
