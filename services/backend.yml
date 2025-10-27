@@ -12,9 +12,9 @@ services:
     env_file:
       -  ../envs/common-blockscout.env
     environment:
-      ETHEREUM_JSONRPC_HTTP_URL: ${ETHEREUM_JSONRPC_HTTP_URL}
-      ETHEREUM_JSONRPC_TRACE_URL: ${ETHEREUM_JSONRPC_TRACE_URL}
-      ETHEREUM_JSONRPC_WS_URL: ${ETHEREUM_JSONRPC_WS_URL}
+      ETHEREUM_JSONRPC_HTTP_URL: ${ETHEREUM_JSONRPC_HTTP_URL:-https://testnet-rpc.monad.xyz}
+      ETHEREUM_JSONRPC_TRACE_URL: ${ETHEREUM_JSONRPC_TRACE_URL:-https://testnet-rpc.monad.xyz}
+      ETHEREUM_JSONRPC_WS_URL: ${ETHEREUM_JSONRPC_WS_URL:-wss://testnet-rpc.monad.xyz}
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-changeme}@db:5432/blockscout?ssl=false
       ECTO_USE_SSL: 'false'
     ports:
