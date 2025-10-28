@@ -1,0 +1,80 @@
+{{- if and .Values.monitoring.enabled .Values.monitoring.prometheus.servicemonitor.enabled }}
+---
+# Backend ServiceMonitor
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-backend
+  labels:
+    {{- include "monad-indexer.backend.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "monad-indexer.backend.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: http
+      interval: {{ .Values.monitoring.prometheus.servicemonitor.interval }}
+      path: /metrics
+      scrapeTimeout: 10s
+
+{{- if .Values.postgresql.enabled }}
+---
+# PostgreSQL ServiceMonitor (CloudNativePG provides metrics on port 9187)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-postgresql
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  selector:
+    matchLabels:
+      cnpg.io/cluster: {{ include "monad-indexer.fullname" . }}-postgresql
+  endpoints:
+    - port: metrics
+      interval: {{ .Values.monitoring.prometheus.servicemonitor.interval }}
+      path: /metrics
+{{- end }}
+
+{{- if and .Values.postgresql.enabled .Values.postgresql.pooler.enabled }}
+---
+# PgBouncer ServiceMonitor
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-pgbouncer
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pgbouncer
+spec:
+  selector:
+    matchLabels:
+      cnpg.io/poolerName: {{ include "monad-indexer.fullname" . }}-pooler
+  endpoints:
+    - port: metrics
+      interval: {{ .Values.monitoring.prometheus.servicemonitor.interval }}
+      path: /metrics
+{{- end }}
+
+{{- if .Values.redis.metrics.enabled }}
+---
+# Redis ServiceMonitor
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-redis
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  endpoints:
+    - port: http-metrics
+      interval: {{ .Values.monitoring.prometheus.servicemonitor.interval }}
+      path: /metrics
+{{- end }}
+{{- end }}

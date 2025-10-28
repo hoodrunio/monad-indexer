@@ -1,0 +1,110 @@
+# Staging Environment Configuration
+# Production-like but smaller scale
+
+backend:
+  replicaCount: 2
+
+  resources:
+    requests:
+      cpu: "1000m"
+      memory: "2Gi"
+    limits:
+      memory: "4Gi"
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+  env:
+    LOG_LEVEL: "info"
+
+# Microservices - enabled with moderate resources
+microservices:
+  smart-contract-verifier:
+    enabled: true
+    replicaCount: 2
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 3
+  sig-provider:
+    enabled: true
+    replicaCount: 1
+  visualizer:
+    enabled: true
+    replicaCount: 1
+  stats:
+    enabled: true
+    replicaCount: 1
+
+# PostgreSQL - HA setup
+postgresql:
+  replicaCount: 3
+
+  config:
+    sharedBuffers: "4GB"
+    effectiveCacheSize: "12GB"
+    maintenanceWorkMem: "1GB"
+    maxConnections: 300
+
+  primary:
+    persistence:
+      size: 200Gi
+    resources:
+      requests:
+        cpu: "2000m"
+        memory: "8Gi"
+      limits:
+        memory: "16Gi"
+
+  backup:
+    enabled: true
+    retentionPolicy: "7d"
+
+  pooler:
+    enabled: true
+    replicaCount: 2
+
+# Redis - HA setup
+redis:
+  replica:
+    replicaCount: 2
+  sentinel:
+    enabled: true
+  master:
+    persistence:
+      size: 20Gi
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        memory: "2Gi"
+
+# Monitoring - enabled
+monitoring:
+  enabled: true
+
+# Network policies - enabled
+networkPolicy:
+  enabled: true
+
+# Ingress
+ingress:
+  enabled: true
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-staging"
+  hosts:
+    - host: indexer-staging.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: indexer-staging-tls
+      hosts:
+        - indexer-staging.example.com

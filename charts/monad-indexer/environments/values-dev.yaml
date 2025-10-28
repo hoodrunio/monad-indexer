@@ -1,0 +1,97 @@
+# Development Environment Configuration
+# Minimal resources, single replicas, relaxed settings
+
+backend:
+  replicaCount: 1
+
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      memory: "2Gi"
+
+  autoscaling:
+    enabled: false
+
+  podDisruptionBudget:
+    enabled: false
+
+  env:
+    INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER: "true"
+    LOG_LEVEL: "debug"
+
+# Disable microservices in dev (optional)
+microservices:
+  smart-contract-verifier:
+    enabled: true
+    replicaCount: 1
+    autoscaling:
+      enabled: false
+  sig-provider:
+    enabled: false
+  visualizer:
+    enabled: false
+  stats:
+    enabled: false
+
+# PostgreSQL - minimal for dev
+postgresql:
+  replicaCount: 1
+
+  config:
+    sharedBuffers: "2GB"
+    effectiveCacheSize: "6GB"
+    maintenanceWorkMem: "512MB"
+    maxConnections: 200
+
+  primary:
+    persistence:
+      size: 100Gi
+    resources:
+      requests:
+        cpu: "1000m"
+        memory: "4Gi"
+      limits:
+        memory: "8Gi"
+
+  backup:
+    enabled: false
+
+  pooler:
+    enabled: true
+    replicaCount: 1
+
+# Redis - minimal
+redis:
+  replica:
+    replicaCount: 0
+  sentinel:
+    enabled: false
+  master:
+    persistence:
+      size: 10Gi
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "512Mi"
+      limits:
+        memory: "1Gi"
+
+# Monitoring - disabled in dev
+monitoring:
+  enabled: false
+
+# Network policies - disabled for easier debugging
+networkPolicy:
+  enabled: false
+
+# Ingress - optional
+ingress:
+  enabled: true
+  hosts:
+    - host: indexer-dev.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []

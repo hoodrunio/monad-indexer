@@ -1,0 +1,219 @@
+{{- if .Values.postgresql.enabled }}
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-postgresql
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  instances: {{ .Values.postgresql.replicaCount }}
+
+  imageName: {{ .Values.postgresql.image.registry }}/{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}
+
+  # Bootstrap configuration
+  bootstrap:
+    initdb:
+      database: {{ .Values.postgresql.auth.database }}
+      owner: {{ .Values.postgresql.auth.username }}
+      {{- if .Values.postgresql.initdb.postInitSQL }}
+      postInitSQL:
+        {{- toYaml .Values.postgresql.initdb.postInitSQL | nindent 8 }}
+      {{- end }}
+
+  # PostgreSQL configuration optimized for high-throughput blockchain indexing (5000+ TPS)
+  postgresql:
+    parameters:
+      # ============================================================
+      # MEMORY CONFIGURATION
+      # ============================================================
+      shared_buffers: {{ .Values.postgresql.config.sharedBuffers | quote }}
+      effective_cache_size: {{ .Values.postgresql.config.effectiveCacheSize | quote }}
+      maintenance_work_mem: {{ .Values.postgresql.config.maintenanceWorkMem | quote }}
+      work_mem: {{ .Values.postgresql.config.workMem | quote }}
+
+      # ============================================================
+      # WAL OPTIMIZATION FOR WRITE-HEAVY WORKLOADS
+      # ============================================================
+      wal_level: replica
+      wal_buffers: {{ .Values.postgresql.config.walBuffers | quote }}
+      min_wal_size: {{ .Values.postgresql.config.minWalSize | quote }}
+      max_wal_size: {{ .Values.postgresql.config.maxWalSize | quote }}
+      wal_compression: "on"
+      wal_keep_size: "1GB"
+
+      # CRITICAL: Async commit for blockchain indexer (1.5x performance boost)
+      synchronous_commit: {{ .Values.postgresql.config.synchronousCommit | quote }}
+      commit_delay: "100"
+      wal_writer_delay: "200ms"
+
+      # ============================================================
+      # CHECKPOINT CONFIGURATION
+      # ============================================================
+      checkpoint_timeout: {{ .Values.postgresql.config.checkpointTimeout | quote }}
+      checkpoint_completion_target: {{ .Values.postgresql.config.checkpointCompletionTarget | quote }}
+      max_wal_senders: {{ .Values.postgresql.config.maxWalSenders }}
+
+      # ============================================================
+      # CONNECTION SETTINGS
+      # ============================================================
+      max_connections: {{ .Values.postgresql.config.maxConnections | quote }}
+      superuser_reserved_connections: "5"
+
+      # ============================================================
+      # QUERY PLANNER (for NVMe SSD)
+      # ============================================================
+      random_page_cost: {{ .Values.postgresql.config.randomPageCost | quote }}
+      effective_io_concurrency: {{ .Values.postgresql.config.effectiveIoConcurrency | quote }}
+      seq_page_cost: "1.0"
+
+      # ============================================================
+      # INDEXING AND STATISTICS
+      # ============================================================
+      default_statistics_target: "100"
+      autovacuum: "on"
+
+      # Aggressive autovacuum for high churn
+      autovacuum_max_workers: "4"
+      autovacuum_naptime: "10s"
+      autovacuum_vacuum_scale_factor: "0.05"
+      autovacuum_analyze_scale_factor: "0.05"
+
+      # ============================================================
+      # PARALLEL QUERIES
+      # ============================================================
+      max_worker_processes: "8"
+      max_parallel_workers_per_gather: "4"
+      max_parallel_workers: "8"
+      max_parallel_maintenance_workers: "4"
+
+      # ============================================================
+      # REPLICATION
+      # ============================================================
+      hot_standby: "on"
+      max_standby_streaming_delay: "30s"
+      hot_standby_feedback: "on"
+      synchronous_standby_names: ""
+
+      # ============================================================
+      # LOGGING
+      # ============================================================
+      log_min_duration_statement: {{ .Values.postgresql.config.logMinDurationStatement | quote }}
+      log_line_prefix: "%t [%p]: [%l-1] user=%u,db=%d,app=%a,client=%h "
+      log_checkpoints: "on"
+      log_connections: {{ .Values.postgresql.config.logConnections | quote }}
+      log_disconnections: {{ .Values.postgresql.config.logDisconnections | quote }}
+      log_lock_waits: "on"
+      log_temp_files: "0"
+      log_autovacuum_min_duration: "0"
+
+      # ============================================================
+      # BLOCKCHAIN-SPECIFIC OPTIMIZATIONS
+      # ============================================================
+      max_locks_per_transaction: "256"
+      temp_buffers: "128MB"
+
+    {{- if .Values.postgresql.config.additionalParameters }}
+    {{- range $key, $value := .Values.postgresql.config.additionalParameters }}
+      {{ $key }}: {{ $value | quote }}
+    {{- end }}
+    {{- end }}
+
+  # Storage configuration
+  storage:
+    {{- if .Values.postgresql.primary.persistence.storageClass }}
+    storageClass: {{ .Values.postgresql.primary.persistence.storageClass }}
+    {{- end }}
+    size: {{ .Values.postgresql.primary.persistence.size }}
+    {{- if .Values.postgresql.primary.persistence.pvcTemplate }}
+    pvcTemplate:
+      {{- toYaml .Values.postgresql.primary.persistence.pvcTemplate | nindent 6 }}
+    {{- end }}
+
+  # Backup configuration
+  {{- if .Values.postgresql.backup.enabled }}
+  backup:
+    {{- if .Values.postgresql.backup.barmanObjectStore }}
+    barmanObjectStore:
+      destinationPath: {{ .Values.postgresql.backup.barmanObjectStore.destinationPath }}
+      {{- if .Values.postgresql.backup.barmanObjectStore.s3Credentials }}
+      s3Credentials:
+        accessKeyId:
+          name: {{ .Values.postgresql.backup.barmanObjectStore.s3Credentials.accessKeyId.name }}
+          key: {{ .Values.postgresql.backup.barmanObjectStore.s3Credentials.accessKeyId.key }}
+        secretAccessKey:
+          name: {{ .Values.postgresql.backup.barmanObjectStore.s3Credentials.secretAccessKey.name }}
+          key: {{ .Values.postgresql.backup.barmanObjectStore.s3Credentials.secretAccessKey.key }}
+      {{- end }}
+      wal:
+        compression: {{ .Values.postgresql.backup.barmanObjectStore.wal.compression }}
+        {{- if .Values.postgresql.backup.barmanObjectStore.wal.maxParallel }}
+        maxParallel: {{ .Values.postgresql.backup.barmanObjectStore.wal.maxParallel }}
+        {{- end }}
+    {{- end }}
+    retentionPolicy: {{ .Values.postgresql.backup.retentionPolicy | quote }}
+  {{- end }}
+
+  # High availability - replication slots
+  {{- if .Values.postgresql.replicationSlots.enabled }}
+  replicationSlots:
+    highAvailability:
+      enabled: true
+    {{- if .Values.postgresql.replicationSlots.updateInterval }}
+    updateInterval: {{ .Values.postgresql.replicationSlots.updateInterval }}
+    {{- end }}
+  {{- end }}
+
+  # Automatic failover configuration
+  {{- if .Values.postgresql.failover }}
+  failoverDelay: {{ .Values.postgresql.failover.delay | default 0 }}
+  switchoverDelay: {{ .Values.postgresql.failover.switchoverDelay | default 60 }}
+  {{- end }}
+
+  # Monitoring
+  {{- if .Values.postgresql.monitoring.enabled }}
+  monitoring:
+    enablePodMonitor: {{ .Values.postgresql.monitoring.enablePodMonitor }}
+    {{- if .Values.postgresql.monitoring.customQueriesConfigMap }}
+    customQueriesConfigMap:
+      - name: {{ .Values.postgresql.monitoring.customQueriesConfigMap }}
+        key: {{ .Values.postgresql.monitoring.customQueriesConfigMapKey | default "queries.yaml" }}
+    {{- end }}
+  {{- end }}
+
+  # Resource configuration
+  {{- if .Values.postgresql.primary.resources }}
+  resources:
+    {{- toYaml .Values.postgresql.primary.resources | nindent 4 }}
+  {{- end }}
+
+  # Pod anti-affinity for high availability
+  {{- if .Values.postgresql.affinity }}
+  affinity:
+    {{- toYaml .Values.postgresql.affinity | nindent 4 }}
+  {{- end }}
+
+  # Node selector
+  {{- if .Values.postgresql.nodeSelector }}
+  nodeSelector:
+    {{- toYaml .Values.postgresql.nodeSelector | nindent 4 }}
+  {{- end }}
+
+  # Tolerations
+  {{- if .Values.postgresql.tolerations }}
+  tolerations:
+    {{- toYaml .Values.postgresql.tolerations | nindent 4 }}
+  {{- end }}
+
+  # Pod security context
+  {{- if .Values.postgresql.podSecurityContext }}
+  podSecurityContext:
+    {{- toYaml .Values.postgresql.podSecurityContext | nindent 4 }}
+  {{- end }}
+
+  # Container security context
+  {{- if .Values.postgresql.containerSecurityContext }}
+  containerSecurityContext:
+    {{- toYaml .Values.postgresql.containerSecurityContext | nindent 4 }}
+  {{- end }}
+{{- end }}

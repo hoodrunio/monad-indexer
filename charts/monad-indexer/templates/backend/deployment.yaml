@@ -1,0 +1,277 @@
+{{- if .Values.backend.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-backend
+  labels:
+    {{- include "monad-indexer.backend.labels" . | nindent 4 }}
+  {{- if .Values.backend.annotations }}
+  annotations:
+    {{- toYaml .Values.backend.annotations | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if not .Values.backend.autoscaling.enabled }}
+  replicas: {{ .Values.backend.replicaCount }}
+  {{- end }}
+
+  {{- if .Values.backend.updateStrategy }}
+  strategy:
+    {{- toYaml .Values.backend.updateStrategy | nindent 4 }}
+  {{- end }}
+
+  selector:
+    matchLabels:
+      {{- include "monad-indexer.backend.selectorLabels" . | nindent 6 }}
+
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/backend/configmap.yaml") . | sha256sum }}
+        {{- if .Values.backend.podAnnotations }}
+        {{- toYaml .Values.backend.podAnnotations | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "monad-indexer.backend.selectorLabels" . | nindent 8 }}
+        {{- if .Values.backend.podLabels }}
+        {{- toYaml .Values.backend.podLabels | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "monad-indexer.imagePullSecrets" . | nindent 6 }}
+
+      serviceAccountName: {{ include "monad-indexer.serviceAccountName" . }}
+
+      {{- if .Values.backend.podSecurityContext }}
+      securityContext:
+        {{- toYaml .Values.backend.podSecurityContext | nindent 8 }}
+      {{- end }}
+
+      {{- if .Values.backend.initContainers }}
+      initContainers:
+        {{- if .Values.backend.initContainers.dbMigration.enabled }}
+        - name: db-migration
+          image: {{ include "monad-indexer.backend.image" . }}
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Running database migrations..."
+              bin/blockscout eval "Elixir.Explorer.ReleaseTasks.create_and_migrate()"
+          env:
+            {{- include "monad-indexer.backend.env" . | nindent 12 }}
+          {{- if .Values.backend.initContainers.dbMigration.resources }}
+          resources:
+            {{- toYaml .Values.backend.initContainers.dbMigration.resources | nindent 12 }}
+          {{- end }}
+        {{- end }}
+
+        {{- if .Values.backend.initContainers.waitForPostgres.enabled }}
+        - name: wait-for-postgres
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z {{ include "monad-indexer.fullname" . }}-pooler-rw 5432; do
+                echo "Waiting for PostgreSQL..."
+                sleep 2
+              done
+              echo "PostgreSQL is ready"
+          {{- if .Values.backend.initContainers.waitForPostgres.resources }}
+          resources:
+            {{- toYaml .Values.backend.initContainers.waitForPostgres.resources | nindent 12 }}
+          {{- end }}
+        {{- end }}
+
+        {{- if .Values.backend.initContainers.waitForRedis.enabled }}
+        - name: wait-for-redis
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z {{ include "monad-indexer.fullname" . }}-redis-master 6379; do
+                echo "Waiting for Redis..."
+                sleep 2
+              done
+              echo "Redis is ready"
+          {{- if .Values.backend.initContainers.waitForRedis.resources }}
+          resources:
+            {{- toYaml .Values.backend.initContainers.waitForRedis.resources | nindent 12 }}
+          {{- end }}
+        {{- end }}
+
+        {{- if .Values.backend.extraInitContainers }}
+        {{- toYaml .Values.backend.extraInitContainers | nindent 8 }}
+        {{- end }}
+      {{- end }}
+
+      containers:
+        - name: backend
+          image: {{ include "monad-indexer.backend.image" . }}
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+
+          {{- if .Values.backend.command }}
+          command:
+            {{- toYaml .Values.backend.command | nindent 12 }}
+          {{- end }}
+
+          {{- if .Values.backend.args }}
+          args:
+            {{- toYaml .Values.backend.args | nindent 12 }}
+          {{- end }}
+
+          ports:
+            - name: http
+              containerPort: {{ .Values.backend.service.port }}
+              protocol: TCP
+
+          env:
+            {{- include "monad-indexer.backend.env" . | nindent 12 }}
+
+          {{- if .Values.backend.envFrom }}
+          envFrom:
+            {{- toYaml .Values.backend.envFrom | nindent 12 }}
+          {{- end }}
+
+          {{- if .Values.backend.livenessProbe.enabled }}
+          livenessProbe:
+            {{- if .Values.backend.livenessProbe.httpGet }}
+            httpGet:
+              {{- toYaml .Values.backend.livenessProbe.httpGet | nindent 14 }}
+            {{- end }}
+            initialDelaySeconds: {{ .Values.backend.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.backend.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.backend.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.backend.livenessProbe.failureThreshold }}
+            successThreshold: {{ .Values.backend.livenessProbe.successThreshold }}
+          {{- end }}
+
+          {{- if .Values.backend.readinessProbe.enabled }}
+          readinessProbe:
+            {{- if .Values.backend.readinessProbe.httpGet }}
+            httpGet:
+              {{- toYaml .Values.backend.readinessProbe.httpGet | nindent 14 }}
+            {{- end }}
+            initialDelaySeconds: {{ .Values.backend.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.backend.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.backend.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.backend.readinessProbe.failureThreshold }}
+            successThreshold: {{ .Values.backend.readinessProbe.successThreshold }}
+          {{- end }}
+
+          {{- if .Values.backend.startupProbe.enabled }}
+          startupProbe:
+            {{- if .Values.backend.startupProbe.httpGet }}
+            httpGet:
+              {{- toYaml .Values.backend.startupProbe.httpGet | nindent 14 }}
+            {{- end }}
+            initialDelaySeconds: {{ .Values.backend.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.backend.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.backend.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.backend.startupProbe.failureThreshold }}
+            successThreshold: {{ .Values.backend.startupProbe.successThreshold }}
+          {{- end }}
+
+          {{- if .Values.backend.resources }}
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
+          {{- end }}
+
+          {{- if .Values.backend.containerSecurityContext }}
+          securityContext:
+            {{- toYaml .Values.backend.containerSecurityContext | nindent 12 }}
+          {{- end }}
+
+          {{- if .Values.backend.lifecycle }}
+          lifecycle:
+            {{- toYaml .Values.backend.lifecycle | nindent 12 }}
+          {{- end }}
+
+          volumeMounts:
+            {{- if .Values.backend.persistence.enabled }}
+            - name: data
+              mountPath: {{ .Values.backend.persistence.mountPath }}
+            {{- end }}
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /app/.cache
+            {{- if .Values.backend.extraVolumeMounts }}
+            {{- toYaml .Values.backend.extraVolumeMounts | nindent 12 }}
+            {{- end }}
+
+      volumes:
+        {{- if .Values.backend.persistence.enabled }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "monad-indexer.fullname" . }}-backend-data
+        {{- end }}
+        - name: tmp
+          emptyDir: {}
+        - name: cache
+          emptyDir: {}
+        {{- if .Values.backend.extraVolumes }}
+        {{- toYaml .Values.backend.extraVolumes | nindent 8 }}
+        {{- end }}
+
+      {{- if .Values.backend.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.backend.nodeSelector | nindent 8 }}
+      {{- end }}
+
+      {{- if .Values.backend.affinity }}
+      affinity:
+        {{- toYaml .Values.backend.affinity | nindent 8 }}
+      {{- end }}
+
+      {{- if .Values.backend.tolerations }}
+      tolerations:
+        {{- toYaml .Values.backend.tolerations | nindent 8 }}
+      {{- end }}
+
+      {{- if .Values.backend.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml .Values.backend.topologySpreadConstraints | nindent 8 }}
+      {{- end }}
+{{- end }}
+
+{{/*
+Helper template for backend environment variables
+*/}}
+{{- define "monad-indexer.backend.env" -}}
+- name: DATABASE_URL
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.backend.existingSecret | default (printf "%s-backend-secret" (include "monad-indexer.fullname" .)) }}
+      key: database-url
+- name: PORT
+  value: {{ .Values.backend.service.port | quote }}
+- name: ETHEREUM_JSONRPC_HTTP_URL
+  value: {{ .Values.backend.env.ETHEREUM_JSONRPC_HTTP_URL | quote }}
+- name: ETHEREUM_JSONRPC_TRACE_URL
+  value: {{ .Values.backend.env.ETHEREUM_JSONRPC_TRACE_URL | default .Values.backend.env.ETHEREUM_JSONRPC_HTTP_URL | quote }}
+- name: ETHEREUM_JSONRPC_WS_URL
+  value: {{ .Values.backend.env.ETHEREUM_JSONRPC_WS_URL | quote }}
+- name: CHAIN_ID
+  value: {{ .Values.backend.env.CHAIN_ID | quote }}
+- name: POOL_SIZE
+  value: {{ .Values.backend.env.POOL_SIZE | default "80" | quote }}
+- name: POOL_SIZE_API
+  value: {{ .Values.backend.env.POOL_SIZE_API | default "10" | quote }}
+{{- if .Values.redis.enabled }}
+- name: REDIS_URL
+  value: redis://{{ include "monad-indexer.fullname" . }}-redis-master:6379
+{{- end }}
+{{- if .Values.backend.env.INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER }}
+- name: INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER
+  value: {{ .Values.backend.env.INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER | quote }}
+{{- end }}
+{{- if .Values.backend.env.INDEXER_MEMORY_LIMIT }}
+- name: INDEXER_MEMORY_LIMIT
+  value: {{ .Values.backend.env.INDEXER_MEMORY_LIMIT | quote }}
+{{- end }}
+{{- if .Values.backend.extraEnv }}
+{{- toYaml .Values.backend.extraEnv }}
+{{- end }}
+{{- end -}}

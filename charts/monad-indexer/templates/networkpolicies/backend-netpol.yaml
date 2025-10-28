@@ -1,0 +1,78 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-backend
+  labels:
+    {{- include "monad-indexer.backend.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "monad-indexer.backend.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow from ingress controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 4000
+  egress:
+    # Allow to PostgreSQL
+    - to:
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: {{ include "monad-indexer.fullname" . }}-postgresql
+      ports:
+        - protocol: TCP
+          port: 5432
+    # Allow to PgBouncer
+    - to:
+        - podSelector:
+            matchLabels:
+              cnpg.io/poolerName: {{ include "monad-indexer.fullname" . }}-pooler
+      ports:
+        - protocol: TCP
+          port: 5432
+    # Allow to Redis
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    # Allow to microservices
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: microservice
+      ports:
+        - protocol: TCP
+          port: 8050
+        - protocol: TCP
+          port: 8051
+    # Allow external RPC (Monad testnet)
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+    # Allow DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kube-system
+        - podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+{{- end }}

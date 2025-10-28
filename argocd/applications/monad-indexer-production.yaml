@@ -1,0 +1,55 @@
+# Main Application for Production Environment
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monad-indexer-production
+  namespace: argocd
+  annotations:
+    # Notifications
+    notifications.argoproj.io/subscribe.on-health-degraded.slack: prod-alerts
+    notifications.argoproj.io/subscribe.on-sync-failed.slack: prod-alerts
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: monad-indexer
+
+  source:
+    repoURL: https://github.com/your-org/monad-indexer-gitops
+    targetRevision: stable  # Use stable branch for production
+    path: charts/monad-indexer
+    helm:
+      valueFiles:
+        - values.yaml
+        - environments/values-production.yaml
+      # Parameters can override specific values
+      parameters: []
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monad-indexer-prod
+
+  syncPolicy:
+    # Manual sync for production (review changes before deploy)
+    automated: null
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  # Ignore differences for HPA-managed replicas
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      name: monad-indexer-backend
+      jsonPointers:
+        - /spec/replicas
+
+  # Health assessment
+  # (CloudNativePG custom health checks are automatic)

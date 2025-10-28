@@ -1,0 +1,66 @@
+# ArgoCD Project for access control and organization
+
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: monad-indexer
+  namespace: argocd
+spec:
+  description: Monad Blockchain Indexer Project
+
+  # Source repositories
+  sourceRepos:
+    - 'https://github.com/your-org/monad-indexer-gitops'
+    - 'https://charts.bitnami.com/bitnami'
+    - 'https://github.com/cloudnative-pg/charts'
+
+  # Allowed destinations
+  destinations:
+    - namespace: 'monad-*'
+      server: https://kubernetes.default.svc
+    - namespace: monitoring
+      server: https://kubernetes.default.svc
+    - namespace: argocd
+      server: https://kubernetes.default.svc
+
+  # Cluster resource whitelist
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+    - group: 'rbac.authorization.k8s.io'
+      kind: ClusterRole
+    - group: 'rbac.authorization.k8s.io'
+      kind: ClusterRoleBinding
+    - group: 'storage.k8s.io'
+      kind: StorageClass
+    - group: 'apiextensions.k8s.io'
+      kind: CustomResourceDefinition
+
+  # Namespace resource whitelist (allow all in allowed namespaces)
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'
+
+  # Role bindings
+  roles:
+    - name: read-only
+      description: Read-only access
+      policies:
+        - p, proj:monad-indexer:read-only, applications, get, monad-indexer/*, allow
+      groups:
+        - readonly-team
+
+    - name: developer
+      description: Developer access (can sync dev apps)
+      policies:
+        - p, proj:monad-indexer:developer, applications, get, monad-indexer/*, allow
+        - p, proj:monad-indexer:developer, applications, sync, monad-indexer/dev-*, allow
+      groups:
+        - dev-team
+
+    - name: admin
+      description: Full access
+      policies:
+        - p, proj:monad-indexer:admin, applications, *, monad-indexer/*, allow
+      groups:
+        - platform-team

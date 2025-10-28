@@ -1,0 +1,12 @@
+{{- if .Values.backend.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-backend-config
+  labels:
+    {{- include "monad-indexer.backend.labels" . | nindent 4 }}
+data:
+  {{- if .Values.backend.config }}
+  {{- toYaml .Values.backend.config | nindent 2 }}
+  {{- end }}
+{{- end }}

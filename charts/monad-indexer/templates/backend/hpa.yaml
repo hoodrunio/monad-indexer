@@ -1,0 +1,39 @@
+{{- if and .Values.backend.enabled .Values.backend.autoscaling.enabled }}
+apiVersion: {{ include "monad-indexer.hpa.apiVersion" . }}
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-backend
+  labels:
+    {{- include "monad-indexer.backend.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "monad-indexer.fullname" . }}-backend
+  minReplicas: {{ .Values.backend.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.backend.autoscaling.maxReplicas }}
+  metrics:
+    {{- if .Values.backend.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.backend.autoscaling.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.backend.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.backend.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.backend.autoscaling.customMetrics }}
+    {{- toYaml .Values.backend.autoscaling.customMetrics | nindent 4 }}
+    {{- end }}
+  {{- if .Values.backend.autoscaling.behavior }}
+  behavior:
+    {{- toYaml .Values.backend.autoscaling.behavior | nindent 4 }}
+  {{- end }}
+{{- end }}

@@ -1,0 +1,517 @@
+# Monad Indexer Helm Chart - Base Values
+# This file contains production-baseline configuration
+# Override with environment-specific values files (values-dev.yaml, values-staging.yaml, values-production.yaml)
+
+# Global configuration
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+# Namespace override
+namespaceOverride: ""
+
+# Name overrides
+nameOverride: ""
+fullnameOverride: ""
+
+# Service account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# ============================================================
+# BACKEND (Blockscout Indexer + API)
+# ============================================================
+backend:
+  enabled: true
+  replicaCount: 2
+
+  image:
+    registry: ghcr.io
+    repository: blockscout/blockscout
+    tag: "9.0.2"
+    pullPolicy: IfNotPresent
+    pullSecrets: []
+
+  # Environment variables
+  env:
+    ETHEREUM_JSONRPC_HTTP_URL: "https://testnet-rpc.monad.xyz"
+    ETHEREUM_JSONRPC_WS_URL: "wss://testnet-rpc.monad.xyz"
+    ETHEREUM_JSONRPC_TRACE_URL: ""  # Same as HTTP URL if empty
+    CHAIN_ID: "10143"
+    POOL_SIZE: "80"
+    POOL_SIZE_API: "10"
+    INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER: "false"
+    INDEXER_MEMORY_LIMIT: "5"
+    BLOCK_TRANSFORMER: "base"
+
+  # Extra environment variables
+  extraEnv: []
+
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 4000
+    annotations: {}
+
+  # Resource configuration
+  resources:
+    requests:
+      cpu: "2000m"
+      memory: "4Gi"
+    limits:
+      memory: "8Gi"
+      # NO CPU LIMIT - avoid throttling
+
+  # Autoscaling
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  # Pod disruption budget
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+  # Probes
+  startupProbe:
+    enabled: true
+    httpGet:
+      path: /api/v2/stats
+      port: http
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 30  # 5 minutes for initial sync
+    successThreshold: 1
+
+  livenessProbe:
+    enabled: true
+    httpGet:
+      path: /api/v2/stats
+      port: http
+    initialDelaySeconds: 120
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 5
+    successThreshold: 1
+
+  readinessProbe:
+    enabled: true
+    httpGet:
+      path: /api/v2/stats
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+    successThreshold: 1
+
+  # Security context
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+    capabilities:
+      drop:
+        - ALL
+
+  # Lifecycle hooks
+  lifecycle:
+    preStop:
+      exec:
+        command: ["/bin/sh", "-c", "sleep 15"]
+
+  # Init containers
+  initContainers:
+    dbMigration:
+      enabled: true
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "256Mi"
+        limits:
+          memory: "512Mi"
+    waitForPostgres:
+      enabled: true
+      resources:
+        requests:
+          cpu: "10m"
+          memory: "16Mi"
+    waitForRedis:
+      enabled: true
+      resources:
+        requests:
+          cpu: "10m"
+          memory: "16Mi"
+
+  # Pod anti-affinity for HA
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/component
+                  operator: In
+                  values:
+                    - backend
+            topologyKey: kubernetes.io/hostname
+
+  # Node selector
+  nodeSelector: {}
+
+  # Tolerations
+  tolerations: []
+
+  # Topology spread constraints
+  topologySpreadConstraints: []
+
+  # Persistence (for logs, cache, etc.)
+  persistence:
+    enabled: false
+    mountPath: /app/data
+
+  # Extra volumes and volume mounts
+  extraVolumes: []
+  extraVolumeMounts: []
+
+  # Existing secret for sensitive data
+  existingSecret: ""
+
+# ============================================================
+# MICROSERVICES
+# ============================================================
+microservices:
+  smart-contract-verifier:
+    enabled: true
+    replicaCount: 2
+    image:
+      registry: ghcr.io
+      repository: blockscout/smart-contract-verifier
+      tag: "latest"
+      pullPolicy: IfNotPresent
+    service:
+      type: ClusterIP
+      port: 8051
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "512Mi"
+      limits:
+        memory: "1Gi"
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 5
+      targetCPUUtilizationPercentage: 70
+    env: {}
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: http
+      initialDelaySeconds: 30
+      periodSeconds: 30
+    readinessProbe:
+      httpGet:
+        path: /health
+        port: http
+      initialDelaySeconds: 10
+      periodSeconds: 10
+
+  sig-provider:
+    enabled: true
+    replicaCount: 2
+    image:
+      registry: ghcr.io
+      repository: blockscout/sig-provider
+      tag: "latest"
+      pullPolicy: IfNotPresent
+    service:
+      type: ClusterIP
+      port: 8050
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "256Mi"
+      limits:
+        memory: "512Mi"
+    autoscaling:
+      enabled: false
+    env: {}
+
+  visualizer:
+    enabled: true
+    replicaCount: 1
+    image:
+      registry: ghcr.io
+      repository: blockscout/visualizer
+      tag: "latest"
+      pullPolicy: IfNotPresent
+    service:
+      type: ClusterIP
+      port: 8050
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "256Mi"
+      limits:
+        memory: "512Mi"
+    autoscaling:
+      enabled: false
+    env: {}
+
+  stats:
+    enabled: true
+    replicaCount: 1
+    image:
+      registry: ghcr.io
+      repository: blockscout/stats
+      tag: "latest"
+      pullPolicy: IfNotPresent
+    service:
+      type: ClusterIP
+      port: 8050
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "512Mi"
+      limits:
+        memory: "1Gi"
+    autoscaling:
+      enabled: false
+    env: {}
+
+# ============================================================
+# POSTGRESQL (CloudNativePG)
+# ============================================================
+postgresql:
+  enabled: true
+  replicaCount: 3  # 1 primary + 2 read replicas
+
+  image:
+    registry: ghcr.io
+    repository: cloudnative-pg/postgresql
+    tag: "17"
+
+  auth:
+    database: blockscout
+    username: blockscout
+    password: ""  # Set via external secret
+    existingSecret: ""
+
+  # PostgreSQL configuration (optimized for 5k TPS)
+  config:
+    sharedBuffers: "8GB"
+    effectiveCacheSize: "24GB"
+    maintenanceWorkMem: "2GB"
+    workMem: "128MB"
+    walBuffers: "64MB"
+    minWalSize: "2GB"
+    maxWalSize: "8GB"
+    synchronousCommit: "off"  # CRITICAL for performance
+    checkpointTimeout: "15min"
+    checkpointCompletionTarget: "0.9"
+    maxWalSenders: 10
+    maxConnections: 500
+    randomPageCost: "1.1"  # For NVMe SSD
+    effectiveIoConcurrency: 200
+    logMinDurationStatement: "1000"  # Log queries > 1s
+    logConnections: "on"
+    logDisconnections: "on"
+    additionalParameters: {}
+
+  # Primary instance
+  primary:
+    persistence:
+      enabled: true
+      storageClass: ""  # Use default or override
+      size: 500Gi
+    resources:
+      requests:
+        cpu: "4000m"
+        memory: "16Gi"
+      limits:
+        memory: "32Gi"
+
+  # Backup configuration
+  backup:
+    enabled: true
+    retentionPolicy: "30d"
+    barmanObjectStore:
+      destinationPath: ""  # s3://bucket/path
+      s3Credentials:
+        accessKeyId:
+          name: postgres-backup-creds
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: postgres-backup-creds
+          key: SECRET_ACCESS_KEY
+      wal:
+        compression: gzip
+        maxParallel: 8
+
+  # Replication slots
+  replicationSlots:
+    enabled: true
+    updateInterval: 300
+
+  # Failover configuration
+  failover:
+    delay: 0
+    switchoverDelay: 60
+
+  # Monitoring
+  monitoring:
+    enabled: true
+    enablePodMonitor: true
+
+  # PgBouncer connection pooler
+  pooler:
+    enabled: true
+    replicaCount: 2
+    type: "rw"  # read-write
+    poolMode: "transaction"
+    maxClientConn: 2000
+    defaultPoolSize: 50
+    reservePoolSize: 25
+    reservePoolTimeout: 5
+    maxDbConnections: 100
+    maxUserConnections: 100
+    serverIdleTimeout: 600
+    serverLifetime: 3600
+    serverConnectTimeout: 15
+    queryTimeout: 300
+    queryWaitTimeout: 120
+    logConnections: 1
+    logDisconnections: 1
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "512Mi"
+      limits:
+        memory: "1Gi"
+
+  # Pod anti-affinity
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              cnpg.io/cluster: monad-indexer-postgresql
+          topologyKey: kubernetes.io/hostname
+
+  nodeSelector: {}
+  tolerations: []
+
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 26
+    fsGroup: 26
+
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+    runAsUser: 26
+
+# ============================================================
+# REDIS (Bitnami subchart)
+# ============================================================
+redis:
+  enabled: true
+  architecture: replication  # master-replica with Sentinel
+  auth:
+    enabled: true
+    password: ""  # Set via external secret
+    existingSecret: ""
+  sentinel:
+    enabled: true
+    quorum: 2
+  master:
+    persistence:
+      enabled: true
+      size: 50Gi
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "2Gi"
+      limits:
+        memory: "4Gi"
+  replica:
+    replicaCount: 2
+    persistence:
+      enabled: true
+      size: 50Gi
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "1Gi"
+      limits:
+        memory: "2Gi"
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+# ============================================================
+# EXTERNAL SERVICES (when using managed databases)
+# ============================================================
+externalDatabase:
+  enabled: false
+  url: ""
+  existingSecret: ""
+
+externalRedis:
+  enabled: false
+  url: ""
+  existingSecret: ""
+
+# ============================================================
+# MONITORING
+# ============================================================
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    servicemonitor:
+      enabled: true
+      interval: 30s
+  grafana:
+    enabled: true
+    dashboards:
+      enabled: true
+
+# ============================================================
+# NETWORK POLICIES
+# ============================================================
+networkPolicy:
+  enabled: true
+  defaultDeny: true
+
+# ============================================================
+# INGRESS
+# ============================================================
+ingress:
+  enabled: false
+  className: "nginx"
+  annotations: {}
+  hosts:
+    - host: indexer.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []

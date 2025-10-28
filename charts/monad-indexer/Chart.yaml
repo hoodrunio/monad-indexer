@@ -1,0 +1,42 @@
+apiVersion: v2
+name: monad-indexer
+description: High-throughput blockchain indexer for Monad with production-grade HA and scaling
+type: application
+version: 1.0.0
+appVersion: "9.0.2"
+
+keywords:
+  - blockchain
+  - indexer
+  - blockscout
+  - monad
+  - ethereum
+  - high-throughput
+
+maintainers:
+  - name: Monad Indexer Team
+    email: team@example.com
+
+home: https://github.com/your-org/monad-indexer
+sources:
+  - https://github.com/blockscout/blockscout
+
+# Dependencies - using production-ready Bitnami charts
+dependencies:
+  # Redis for caching (master-replica with Sentinel)
+  - name: redis
+    version: "~18.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled
+    tags:
+      - cache
+
+  # Common library functions from Bitnami
+  - name: common
+    version: "~2.x"
+    repository: https://charts.bitnami.com/bitnami
+    tags:
+      - bitnami-common
+
+# Note: PostgreSQL is managed by CloudNativePG operator (not subchart)
+# This provides better HA, backup, and production features for high-throughput workloads

@@ -1,0 +1,39 @@
+# Development Environment Application
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monad-indexer-dev
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-deployed.slack: dev-deployments
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: monad-indexer
+
+  source:
+    repoURL: https://github.com/your-org/monad-indexer-gitops
+    targetRevision: main  # Always latest
+    path: charts/monad-indexer
+    helm:
+      valueFiles:
+        - values.yaml
+        - environments/values-dev.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monad-indexer-dev
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true  # Auto-heal in dev
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
