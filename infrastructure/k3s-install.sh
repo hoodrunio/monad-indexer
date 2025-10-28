@@ -141,6 +141,27 @@ sudo kubectl wait --for=condition=Ready nodes --all --timeout=180s
 echo "⏳ Waiting for local-path-provisioner..."
 sudo kubectl wait --for=condition=Ready pod -l app=local-path-provisioner -n kube-system --timeout=60s
 
+# Configure kubectl for all users (persistent)
+echo "⚙️  Configuring persistent kubectl access..."
+
+# For root user
+mkdir -p /root/.kube
+sudo cp /etc/rancher/k3s/k3s.yaml /root/.kube/config
+sudo chmod 600 /root/.kube/config
+echo "export KUBECONFIG=/root/.kube/config" >> /root/.bashrc
+
+# For current user (if not root)
+if [ "$USER" != "root" ] && [ -n "$USER" ]; then
+  mkdir -p /home/$USER/.kube
+  sudo cp /etc/rancher/k3s/k3s.yaml /home/$USER/.kube/config
+  sudo chown $USER:$USER /home/$USER/.kube/config
+  sudo chmod 600 /home/$USER/.kube/config
+  echo "export KUBECONFIG=/home/$USER/.kube/config" >> /home/$USER/.bashrc
+fi
+
+# Add to /etc/environment for system-wide access
+echo "KUBECONFIG=/etc/rancher/k3s/k3s.yaml" | sudo tee -a /etc/environment > /dev/null
+
 echo ""
 echo "✅ K3s + Cilium installed successfully!"
 echo ""
@@ -152,7 +173,7 @@ echo "📦 Cilium Pods:"
 sudo kubectl get pods -n kube-system -l app.kubernetes.io/name=cilium-agent -o wide
 echo ""
 echo "🎯 Next steps:"
-echo "1. Export KUBECONFIG: export KUBECONFIG=/etc/rancher/k3s/k3s.yaml"
+echo "1. Reload shell: source ~/.bashrc  (or logout and login)"
 echo "2. Install ArgoCD: ./argocd-install.sh"
 echo "3. Install CloudNativePG operator: ./cloudnativepg-operator-install.sh"
 echo "4. Install External Secrets Operator: ./external-secrets-operator-install.sh"
@@ -163,3 +184,5 @@ echo "   - Check Cilium status: cilium status"
 echo "   - View Cilium logs: kubectl logs -n kube-system ds/cilium-agent"
 echo "   - Enable Hubble: helm upgrade cilium cilium/cilium --set hubble.enabled=true --reuse-values -n kube-system"
 echo "   - Monitor performance: watch 'kubectl top nodes'"
+echo ""
+echo "✅ kubectl configured persistently for root and $USER"
