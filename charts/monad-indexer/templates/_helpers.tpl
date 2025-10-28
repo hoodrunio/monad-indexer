@@ -99,12 +99,12 @@ imagePullSecrets:
 Get the PostgreSQL connection string
 */}}
 {{- define "monad-indexer.postgresql.connectionString" -}}
-{{- if .Values.postgresql.enabled }}
+{{- if .Values.postgresql.enabled -}}
 postgresql://{{ .Values.postgresql.auth.username }}:{{ .Values.postgresql.auth.password }}@{{ include "monad-indexer.fullname" . }}-postgresql:5432/{{ .Values.postgresql.auth.database }}
-{{- else }}
-{{- .Values.externalDatabase.url }}
-{{- end }}
-{{- end }}
+{{- else -}}
+{{- .Values.externalDatabase.url -}}
+{{- end -}}
+{{- end -}}
 
 {{/*
 Get the Redis connection string
