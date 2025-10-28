@@ -2,6 +2,13 @@
 # Minimal resources, single replicas, relaxed settings
 
 backend:
+  # Use sealed secrets by default (same as production)
+  existingSecret: "monad-indexer-backend-secret"
+
+  # Fallback secret for chart-generated secret (if sealed secret not used)
+  secret:
+    secretKeyBase: "dev-secret-key-not-for-production-only-for-local-testing"
+
   replicaCount: 1
 
   resources:
@@ -40,7 +47,10 @@ postgresql:
   replicaCount: 1
 
   auth:
-    password: "devpassword123"  # Dev-only password
+    # Use sealed secrets by default (same as production)
+    existingSecret: "monad-indexer-postgresql-app"
+    # Fallback password for chart-generated secret (if sealed secret not used)
+    password: "devpassword123"
 
   config:
     sharedBuffers: "512MB"

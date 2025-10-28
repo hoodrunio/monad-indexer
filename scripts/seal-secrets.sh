@@ -112,6 +112,18 @@ seal_postgresql_secret() {
     info "Generating PostgreSQL password..."
 
     POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -d '\n')
+    POSTGRES_USERNAME="blockscout"
+    POSTGRES_DATABASE="blockscout"
+
+    # URL-encode password to handle special characters (/, =, +, etc.)
+    # Important: PostgreSQL connection strings are URIs, special chars must be encoded
+    ENCODED_PASSWORD=$(printf "%s" "${POSTGRES_PASSWORD}" | jq -sRr @uri)
+
+    # CloudNativePG will use this secret for bootstrap
+    # We'll reference the RW service endpoint in DATABASE_URL
+    # Format: postgresql://username:password@host:5432/database
+    # Note: Using "postgresql://" as per Blockscout standard (matches Docker env)
+    DATABASE_URL="postgresql://${POSTGRES_USERNAME}:${ENCODED_PASSWORD}@monad-indexer-postgresql-rw:5432/${POSTGRES_DATABASE}"
 
     cat > /tmp/postgres-secret.yaml <<EOF
 apiVersion: v1
@@ -125,8 +137,10 @@ metadata:
     cnpg.io/reload: "true"
 type: kubernetes.io/basic-auth
 stringData:
-  username: blockscout
+  username: ${POSTGRES_USERNAME}
   password: ${POSTGRES_PASSWORD}
+  # Add database URL for application consumption
+  uri: ${DATABASE_URL}
 EOF
 
     mkdir -p "${CHARTS_DIR}/postgresql"
@@ -138,6 +152,9 @@ EOF
     rm /tmp/postgres-secret.yaml
 
     info "PostgreSQL sealed secret created at ${CHARTS_DIR}/postgresql/sealed-secret.yaml"
+    info "  - Username: ${POSTGRES_USERNAME}"
+    info "  - Database: ${POSTGRES_DATABASE}"
+    info "  - Connection: monad-indexer-postgresql-rw:5432"
 }
 
 # Generate Stats PostgreSQL secret
@@ -145,6 +162,15 @@ seal_stats_postgresql_secret() {
     info "Generating Stats PostgreSQL password..."
 
     STATS_PASSWORD=$(openssl rand -base64 32 | tr -d '\n')
+    STATS_USERNAME="stats"
+    STATS_DATABASE="stats"
+
+    # URL-encode password to handle special characters
+    ENCODED_STATS_PASSWORD=$(printf "%s" "${STATS_PASSWORD}" | jq -sRr @uri)
+
+    # Stats database connection URL
+    # Note: Using "postgresql://" as per Blockscout standard (matches Docker env)
+    STATS_DATABASE_URL="postgresql://${STATS_USERNAME}:${ENCODED_STATS_PASSWORD}@monad-indexer-stats-postgresql-rw:5432/${STATS_DATABASE}"
 
     cat > /tmp/stats-postgres-secret.yaml <<EOF
 apiVersion: v1
@@ -158,8 +184,10 @@ metadata:
     cnpg.io/reload: "true"
 type: kubernetes.io/basic-auth
 stringData:
-  username: stats
+  username: ${STATS_USERNAME}
   password: ${STATS_PASSWORD}
+  # Add database URL for application consumption
+  uri: ${STATS_DATABASE_URL}
 EOF
 
     mkdir -p "${CHARTS_DIR}/stats-postgresql"
@@ -171,6 +199,9 @@ EOF
     rm /tmp/stats-postgres-secret.yaml
 
     info "Stats PostgreSQL sealed secret created at ${CHARTS_DIR}/stats-postgresql/sealed-secret.yaml"
+    info "  - Username: ${STATS_USERNAME}"
+    info "  - Database: ${STATS_DATABASE}"
+    info "  - Connection: monad-indexer-stats-postgresql-rw:5432"
 }
 
 # Main execution
