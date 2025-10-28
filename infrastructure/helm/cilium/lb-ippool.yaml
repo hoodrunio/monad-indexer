@@ -11,7 +11,7 @@ metadata:
 spec:
   # CIDR block for LoadBalancer IPs
   # Range: 10.0.0.100 - 10.0.0.131 (32 addresses)
-  cidrs:
+  blocks:
     - cidr: "10.0.0.100/27"
 
   # Service selector - only apply to monad-indexer services
@@ -58,7 +58,7 @@ spec:
 # metadata:
 #   name: global-pool
 # spec:
-#   cidrs:
+#   blocks:
 #     - cidr: "10.0.0.200/27"  # Different range for other services
 #   # No serviceSelector = applies to all services
 
@@ -70,7 +70,7 @@ spec:
 # metadata:
 #   name: monad-indexer-production-pool
 # spec:
-#   cidrs:
+#   blocks:
 #     - cidr: "10.0.0.100/28"  # 10.0.0.100-115 for production
 #   serviceSelector:
 #     matchLabels:
@@ -82,7 +82,7 @@ spec:
 # metadata:
 #   name: monad-indexer-staging-pool
 # spec:
-#   cidrs:
+#   blocks:
 #     - cidr: "10.0.0.116/28"  # 10.0.0.116-131 for staging
 #   serviceSelector:
 #     matchLabels:
