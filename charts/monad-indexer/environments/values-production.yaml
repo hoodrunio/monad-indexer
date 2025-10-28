@@ -177,9 +177,10 @@ monitoring:
       enabled: true
 
 # Network policies - strict
-networkPolicy:
+networkPolicies:
   enabled: true
   defaultDeny: true
+  enableCiliumPolicies: true  # Enhanced Cilium policies for production
 
 # Ingress - production
 ingress:
