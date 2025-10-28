@@ -404,7 +404,7 @@ backend:
 | `postgresql.pooler.enabled` | Enable PgBouncer pooling | `true` |
 | `redis.replica.replicaCount` | Redis replicas | `2` |
 | `monitoring.enabled` | Enable Prometheus monitoring | `true` |
-| `networkPolicy.enabled` | Enable network policies | `true` |
+| `networkPolicies.enabled` | Enable network policies | `true` |
 
 See [values.yaml](values.yaml) for full configuration options.
 

@@ -430,7 +430,7 @@ kubectl exec -it deployment/monad-indexer-backend -n monad-indexer-prod -- \
 **Solution**: Update NetworkPolicy for external access
 ```yaml
 backend:
-  networkPolicy:
+  networkPolicies:
     egress:
     - to:
       - namespaceSelector: {}  # Allow all namespaces
