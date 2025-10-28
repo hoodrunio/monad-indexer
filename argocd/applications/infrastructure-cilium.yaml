@@ -13,34 +13,17 @@ metadata:
 spec:
   project: infrastructure
 
-  source:
-    # Cilium Helm repository
-    repoURL: https://helm.cilium.io/
-    targetRevision: 1.18.3
-    chart: cilium
-
-    helm:
-      # Use production values by default
-      # Override with environment-specific values via ApplicationSet if needed
-      valueFiles:
-        - $values/infrastructure/helm/cilium/values-production.yaml
-
-      # Parameters that need to be set dynamically
-      # These override values in values-production.yaml
-      parameters:
-        # API server IP - must be set during installation
-        # Get with: kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'
-        - name: k8sServiceHost
-          value: "REPLACE_WITH_API_SERVER_IP"
-        - name: k8sServicePort
-          value: "6443"
-
-  # Additional source for values files from Git repo
+  # Multi-source configuration
   sources:
     - repoURL: https://helm.cilium.io/
       targetRevision: 1.18.3
       chart: cilium
       helm:
+        valueFiles:
+          - $values/infrastructure/helm/cilium/values-production.yaml
+        # IMPORTANT: Set k8sServiceHost before deploying!
+        # Get API server IP with: kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'
+        # Then update via: argocd app set cilium --helm-set-string k8sServiceHost=YOUR_API_SERVER_IP
         parameters:
           - name: k8sServiceHost
             value: "REPLACE_WITH_API_SERVER_IP"

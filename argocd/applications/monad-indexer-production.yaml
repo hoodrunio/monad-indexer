@@ -27,7 +27,7 @@ spec:
 
   destination:
     server: https://kubernetes.default.svc
-    namespace: monad-indexer-prod
+    namespace: monad-indexer-production
 
   syncPolicy:
     # Manual sync for production (review changes before deploy)

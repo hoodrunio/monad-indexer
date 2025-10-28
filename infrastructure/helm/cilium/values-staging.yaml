@@ -1,0 +1,180 @@
+# Cilium Staging Configuration for Monad Indexer
+# Balanced configuration for testing and validation
+# Version: 1.18.3
+
+# IPAM Configuration - Match K3s default pod CIDR
+ipam:
+  operator:
+    clusterPoolIPv4PodCIDRList: "10.42.0.0/16"
+
+# Kube-proxy Replacement
+kubeProxyReplacement: "true"
+
+# API Server Access
+# For staging cluster - replace with actual API server IP
+k8sServiceHost: "REPLACE_WITH_API_SERVER_IP"
+k8sServicePort: "6443"
+
+# Native Routing
+routingMode: "native"
+
+# Load Balancer Configuration
+loadBalancer:
+  acceleration: "native"
+  mode: "hybrid"
+  serviceTopology: true
+
+# L2 Announcements
+l2announcements:
+  enabled: true
+
+# BGP - Disabled for staging
+bgpControlPlane:
+  enabled: false
+
+# Hubble Observability - ENABLED for staging validation
+# Provides network visibility for testing and troubleshooting
+hubble:
+  enabled: true
+
+  # Hubble Relay
+  relay:
+    enabled: true
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+
+  # Hubble UI - Enabled for validation
+  ui:
+    enabled: true
+    ingress:
+      enabled: false  # Configure ingress if needed
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+  # Hubble metrics for Prometheus
+  metrics:
+    enabled:
+      - dns
+      - drop
+      - tcp
+      - flow
+      - icmp
+      - http
+
+# BPF Configuration
+bpf:
+  # Enable trace events for testing
+  events:
+    trace:
+      enabled: true
+
+  # Medium queue size for staging
+  eventsQueueSize: 24576  # Between dev and prod
+
+  # Medium connection limits
+  ctMax: 262144  # Between dev and prod
+  natMax: 393216  # Between dev and prod
+
+# BIG TCP - Enabled for performance testing
+enableIPv4BIGTCP: true
+enableIPv6BIGTCP: false
+
+# Node-local DNS - Enabled for performance testing
+nodeLocalDNS:
+  enabled: true
+
+# Monitoring
+prometheus:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: prometheus
+
+# Operator Configuration
+operator:
+  replicas: 1
+
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+  # Medium resource limits for staging
+  resources:
+    limits:
+      cpu: 750m
+      memory: 768Mi
+    requests:
+      cpu: 75m
+      memory: 96Mi
+
+# Cilium Agent - Medium resource limits
+resources:
+  limits:
+    cpu: 3000m
+    memory: 3Gi
+  requests:
+    cpu: 750m
+    memory: 1.5Gi
+
+# Security
+policyEnforcementMode: "default"
+
+# Host firewall
+hostFirewall:
+  enabled: false
+
+# Bandwidth Manager - Enabled for testing
+bandwidthManager:
+  enabled: true
+  bbr: true
+
+# IPv4/IPv6
+ipv4:
+  enabled: true
+ipv6:
+  enabled: false
+
+# Encryption - Disabled for staging (enable for security testing)
+encryption:
+  enabled: false
+
+# Debug Logging - Disabled by default, enable for troubleshooting
+debug:
+  enabled: false
+
+# Auto-direct node routes
+autoDirectNodeRoutes: true
+
+# Tunnel protocol
+tunnelProtocol: ""
+
+# Cluster config
+cluster:
+  name: monad-indexer-staging
+  id: 2
+
+# Rollout configuration
+rollOutCiliumPods: true
+
+# Metrics
+enableRuntimeMetrics: true
+enableMetrics: true
+
+# Endpoint health checking
+endpointHealthChecking:
+  enabled: true
+
+# Enable connectivity health checks
+healthChecking: true

@@ -1,0 +1,245 @@
+# Kube-Prometheus-Stack Staging Configuration
+# Balanced configuration for testing and validation
+
+# Prometheus configuration
+prometheus:
+  enabled: true
+
+  prometheusSpec:
+    # Retention - between dev and prod
+    retention: 15d
+    retentionSize: "50GB"
+
+    # Resources - medium size
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "2Gi"
+      limits:
+        memory: "4Gi"
+
+    # Storage
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 50Gi
+
+    # Service Monitor selectors - discover all ServiceMonitors
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+    serviceMonitorNamespaceSelector: {}
+
+    # Pod Monitor selectors
+    podMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelector: {}
+    podMonitorNamespaceSelector: {}
+
+    # Prometheus Rule selectors
+    ruleSelectorNilUsesHelmValues: false
+    ruleSelector: {}
+    ruleNamespaceSelector: {}
+
+    # Scrape interval - between dev and prod
+    scrapeInterval: "45s"
+    evaluationInterval: "45s"
+
+    # External labels
+    externalLabels:
+      cluster: "monad-indexer-staging"
+      environment: "staging"
+
+# Grafana configuration
+grafana:
+  enabled: true
+
+  adminPassword: "staging-admin"  # Change for staging
+
+  # Persistence - enabled for staging
+  persistence:
+    enabled: true
+    storageClassName: local-path
+    size: 5Gi
+
+  # Resources
+  resources:
+    requests:
+      cpu: "150m"
+      memory: "384Mi"
+    limits:
+      memory: "768Mi"
+
+  # Ingress (optional)
+  ingress:
+    enabled: false  # Configure if needed
+
+  # Datasources - Prometheus auto-configured
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          url: http://kube-prometheus-stack-prometheus:9090
+          access: proxy
+          isDefault: true
+
+  # Dashboards
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: 'default'
+          orgId: 1
+          folder: ''
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+
+  dashboards:
+    default:
+      # Cilium dashboard
+      cilium-dashboard:
+        gnetId: 16611
+        revision: 1
+        datasource: Prometheus
+      # PostgreSQL dashboard
+      postgresql-dashboard:
+        gnetId: 9628
+        revision: 7
+        datasource: Prometheus
+      # Redis dashboard
+      redis-dashboard:
+        gnetId: 11835
+        revision: 1
+        datasource: Prometheus
+      # Kubernetes cluster monitoring
+      k8s-cluster:
+        gnetId: 7249
+        revision: 1
+        datasource: Prometheus
+
+# AlertManager configuration - enabled for testing
+alertmanager:
+  enabled: true
+
+  alertmanagerSpec:
+    # Resources
+    resources:
+      requests:
+        cpu: "75m"
+        memory: "96Mi"
+      limits:
+        memory: "192Mi"
+
+    # Storage
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 5Gi
+
+  # Configuration
+  config:
+    global:
+      resolve_timeout: 5m
+
+    route:
+      group_by: ['alertname', 'cluster', 'service']
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 12h
+      receiver: 'null'
+      routes:
+        - match:
+            alertname: Watchdog
+          receiver: 'null'
+
+    receivers:
+      - name: 'null'
+      # Add staging-specific receivers here
+      # - name: 'slack-staging'
+      #   slack_configs:
+      #     - api_url: 'YOUR_SLACK_WEBHOOK_URL'
+      #       channel: '#staging-alerts'
+
+# Prometheus Operator configuration
+prometheusOperator:
+  enabled: true
+
+  resources:
+    requests:
+      cpu: "75m"
+      memory: "96Mi"
+    limits:
+      memory: "192Mi"
+
+  # Ensure CRDs are created
+  createCustomResource: true
+
+  # Manage CRDs
+  manageCrds: true
+
+# Node Exporter - system metrics
+nodeExporter:
+  enabled: true
+
+# Kube State Metrics - K8s object metrics
+kubeStateMetrics:
+  enabled: true
+
+# Default rules (alerts) - full set for staging validation
+defaultRules:
+  create: true
+  rules:
+    alertmanager: true
+    etcd: false
+    configReloaders: true
+    general: true
+    k8s: true
+    kubeApiserverAvailability: true
+    kubeApiserverSlos: true
+    kubelet: true
+    kubeProxy: false  # Cilium replaces kube-proxy
+    kubePrometheusGeneral: true
+    kubePrometheusNodeRecording: true
+    kubernetesApps: true
+    kubernetesResources: true
+    kubernetesStorage: true
+    kubernetesSystem: true
+    kubeScheduler: true
+    kubeStateMetrics: true
+    network: true
+    node: true
+    nodeExporterAlerting: true
+    nodeExporterRecording: true
+    prometheus: true
+    prometheusOperator: true
+
+# Additional scrape configs for custom metrics
+additionalScrapeConfigs: []
+
+# Service monitors for cluster components
+kubeApiServer:
+  enabled: true
+
+kubelet:
+  enabled: true
+  namespace: kube-system
+
+kubeControllerManager:
+  enabled: true
+
+kubeScheduler:
+  enabled: true
+
+coreDns:
+  enabled: true

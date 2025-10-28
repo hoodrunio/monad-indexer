@@ -7,6 +7,8 @@ metadata:
   namespace: argocd
   annotations:
     notifications.argoproj.io/subscribe.on-deployed.slack: dev-deployments
+    notifications.argoproj.io/subscribe.on-sync-failed.slack: dev-deployments
+    notifications.argoproj.io/subscribe.on-health-degraded.slack: dev-deployments
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
