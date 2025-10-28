@@ -62,9 +62,7 @@ postgresql:
     enabled: false
 
   pooler:
-    enabled: true
-    replicaCount: 1
-    affinity: {}  # Disable anti-affinity for single-node dev
+    enabled: false  # Disabled for single-node dev (anti-affinity issues)
 
   monitoring:
     enabled: false

@@ -50,6 +50,10 @@ backend:
   # Extra environment variables
   extraEnv: []
 
+  # Container command (Elixir release start)
+  command: ["/app/bin/blockscout"]
+  args: ["start"]
+
   # Service configuration
   service:
     type: ClusterIP
