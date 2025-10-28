@@ -338,10 +338,10 @@
           "description": "PostgreSQL configuration parameters",
           "properties": {
             "maxConnections": {
-              "type": "integer",
-              "minimum": 100,
-              "maximum": 10000,
-              "default": 500
+              "type": "string",
+              "pattern": "^[0-9]+$",
+              "default": "500",
+              "description": "Maximum number of connections (stored as string for CloudNativePG compatibility)"
             },
             "sharedBuffers": {
               "type": "string",
@@ -359,10 +359,10 @@
               "default": "2GB"
             },
             "checkpointCompletionTarget": {
-              "type": "number",
-              "minimum": 0,
-              "maximum": 1,
-              "default": 0.9
+              "type": "string",
+              "pattern": "^0\\.[0-9]+$|^1\\.0$",
+              "default": "0.9",
+              "description": "Checkpoint completion target 0.0-1.0 (stored as string for CloudNativePG compatibility)"
             },
             "walBuffers": {
               "type": "string",
@@ -376,16 +376,16 @@
               "default": 100
             },
             "randomPageCost": {
-              "type": "number",
-              "minimum": 0,
-              "maximum": 10,
-              "default": 1.1
+              "type": "string",
+              "pattern": "^[0-9]+(\\.[0-9]+)?$",
+              "default": "1.1",
+              "description": "Random page cost (stored as string for CloudNativePG compatibility)"
             },
             "effectiveIoConcurrency": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 1000,
-              "default": 200
+              "type": "string",
+              "pattern": "^[0-9]+$",
+              "default": "200",
+              "description": "Effective IO concurrency (stored as string for CloudNativePG compatibility)"
             },
             "workMem": {
               "type": "string",
