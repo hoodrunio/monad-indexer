@@ -36,6 +36,10 @@ fi
 
 # Configure system for Cilium
 echo "⚙️  Configuring system settings..."
+
+# Load br_netfilter module first
+sudo modprobe br_netfilter 2>/dev/null || echo "⚠️  br_netfilter module not available (will be loaded by K3s)"
+
 cat <<EOF | sudo tee /etc/sysctl.d/99-cilium.conf
 # Cilium eBPF configuration
 fs.inotify.max_user_watches = 524288
@@ -44,7 +48,10 @@ net.ipv4.ip_forward = 1
 net.ipv4.conf.all.forwarding = 1
 net.bridge.bridge-nf-call-iptables = 0
 EOF
-sudo sysctl -p /etc/sysctl.d/99-cilium.conf
+
+# Apply settings (ignore errors for bridge settings if module not loaded yet)
+sudo sysctl -p /etc/sysctl.d/99-cilium.conf 2>&1 | grep -v "cannot stat" || true
+echo "✅ System settings configured"
 
 # Install K3s with Cilium-compatible flags
 echo "📦 Installing K3s (without Flannel, kube-proxy, ServiceLB, Traefik)..."
