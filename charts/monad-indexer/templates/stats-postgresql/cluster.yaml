@@ -18,7 +18,7 @@ spec:
       database: {{ .Values.statsPostgresql.auth.database }}
       owner: {{ .Values.statsPostgresql.auth.username }}
       secret:
-        name: {{ include "monad-indexer.fullname" . }}-stats-postgresql-app
+        name: {{ .Values.statsPostgresql.auth.existingSecret | default (printf "%s-stats-postgresql-app" (include "monad-indexer.fullname" .)) }}
 
   # Basic PostgreSQL configuration for stats (lighter than main DB)
   postgresql:

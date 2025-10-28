@@ -153,37 +153,73 @@ rm /tmp/stats-postgres-secret.yaml
 
 ## Using Sealed Secrets with Helm
 
-### Option 1: Replace Default Secrets (Recommended)
+### Default Behavior (Sealed Secrets Enabled)
 
-After creating sealed secrets, disable the default secret generation in `values.yaml`:
+**The chart uses sealed secrets by default!** No configuration needed.
+
+The default `values.yaml` already includes:
 
 ```yaml
 backend:
-  existingSecret: "monad-indexer-backend-secret"  # Use sealed secret
-  secret:
-    secretKeyBase: ""  # Leave empty when using sealed secret
+  existingSecret: "monad-indexer-backend-secret"
 
 postgresql:
   auth:
     existingSecret: "monad-indexer-postgresql-app"
-    password: ""  # Leave empty
 
 statsPostgresql:
   auth:
     existingSecret: "monad-indexer-stats-postgresql-app"
-    password: ""  # Leave empty
 ```
 
-### Option 2: Use Annotations for Auto-Sealing
+Just run `make seal-secrets` before deploying.
 
-Add annotations to trigger sealed secret creation:
+### Disabling Sealed Secrets (Development Only)
+
+For local development without sealed secrets, use the provided values file:
+
+```bash
+make deploy VALUES_FILE=values-dev-no-sealed-secrets.yaml
+```
+
+Or create your own override file:
 
 ```yaml
+# values-dev.yaml
 backend:
+  existingSecret: ""  # Disable sealed secrets
   secret:
-    annotations:
-      sealedsecrets.bitnami.com/managed: "true"
+    secretKeyBase: "your-dev-secret"
+
+postgresql:
+  auth:
+    existingSecret: ""
+    password: "your-dev-password"
 ```
+
+### Auto-Seal Script
+
+Use the provided script to automatically generate and seal all secrets:
+
+```bash
+# Run the auto-seal script
+./scripts/seal-secrets.sh
+
+# Or specify a custom namespace
+NAMESPACE=monad-indexer ./scripts/seal-secrets.sh
+```
+
+This script will:
+1. Check prerequisites (kubeseal, kubectl, controller)
+2. Fetch the sealing certificate from your cluster
+3. Generate strong random secrets for:
+   - Backend SECRET_KEY_BASE
+   - PostgreSQL password
+   - Stats PostgreSQL password
+4. Seal them using the cluster's certificate
+5. Save sealed secrets to appropriate chart template directories
+
+The sealed secrets are safe to commit to Git!
 
 ## Verifying Sealed Secrets
 
@@ -259,7 +295,7 @@ kubeseal --cert=pub-cert.pem --format=yaml < secret.yaml > sealed-secret.yaml
 - [Sealed Secrets Documentation](https://sealed-secrets.netlify.app/)
 - [CloudNativePG Secret Management](https://cloudnative-pg.io/documentation/current/bootstrap/)
 
-## Example: Complete Setup Workflow
+## Quick Start: Complete Setup Workflow
 
 ```bash
 # 1. Add Sealed Secrets repository
@@ -277,21 +313,35 @@ kubectl wait --for=condition=ready pod \
   -n kube-system \
   --timeout=300s
 
-# 4. Fetch the public certificate (needed for sealing)
-kubeseal --fetch-cert \
-  --controller-namespace=kube-system \
-  --controller-name=sealed-secrets-controller \
-  > pub-sealed-secrets-cert.pem
+# 4. Generate and seal all secrets automatically
+./scripts/seal-secrets.sh
 
-# 5. Generate all secrets
-./scripts/generate-sealed-secrets.sh  # Create this script with above commands
+# 5. Update values.yaml to use existing secrets
+# Edit your values.yaml file to reference the sealed secrets:
+#   backend.existingSecret: "monad-indexer-backend-secret"
+#   postgresql.auth.existingSecret: "monad-indexer-postgresql-app"
+#   statsPostgresql.auth.existingSecret: "monad-indexer-stats-postgresql-app"
 
-# 6. Update values.yaml to use existing secrets
-# 7. Deploy with Helm
+# 6. Deploy with Helm
 helm upgrade --install monad-indexer ./charts/monad-indexer \
   --namespace monad-indexer \
   --create-namespace \
   -f values-production.yaml
+```
+
+### Using Makefile Commands (if available)
+
+If you have the Makefile set up, you can use convenient shortcuts:
+
+```bash
+# Setup sealed secrets controller
+make setup-sealed-secrets
+
+# Generate and seal all secrets
+make seal-secrets
+
+# Deploy everything
+make deploy
 ```
 
 ## Security Considerations
