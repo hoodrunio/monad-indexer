@@ -50,7 +50,7 @@ postgresql:
     sharedBuffers: "4GB"
     effectiveCacheSize: "12GB"
     maintenanceWorkMem: "1GB"
-    maxConnections: 300
+    maxConnections: "300"
 
   primary:
     persistence:

@@ -716,7 +716,7 @@ kubectl cluster-info dump -n monad-indexer-prod > diagnostics.txt
 ```
 
 4. **Community Support**:
-- GitHub Issues: https://github.com/your-org/monad-indexer/issues
+- GitHub Issues: https://github.com/hoodrunio/monad-indexer/issues
 - Discord: [Monad Discord]
 - Documentation: See other docs/ files
 

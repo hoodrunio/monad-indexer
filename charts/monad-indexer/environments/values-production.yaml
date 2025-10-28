@@ -104,7 +104,7 @@ postgresql:
     effectiveCacheSize: "24GB"
     maintenanceWorkMem: "2GB"
     workMem: "128MB"
-    maxConnections: 500
+    maxConnections: "500"
 
   primary:
     persistence:

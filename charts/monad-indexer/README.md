@@ -419,8 +419,8 @@ See [values.yaml](values.yaml) for full configuration options.
 ## Support
 
 - **Documentation**: See `docs/` directory
-- **Issues**: https://github.com/your-org/monad-indexer/issues
-- **Discussions**: https://github.com/your-org/monad-indexer/discussions
+- **Issues**: https://github.com/hoodrunio/monad-indexer/issues
+- **Discussions**: https://github.com/hoodrunio/monad-indexer/discussions
 
 ## License
 

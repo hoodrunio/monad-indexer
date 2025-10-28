@@ -325,11 +325,11 @@ postgresql:
     maxWalSize: "8GB"
     synchronousCommit: "off"  # CRITICAL for performance
     checkpointTimeout: "15min"
-    checkpointCompletionTarget: 0.9
-    maxWalSenders: 10
-    maxConnections: 500
-    randomPageCost: 1.1  # For NVMe SSD
-    effectiveIoConcurrency: 200
+    checkpointCompletionTarget: "0.9"
+    maxWalSenders: "10"
+    maxConnections: "500"
+    randomPageCost: "1.1"  # For NVMe SSD
+    effectiveIoConcurrency: "200"
     logMinDurationStatement: "1000"  # Log queries > 1s
     logConnections: "on"
     logDisconnections: "on"

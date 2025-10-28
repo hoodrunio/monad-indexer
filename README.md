@@ -346,8 +346,8 @@ MIT License - see LICENSE file for details.
 ## 📞 Support
 
 - **Documentation**: See [docs/](docs/) directory
-- **Issues**: https://github.com/your-org/monad-indexer/issues
-- **Discussions**: https://github.com/your-org/monad-indexer/discussions
+- **Issues**: https://github.com/hoodrunio/monad-indexer/issues
+- **Discussions**: https://github.com/hoodrunio/monad-indexer/discussions
 
 ---
 

@@ -17,7 +17,7 @@ maintainers:
   - name: Monad Indexer Team
     email: team@example.com
 
-home: https://github.com/your-org/monad-indexer
+home: https://github.com/hoodrunio/monad-indexer
 sources:
   - https://github.com/blockscout/blockscout
 

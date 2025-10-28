@@ -52,7 +52,7 @@ spec:
       # ============================================================
       checkpoint_timeout: {{ .Values.postgresql.config.checkpointTimeout | quote }}
       checkpoint_completion_target: {{ .Values.postgresql.config.checkpointCompletionTarget | quote }}
-      max_wal_senders: {{ .Values.postgresql.config.maxWalSenders }}
+      max_wal_senders: {{ .Values.postgresql.config.maxWalSenders | quote }}
 
       # ============================================================
       # CONNECTION SETTINGS
