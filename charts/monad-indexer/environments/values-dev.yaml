@@ -62,6 +62,10 @@ postgresql:
     enabled: true
     replicaCount: 1
 
+  monitoring:
+    enabled: false
+    enablePodMonitor: false
+
 # Redis - minimal (single master, no replicas for dev)
 redis:
   replica:
@@ -77,6 +81,10 @@ redis:
         memory: "512Mi"
       limits:
         memory: "1Gi"
+  metrics:
+    enabled: false
+    serviceMonitor:
+      enabled: false
 
 # Monitoring - disabled in dev
 monitoring:
