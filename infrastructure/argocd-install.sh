@@ -6,8 +6,11 @@ echo "🚀 Installing ArgoCD..."
 # Create namespace
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
 
-# Install ArgoCD (HA mode)
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/ha/install.yaml
+# Install ArgoCD
+# Use non-HA for single node, HA for multi-node clusters
+# For HA mode, uncomment the line below and comment out the non-HA line
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+# kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/ha/install.yaml
 
 # Wait for ArgoCD to be ready
 echo "⏳ Waiting for ArgoCD to be ready..."
