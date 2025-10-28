@@ -35,7 +35,7 @@ spec:
       # ============================================================
       # WAL OPTIMIZATION FOR WRITE-HEAVY WORKLOADS
       # ============================================================
-      wal_level: replica
+      # Note: wal_level is managed by CloudNativePG (fixed to 'replica')
       wal_buffers: {{ .Values.postgresql.config.walBuffers | quote }}
       min_wal_size: {{ .Values.postgresql.config.minWalSize | quote }}
       max_wal_size: {{ .Values.postgresql.config.maxWalSize | quote }}
@@ -90,10 +90,9 @@ spec:
       # ============================================================
       # REPLICATION
       # ============================================================
-      hot_standby: "on"
+      # Note: hot_standby and synchronous_standby_names are managed by CloudNativePG
       max_standby_streaming_delay: "30s"
       hot_standby_feedback: "on"
-      synchronous_standby_names: ""
 
       # ============================================================
       # LOGGING
