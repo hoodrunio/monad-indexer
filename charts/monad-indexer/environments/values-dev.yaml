@@ -80,6 +80,10 @@ postgresql:
     enabled: false
     enablePodMonitor: false
 
+  # Disable pod anti-affinity for single-node dev cluster
+  affinity:
+    enablePodAntiAffinity: false
+
 # Redis - minimal (single master, no replicas for dev)
 redis:
   image:

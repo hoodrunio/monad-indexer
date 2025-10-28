@@ -600,12 +600,9 @@ postgresql:
     podAntiAffinityType: "required"  # or "preferred"
     topologyKey: "kubernetes.io/hostname"
     # Additional custom affinity rules
-    additionalPodAntiAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        - labelSelector:
-            matchLabels:
-              cnpg.io/cluster: monad-indexer-postgresql
-          topologyKey: kubernetes.io/hostname
+    # Note: cnpg.io/cluster label is automatically set by CloudNativePG
+    # The value is the cluster name ({{ include "monad-indexer.fullname" . }}-postgresql)
+    additionalPodAntiAffinity: {}
 
   nodeSelector: {}
   tolerations: []
