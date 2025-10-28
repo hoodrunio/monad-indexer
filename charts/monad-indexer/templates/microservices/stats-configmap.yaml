@@ -13,7 +13,7 @@ data:
   # ============================================
   STATS__SERVER__HTTP__ENABLED: {{ $stats.config.server.http.enabled | quote }}
   STATS__SERVER__HTTP__ADDR: {{ printf "0.0.0.0:%d" ($stats.service.port | int) }}
-  STATS__SERVER__HTTP__MAX_BODY_SIZE: {{ $stats.config.server.http.maxBodySize | quote }}
+  STATS__SERVER__HTTP__MAX_BODY_SIZE: {{ $stats.config.server.http.maxBodySize | int | quote }}
 
   # ============================================
   # gRPC SERVER
