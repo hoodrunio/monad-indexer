@@ -13,7 +13,7 @@ data:
   # ============================================
   SMART_CONTRACT_VERIFIER__SERVER__HTTP__ENABLED: {{ $verifier.config.server.http.enabled | quote }}
   SMART_CONTRACT_VERIFIER__SERVER__HTTP__ADDR: {{ printf "0.0.0.0:%d" ($verifier.service.port | int) }}
-  SMART_CONTRACT_VERIFIER__SERVER__HTTP__MAX_BODY_SIZE: {{ $verifier.config.server.http.maxBodySize | quote }}
+  SMART_CONTRACT_VERIFIER__SERVER__HTTP__MAX_BODY_SIZE: {{ $verifier.config.server.http.maxBodySize | int | quote }}
 
   # ============================================
   # CORS CONFIGURATION
