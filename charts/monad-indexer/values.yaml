@@ -207,7 +207,7 @@ microservices:
       pullPolicy: IfNotPresent
     service:
       type: ClusterIP
-      port: 8051
+      port: 8050
     resources:
       requests:
         cpu: "500m"

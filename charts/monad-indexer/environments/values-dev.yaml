@@ -68,6 +68,8 @@ postgresql:
 
 # Redis - minimal (single master, no replicas for dev)
 redis:
+  image:
+    tag: "7.4.1-debian-12-r4"  # Using stable version
   replica:
     replicaCount: 1  # Schema requires minimum 1
   sentinel:
