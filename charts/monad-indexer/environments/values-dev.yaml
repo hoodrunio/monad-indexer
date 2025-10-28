@@ -61,7 +61,7 @@ postgresql:
   pooler:
     enabled: true
     replicaCount: 1
-    podAntiAffinity: ""  # Disable anti-affinity for single-node dev
+    affinity: {}  # Disable anti-affinity for single-node dev
 
   monitoring:
     enabled: false

@@ -67,9 +67,9 @@ spec:
           {{- toYaml .Values.postgresql.pooler.securityContext | nindent 10 }}
         {{- end }}
 
-      {{- if .Values.postgresql.pooler.affinity }}
+      {{- with .Values.postgresql.pooler.affinity }}
       affinity:
-        {{- toYaml .Values.postgresql.pooler.affinity | nindent 8 }}
+        {{- toYaml . | nindent 8 }}
       {{- end }}
 
       {{- if .Values.postgresql.pooler.nodeSelector }}
