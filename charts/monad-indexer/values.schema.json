@@ -1,0 +1,971 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "Monad Indexer Helm Chart Configuration Schema",
+  "description": "JSON Schema for validating values.yaml configuration",
+  "required": [
+    "backend",
+    "postgresql",
+    "redis"
+  ],
+  "properties": {
+    "global": {
+      "type": "object",
+      "description": "Global configuration shared across all components",
+      "properties": {
+        "storageClass": {
+          "type": "string",
+          "description": "Default storage class for PVCs"
+        },
+        "imagePullSecrets": {
+          "type": "array",
+          "description": "Image pull secrets for private registries",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "backend": {
+      "type": "object",
+      "description": "Blockscout backend configuration",
+      "required": [
+        "image",
+        "env"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable backend deployment",
+          "default": true
+        },
+        "replicaCount": {
+          "type": "integer",
+          "description": "Number of backend replicas",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 2
+        },
+        "image": {
+          "type": "object",
+          "required": [
+            "repository",
+            "tag"
+          ],
+          "properties": {
+            "repository": {
+              "type": "string",
+              "description": "Backend image repository",
+              "pattern": "^[a-z0-9./-]+$"
+            },
+            "tag": {
+              "type": "string",
+              "description": "Backend image tag"
+            },
+            "pullPolicy": {
+              "type": "string",
+              "description": "Image pull policy",
+              "enum": [
+                "Always",
+                "IfNotPresent",
+                "Never"
+              ],
+              "default": "IfNotPresent"
+            }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resource requests and limits",
+          "properties": {
+            "requests": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "description": "CPU request (e.g., 1000m, 2)",
+                  "pattern": "^[0-9]+(m|\\.[0-9]+)?$"
+                },
+                "memory": {
+                  "type": "string",
+                  "description": "Memory request (e.g., 2Gi, 4096Mi)",
+                  "pattern": "^[0-9]+(Mi|Gi|Ki)$"
+                }
+              }
+            },
+            "limits": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(m|\\.[0-9]+)?$"
+                },
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(Mi|Gi|Ki)$"
+                }
+              }
+            }
+          }
+        },
+        "autoscaling": {
+          "type": "object",
+          "description": "Horizontal Pod Autoscaler configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "minReplicas": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 2
+            },
+            "maxReplicas": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10
+            },
+            "targetCPUUtilizationPercentage": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 70
+            },
+            "targetMemoryUtilizationPercentage": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 80
+            }
+          }
+        },
+        "podDisruptionBudget": {
+          "type": "object",
+          "description": "Pod Disruption Budget for high availability",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "minAvailable": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "env": {
+          "type": "object",
+          "description": "Environment variables for backend",
+          "required": [
+            "ETHEREUM_JSONRPC_HTTP_URL",
+            "CHAIN_ID"
+          ],
+          "properties": {
+            "ETHEREUM_JSONRPC_HTTP_URL": {
+              "type": "string",
+              "description": "RPC endpoint URL",
+              "pattern": "^https?://"
+            },
+            "ETHEREUM_JSONRPC_WS_URL": {
+              "type": "string",
+              "description": "WebSocket RPC endpoint URL",
+              "pattern": "^wss?://"
+            },
+            "CHAIN_ID": {
+              "type": "string",
+              "description": "Blockchain chain ID"
+            },
+            "COIN": {
+              "type": "string",
+              "description": "Native coin symbol",
+              "default": "MON"
+            },
+            "NETWORK": {
+              "type": "string",
+              "description": "Network name",
+              "default": "Monad"
+            },
+            "SUBNETWORK": {
+              "type": "string",
+              "description": "Subnetwork name"
+            },
+            "INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "POOL_SIZE": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "POOL_SIZE_API": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "ECTO_USE_SSL": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          }
+        },
+        "service": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "ClusterIP",
+                "NodePort",
+                "LoadBalancer"
+              ],
+              "default": "ClusterIP"
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535,
+              "default": 4000
+            }
+          }
+        },
+        "ingress": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "className": {
+              "type": "string"
+            },
+            "annotations": {
+              "type": "object"
+            },
+            "hosts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "host": {
+                    "type": "string"
+                  },
+                  "paths": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string"
+                        },
+                        "pathType": {
+                          "type": "string",
+                          "enum": [
+                            "Prefix",
+                            "Exact"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "tls": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "secretName": {
+                    "type": "string"
+                  },
+                  "hosts": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "postgresql": {
+      "type": "object",
+      "description": "CloudNativePG PostgreSQL cluster configuration",
+      "required": [
+        "replicaCount"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable PostgreSQL cluster",
+          "default": true
+        },
+        "replicaCount": {
+          "type": "integer",
+          "description": "Number of PostgreSQL instances (1 primary + N replicas)",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3
+        },
+        "database": {
+          "type": "string",
+          "description": "Database name",
+          "default": "blockscout"
+        },
+        "username": {
+          "type": "string",
+          "description": "Database username",
+          "default": "blockscout"
+        },
+        "config": {
+          "type": "object",
+          "description": "PostgreSQL configuration parameters",
+          "properties": {
+            "maxConnections": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 10000,
+              "default": 500
+            },
+            "sharedBuffers": {
+              "type": "string",
+              "pattern": "^[0-9]+(MB|GB)$",
+              "default": "8GB"
+            },
+            "effectiveCacheSize": {
+              "type": "string",
+              "pattern": "^[0-9]+(MB|GB)$",
+              "default": "24GB"
+            },
+            "maintenanceWorkMem": {
+              "type": "string",
+              "pattern": "^[0-9]+(MB|GB)$",
+              "default": "2GB"
+            },
+            "checkpointCompletionTarget": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.9
+            },
+            "walBuffers": {
+              "type": "string",
+              "pattern": "^[0-9]+(MB|GB)$",
+              "default": "16MB"
+            },
+            "defaultStatisticsTarget": {
+              "type": "integer",
+              "minimum": 10,
+              "maximum": 10000,
+              "default": 100
+            },
+            "randomPageCost": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 10,
+              "default": 1.1
+            },
+            "effectiveIoConcurrency": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 200
+            },
+            "workMem": {
+              "type": "string",
+              "pattern": "^[0-9]+(MB|GB|kB)$",
+              "default": "64MB"
+            },
+            "minWalSize": {
+              "type": "string",
+              "pattern": "^[0-9]+(MB|GB)$",
+              "default": "2GB"
+            },
+            "maxWalSize": {
+              "type": "string",
+              "pattern": "^[0-9]+(MB|GB)$",
+              "default": "8GB"
+            },
+            "maxWorkerProcesses": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1024,
+              "default": 8
+            },
+            "maxParallelWorkersPerGather": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1024,
+              "default": 4
+            },
+            "maxParallelWorkers": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1024,
+              "default": 8
+            },
+            "maxParallelMaintenanceWorkers": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1024,
+              "default": 4
+            },
+            "synchronousCommit": {
+              "type": "string",
+              "enum": [
+                "on",
+                "off",
+                "remote_write",
+                "remote_apply",
+                "local"
+              ],
+              "default": "off"
+            }
+          }
+        },
+        "primary": {
+          "type": "object",
+          "properties": {
+            "persistence": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "size": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(Mi|Gi|Ti)$",
+                  "default": "500Gi"
+                },
+                "storageClass": {
+                  "type": "string"
+                }
+              }
+            },
+            "resources": {
+              "type": "object",
+              "properties": {
+                "requests": {
+                  "type": "object",
+                  "properties": {
+                    "cpu": {
+                      "type": "string",
+                      "pattern": "^[0-9]+(m|\\.[0-9]+)?$"
+                    },
+                    "memory": {
+                      "type": "string",
+                      "pattern": "^[0-9]+(Mi|Gi|Ki)$"
+                    }
+                  }
+                },
+                "limits": {
+                  "type": "object",
+                  "properties": {
+                    "cpu": {
+                      "type": "string",
+                      "pattern": "^[0-9]+(m|\\.[0-9]+)?$"
+                    },
+                    "memory": {
+                      "type": "string",
+                      "pattern": "^[0-9]+(Mi|Gi|Ki)$"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "pooler": {
+          "type": "object",
+          "description": "PgBouncer connection pooler configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "replicaCount": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10,
+              "default": 3
+            },
+            "poolMode": {
+              "type": "string",
+              "enum": [
+                "session",
+                "transaction",
+                "statement"
+              ],
+              "default": "transaction"
+            },
+            "maxClientConn": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 100000,
+              "default": 2000
+            },
+            "defaultPoolSize": {
+              "type": "integer",
+              "minimum": 10,
+              "maximum": 1000,
+              "default": 50
+            },
+            "reservePoolSize": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000,
+              "default": 25
+            }
+          }
+        },
+        "backup": {
+          "type": "object",
+          "description": "Backup configuration with pgBackRest",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "retentionPolicy": {
+              "type": "string",
+              "pattern": "^[0-9]+d$",
+              "default": "30d"
+            },
+            "barmanObjectStore": {
+              "type": "object",
+              "properties": {
+                "destinationPath": {
+                  "type": "string",
+                  "pattern": "^s3://"
+                },
+                "s3Credentials": {
+                  "type": "object",
+                  "properties": {
+                    "accessKeyId": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "secretAccessKey": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "wal": {
+                  "type": "object",
+                  "properties": {
+                    "compression": {
+                      "type": "string",
+                      "enum": [
+                        "gzip",
+                        "bzip2",
+                        "snappy",
+                        "none"
+                      ],
+                      "default": "gzip"
+                    },
+                    "maxParallel": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 32,
+                      "default": 8
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "monitoring": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        }
+      }
+    },
+    "redis": {
+      "type": "object",
+      "description": "Redis configuration (Bitnami chart)",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "architecture": {
+          "type": "string",
+          "enum": [
+            "standalone",
+            "replication"
+          ],
+          "default": "replication"
+        },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "existingSecret": {
+              "type": "string"
+            },
+            "existingSecretPasswordKey": {
+              "type": "string"
+            }
+          }
+        },
+        "sentinel": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "quorum": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10,
+              "default": 2
+            }
+          }
+        },
+        "master": {
+          "type": "object",
+          "properties": {
+            "persistence": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "size": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(Mi|Gi)$",
+                  "default": "8Gi"
+                }
+              }
+            },
+            "resources": {
+              "type": "object"
+            }
+          }
+        },
+        "replica": {
+          "type": "object",
+          "properties": {
+            "replicaCount": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10,
+              "default": 2
+            },
+            "persistence": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "size": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(Mi|Gi)$",
+                  "default": "8Gi"
+                }
+              }
+            },
+            "resources": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    "microservices": {
+      "type": "object",
+      "description": "Blockscout microservices configuration",
+      "properties": {
+        "smart-contract-verifier": {
+          "$ref": "#/definitions/microservice"
+        },
+        "sig-provider": {
+          "$ref": "#/definitions/microservice"
+        },
+        "visualizer": {
+          "$ref": "#/definitions/microservice"
+        },
+        "stats": {
+          "$ref": "#/definitions/microservice"
+        }
+      }
+    },
+    "monitoring": {
+      "type": "object",
+      "description": "Monitoring and observability configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "serviceMonitor": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "interval": {
+              "type": "string",
+              "pattern": "^[0-9]+(s|m|h)$",
+              "default": "30s"
+            },
+            "scrapeTimeout": {
+              "type": "string",
+              "pattern": "^[0-9]+(s|m|h)$",
+              "default": "10s"
+            }
+          }
+        },
+        "prometheusRule": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        }
+      }
+    },
+    "networkPolicies": {
+      "type": "object",
+      "description": "Network policies for pod-to-pod communication",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "policyTypes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "Ingress",
+              "Egress"
+            ]
+          },
+          "default": [
+            "Ingress",
+            "Egress"
+          ]
+        }
+      }
+    },
+    "podSecurityPolicy": {
+      "type": "object",
+      "description": "Pod Security Standards configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "enforce": {
+          "type": "string",
+          "enum": [
+            "privileged",
+            "baseline",
+            "restricted"
+          ],
+          "default": "restricted"
+        }
+      }
+    },
+    "externalSecrets": {
+      "type": "object",
+      "description": "External Secrets Operator configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "secretStoreRef": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "SecretStore",
+                "ClusterSecretStore"
+              ],
+              "default": "SecretStore"
+            }
+          }
+        },
+        "refreshInterval": {
+          "type": "string",
+          "pattern": "^[0-9]+(s|m|h)$",
+          "default": "1h"
+        }
+      }
+    }
+  },
+  "definitions": {
+    "microservice": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "replicaCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "default": 2
+        },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": {
+              "type": "string",
+              "pattern": "^[a-z0-9./-]+$"
+            },
+            "tag": {
+              "type": "string"
+            },
+            "pullPolicy": {
+              "type": "string",
+              "enum": [
+                "Always",
+                "IfNotPresent",
+                "Never"
+              ],
+              "default": "IfNotPresent"
+            }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "properties": {
+            "requests": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(m|\\.[0-9]+)?$"
+                },
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(Mi|Gi|Ki)$"
+                }
+              }
+            },
+            "limits": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(m|\\.[0-9]+)?$"
+                },
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(Mi|Gi|Ki)$"
+                }
+              }
+            }
+          }
+        },
+        "autoscaling": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "minReplicas": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            },
+            "maxReplicas": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            },
+            "targetCPUUtilizationPercentage": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "targetMemoryUtilizationPercentage": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        },
+        "service": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "ClusterIP",
+                "NodePort",
+                "LoadBalancer"
+              ],
+              "default": "ClusterIP"
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            }
+          }
+        },
+        "env": {
+          "type": "object",
+          "description": "Environment variables for the microservice"
+        }
+      }
+    }
+  }
+}
