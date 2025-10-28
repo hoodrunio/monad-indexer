@@ -95,10 +95,14 @@ echo "🔧 Installing Cilium CNI (production configuration)..."
 cilium install \
   --version 1.18.3 \
   --set ipam.operator.clusterPoolIPv4PodCIDRList="10.42.0.0/16" \
+  --set ipv4NativeRoutingCIDR="10.42.0.0/16" \
   --set kubeProxyReplacement=true \
   --set k8sServiceHost=${API_SERVER_IP} \
   --set k8sServicePort=${API_SERVER_PORT} \
   --set routingMode=native \
+  --set ipv4.enabled=true \
+  --set enableIPv4Masquerade=true \
+  --set enableIPMasqAgent=false \
   --set loadBalancer.acceleration=native \
   --set loadBalancer.mode=hybrid \
   --set l2announcements.enabled=true \
