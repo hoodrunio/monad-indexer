@@ -40,20 +40,20 @@ postgresql:
   replicaCount: 1
 
   config:
-    sharedBuffers: "2GB"
-    effectiveCacheSize: "6GB"
-    maintenanceWorkMem: "512MB"
-    maxConnections: "200"
+    sharedBuffers: "512MB"
+    effectiveCacheSize: "1536MB"
+    maintenanceWorkMem: "128MB"
+    maxConnections: "100"
 
   primary:
     persistence:
       size: 100Gi
     resources:
       requests:
-        cpu: "1000m"
-        memory: "4Gi"
+        cpu: "500m"
+        memory: "1Gi"
       limits:
-        memory: "8Gi"
+        memory: "2Gi"
 
   backup:
     enabled: false
@@ -69,7 +69,7 @@ postgresql:
 # Redis - minimal (single master, no replicas for dev)
 redis:
   image:
-    tag: "7.4.1-debian-12-r4"  # Using stable version
+    tag: "latest"  # Bitnami only supports latest tag now
   replica:
     replicaCount: 1  # Schema requires minimum 1
   sentinel:
