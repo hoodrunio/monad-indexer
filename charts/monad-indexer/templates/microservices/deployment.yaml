@@ -89,25 +89,6 @@ spec:
       tolerations:
         {{- toYaml $serviceConfig.tolerations | nindent 8 }}
       {{- end }}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ include "monad-indexer.fullname" $ }}-{{ $serviceName }}
-  labels:
-    {{- include "monad-indexer.microservice.labels" $ | nindent 4 }}
-    app.kubernetes.io/service: {{ $serviceName }}
-spec:
-  type: {{ $serviceConfig.service.type | default "ClusterIP" }}
-  ports:
-  - port: {{ $serviceConfig.service.port }}
-    targetPort: http
-    protocol: TCP
-    name: http
-  selector:
-    {{- include "monad-indexer.selectorLabels" $ | nindent 4 }}
-    app.kubernetes.io/component: microservice
-    app.kubernetes.io/service: {{ $serviceName }}
 {{- if $serviceConfig.autoscaling.enabled }}
 ---
 apiVersion: {{ include "monad-indexer.hpa.apiVersion" $ }}
