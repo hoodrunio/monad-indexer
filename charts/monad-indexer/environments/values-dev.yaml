@@ -72,7 +72,9 @@ postgresql:
     enabled: false
 
   pooler:
-    enabled: false  # Disabled for single-node dev (anti-affinity issues)
+    enabled: false  # Disabled for single-node dev
+    # CloudNativePG enforces pod anti-affinity even with preferredDuringScheduling
+    # Works in production multi-node clusters (tested and verified)
 
   monitoring:
     enabled: false

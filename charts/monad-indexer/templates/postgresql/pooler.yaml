@@ -67,9 +67,23 @@ spec:
           {{- toYaml .Values.postgresql.pooler.securityContext | nindent 10 }}
         {{- end }}
 
-      {{- with .Values.postgresql.pooler.affinity }}
+      {{- if .Values.postgresql.pooler.affinity }}
       affinity:
-        {{- toYaml . | nindent 8 }}
+        {{- toYaml .Values.postgresql.pooler.affinity | nindent 8 }}
+      {{- else }}
+      # Default soft anti-affinity: prefer different nodes but allow same node if needed
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: cnpg.io/poolerName
+                  operator: In
+                  values:
+                  - {{ include "monad-indexer.fullname" . }}-pooler
+              topologyKey: kubernetes.io/hostname
       {{- end }}
 
       {{- if .Values.postgresql.pooler.nodeSelector }}
