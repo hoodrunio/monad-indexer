@@ -187,33 +187,27 @@ spec:
     {{- toYaml .Values.postgresql.primary.resources | nindent 4 }}
   {{- end }}
 
-  # Pod anti-affinity for high availability
-  {{- if .Values.postgresql.affinity }}
+  # Affinity configuration (includes nodeSelector and tolerations)
+  {{- if or .Values.postgresql.affinity .Values.postgresql.nodeSelector .Values.postgresql.tolerations }}
   affinity:
+    {{- if .Values.postgresql.affinity }}
     {{- toYaml .Values.postgresql.affinity | nindent 4 }}
+    {{- end }}
+    {{- if .Values.postgresql.nodeSelector }}
+    nodeSelector:
+      {{- toYaml .Values.postgresql.nodeSelector | nindent 6 }}
+    {{- end }}
+    {{- if .Values.postgresql.tolerations }}
+    tolerations:
+      {{- toYaml .Values.postgresql.tolerations | nindent 6 }}
+    {{- end }}
   {{- end }}
 
-  # Node selector
-  {{- if .Values.postgresql.nodeSelector }}
-  nodeSelector:
-    {{- toYaml .Values.postgresql.nodeSelector | nindent 4 }}
-  {{- end }}
-
-  # Tolerations
-  {{- if .Values.postgresql.tolerations }}
-  tolerations:
-    {{- toYaml .Values.postgresql.tolerations | nindent 4 }}
-  {{- end }}
-
-  # Pod security context
-  {{- if .Values.postgresql.podSecurityContext }}
-  podSecurityContext:
-    {{- toYaml .Values.postgresql.podSecurityContext | nindent 4 }}
-  {{- end }}
-
-  # Container security context
-  {{- if .Values.postgresql.containerSecurityContext }}
-  containerSecurityContext:
-    {{- toYaml .Values.postgresql.containerSecurityContext | nindent 4 }}
+  # Security configuration
+  # Note: CloudNativePG manages podSecurityContext and containerSecurityContext automatically
+  # Only seccompProfile can be customized at spec level
+  {{- if .Values.postgresql.seccompProfile }}
+  seccompProfile:
+    {{- toYaml .Values.postgresql.seccompProfile | nindent 4 }}
   {{- end }}
 {{- end }}

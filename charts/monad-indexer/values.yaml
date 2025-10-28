@@ -406,9 +406,14 @@ postgresql:
       limits:
         memory: "1Gi"
 
-  # Pod anti-affinity
+  # Affinity configuration (CloudNativePG format)
+  # nodeSelector and tolerations must be inside affinity section
   affinity:
-    podAntiAffinity:
+    enablePodAntiAffinity: true
+    podAntiAffinityType: "required"  # or "preferred"
+    topologyKey: "kubernetes.io/hostname"
+    # Additional custom affinity rules
+    additionalPodAntiAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
         - labelSelector:
             matchLabels:
@@ -418,15 +423,11 @@ postgresql:
   nodeSelector: {}
   tolerations: []
 
-  podSecurityContext:
-    runAsNonRoot: true
-    runAsUser: 26
-    fsGroup: 26
-
-  containerSecurityContext:
-    allowPrivilegeEscalation: false
-    runAsNonRoot: true
-    runAsUser: 26
+  # Security configuration
+  # Note: CloudNativePG manages podSecurityContext and containerSecurityContext automatically
+  # Only seccompProfile can be customized
+  seccompProfile:
+    type: RuntimeDefault
 
 # ============================================================
 # REDIS (Bitnami subchart)
