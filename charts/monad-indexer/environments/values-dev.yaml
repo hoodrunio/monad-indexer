@@ -39,6 +39,9 @@ microservices:
 postgresql:
   replicaCount: 1
 
+  auth:
+    password: "devpassword123"  # Dev-only password
+
   config:
     sharedBuffers: "512MB"
     effectiveCacheSize: "1536MB"

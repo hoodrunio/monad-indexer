@@ -16,6 +16,8 @@ spec:
     initdb:
       database: {{ .Values.postgresql.auth.database }}
       owner: {{ .Values.postgresql.auth.username }}
+      secret:
+        name: {{ include "monad-indexer.fullname" . }}-postgresql-app
       {{- if and .Values.postgresql.initdb (hasKey .Values.postgresql.initdb "postInitSQL") }}
       postInitSQL:
         {{- toYaml .Values.postgresql.initdb.postInitSQL | nindent 8 }}
