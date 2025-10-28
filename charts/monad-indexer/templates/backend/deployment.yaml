@@ -47,27 +47,6 @@ spec:
 
       {{- if .Values.backend.initContainers }}
       initContainers:
-        {{- if .Values.backend.initContainers.dbMigration.enabled }}
-        - name: db-migration
-          image: {{ include "monad-indexer.backend.image" . }}
-          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
-          command:
-            - /bin/sh
-            - -c
-            - |
-              echo "Running database migrations..."
-              bin/blockscout eval "Elixir.Explorer.ReleaseTasks.create_and_migrate()"
-          envFrom:
-            - configMapRef:
-                name: {{ include "monad-indexer.fullname" . }}-backend-config
-          env:
-            {{- include "monad-indexer.backend.env" . | nindent 12 }}
-          {{- if .Values.backend.initContainers.dbMigration.resources }}
-          resources:
-            {{- toYaml .Values.backend.initContainers.dbMigration.resources | nindent 12 }}
-          {{- end }}
-        {{- end }}
-
         {{- if .Values.backend.initContainers.waitForPostgres.enabled }}
         - name: wait-for-postgres
           image: busybox:1.36
@@ -105,6 +84,29 @@ spec:
           {{- if .Values.backend.initContainers.waitForRedis.resources }}
           resources:
             {{- toYaml .Values.backend.initContainers.waitForRedis.resources | nindent 12 }}
+          {{- end }}
+        {{- end }}
+
+        {{- if .Values.backend.initContainers.dbMigration.enabled }}
+        - name: db-migration
+          image: {{ include "monad-indexer.backend.image" . }}
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Running database migrations..."
+              echo "DATABASE_URL: $DATABASE_URL"
+              echo "ECTO_USE_SSL: $ECTO_USE_SSL"
+              bin/blockscout eval "Elixir.Explorer.ReleaseTasks.create_and_migrate()"
+          envFrom:
+            - configMapRef:
+                name: {{ include "monad-indexer.fullname" . }}-backend-config
+          env:
+            {{- include "monad-indexer.backend.env" . | nindent 12 }}
+          {{- if .Values.backend.initContainers.dbMigration.resources }}
+          resources:
+            {{- toYaml .Values.backend.initContainers.dbMigration.resources | nindent 12 }}
           {{- end }}
         {{- end }}
 
@@ -253,8 +255,15 @@ All ConfigMap variables are loaded via envFrom - this template only handles Secr
 - name: DATABASE_URL
   valueFrom:
     secretKeyRef:
-      name: {{ .Values.backend.existingSecret | default (printf "%s-backend-secret" (include "monad-indexer.fullname" .)) }}
-      key: database-url
+      {{- if .Values.postgresql.auth.existingSecret }}
+      # When using sealed secrets, read DATABASE_URL from PostgreSQL sealed secret (uri key)
+      name: {{ .Values.postgresql.auth.existingSecret }}
+      key: uri
+      {{- else }}
+      # Dev/testing: use chart-generated connection string
+      name: {{ printf "%s-postgresql-app" (include "monad-indexer.fullname" .) }}
+      key: uri
+      {{- end }}
 - name: SECRET_KEY_BASE
   valueFrom:
     secretKeyRef:
