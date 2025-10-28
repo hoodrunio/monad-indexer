@@ -98,10 +98,10 @@ rm /tmp/backend-secret.yaml
 For production, seal the PostgreSQL passwords:
 
 ```bash
-# Generate strong password
-POSTGRES_PASSWORD=$(openssl rand -base64 32)
+# Generate alphanumeric-only password (no special chars for Blockscout compatibility)
+POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -d '+/=')
 
-# Create secret manifest
+# Create secret manifest with DATABASE_URL
 cat > /tmp/postgres-secret.yaml <<EOF
 apiVersion: v1
 kind: Secret
@@ -109,11 +109,14 @@ metadata:
   name: monad-indexer-postgresql-app
   namespace: default
   labels:
+    app: monad-indexer
     cnpg.io/reload: "true"
+    component: postgresql
 type: kubernetes.io/basic-auth
 stringData:
   username: blockscout
   password: ${POSTGRES_PASSWORD}
+  uri: postgresql://blockscout:${POSTGRES_PASSWORD}@monad-indexer-postgresql-rw:5432/blockscout
 EOF
 
 # Seal it
@@ -127,8 +130,8 @@ rm /tmp/postgres-secret.yaml
 ### Stats PostgreSQL Password
 
 ```bash
-# Generate password for stats DB
-STATS_PASSWORD=$(openssl rand -base64 32)
+# Generate alphanumeric-only password
+STATS_PASSWORD=$(openssl rand -base64 32 | tr -d '+/=')
 
 cat > /tmp/stats-postgres-secret.yaml <<EOF
 apiVersion: v1
@@ -137,11 +140,14 @@ metadata:
   name: monad-indexer-stats-postgresql-app
   namespace: default
   labels:
+    app: monad-indexer
     cnpg.io/reload: "true"
+    component: stats-database
 type: kubernetes.io/basic-auth
 stringData:
   username: stats
   password: ${STATS_PASSWORD}
+  uri: postgresql://stats:${STATS_PASSWORD}@monad-indexer-stats-postgresql-rw:5432/stats
 EOF
 
 kubeseal --format yaml \
