@@ -1,0 +1,150 @@
+{{- if and .Values.networkPolicies.enabled .Values.networkPolicies.enableCiliumPolicies }}
+# CiliumNetworkPolicy for Redis
+# Enhanced L3/L4 policy with Cilium-specific features
+# This is optional and complements the standard Kubernetes NetworkPolicy
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-redis
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cache
+spec:
+  # Apply policy to Redis pods (master and replicas)
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+      app.kubernetes.io/instance: {{ .Release.Name }}
+
+  # Ingress rules - what can connect TO Redis
+  ingress:
+    # Allow from backend pods
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: {{ include "monad-indexer.name" . }}
+            app.kubernetes.io/instance: {{ .Release.Name }}
+            app.kubernetes.io/component: backend
+      toPorts:
+        - ports:
+            - port: "6379"
+              protocol: TCP
+          rules:
+            tcp:
+              - destinationPort: "6379"
+
+    # Allow from microservices
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: {{ include "monad-indexer.name" . }}
+            app.kubernetes.io/instance: {{ .Release.Name }}
+            app.kubernetes.io/component: microservice
+      toPorts:
+        - ports:
+            - port: "6379"
+              protocol: TCP
+
+    # Allow Redis Sentinel inter-node communication
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: redis
+            app.kubernetes.io/instance: {{ .Release.Name }}
+      toPorts:
+        - ports:
+            - port: "6379"
+              protocol: TCP
+            - port: "26379"
+              protocol: TCP
+
+  # Egress rules - what Redis can connect TO
+  egress:
+    # Allow Redis replication and Sentinel communication
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: redis
+            app.kubernetes.io/instance: {{ .Release.Name }}
+      toPorts:
+        - ports:
+            - port: "6379"
+              protocol: TCP
+            - port: "26379"
+              protocol: TCP
+
+    # Allow DNS queries
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+          rules:
+            dns:
+              - matchPattern: "*"
+
+---
+# CiliumNetworkPolicy for Redis Sentinel (if using Sentinel mode)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-redis-sentinel
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cache-sentinel
+spec:
+  # Apply policy to Redis Sentinel pods
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: node
+
+  # Ingress rules
+  ingress:
+    # Allow from backend and microservices (to query Sentinel)
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: {{ include "monad-indexer.name" . }}
+            app.kubernetes.io/instance: {{ .Release.Name }}
+      toPorts:
+        - ports:
+            - port: "26379"
+              protocol: TCP
+
+    # Allow inter-Sentinel communication
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: redis
+            app.kubernetes.io/instance: {{ .Release.Name }}
+      toPorts:
+        - ports:
+            - port: "26379"
+              protocol: TCP
+            - port: "6379"
+              protocol: TCP
+
+  # Egress rules
+  egress:
+    # Allow connection to Redis instances
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: redis
+            app.kubernetes.io/instance: {{ .Release.Name }}
+      toPorts:
+        - ports:
+            - port: "6379"
+              protocol: TCP
+            - port: "26379"
+              protocol: TCP
+
+    # Allow DNS queries
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+{{- end }}

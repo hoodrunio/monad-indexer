@@ -1,0 +1,161 @@
+# Cilium Production Configuration for Monad Indexer
+# Optimized for high-throughput blockchain indexer (5000 TPS)
+# Version: 1.18.3
+
+# IPAM Configuration - Match K3s default pod CIDR
+ipam:
+  operator:
+    clusterPoolIPv4PodCIDRList: "10.42.0.0/16"
+
+# Kube-proxy Replacement - Critical for performance
+# Replaces iptables-based kube-proxy with eBPF for 40% better throughput
+kubeProxyReplacement: "true"
+
+# API Server Access - Required when kube-proxy is disabled
+# IMPORTANT: Replace with your actual API server IP during installation
+# Get with: kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'
+k8sServiceHost: "REPLACE_WITH_API_SERVER_IP"
+k8sServicePort: "6443"
+
+# Native Routing - Best performance on bare metal
+# Uses direct routing instead of overlay (VXLAN/Geneve)
+routingMode: "native"
+
+# Load Balancer Configuration
+# Replaces MetalLB/ServiceLB with Cilium's integrated LB
+loadBalancer:
+  acceleration: "native"  # eBPF-accelerated load balancing
+  mode: "hybrid"          # DSR (Direct Server Return) for better performance
+  serviceTopology: true   # Prefer same-node backends
+
+# L2 Announcements for Bare Metal LoadBalancer
+# Enables LoadBalancer services on bare metal without external LB
+l2announcements:
+  enabled: true
+  # L2 announcement will use LoadBalancer IP pools defined in CiliumLoadBalancerIPPool
+
+# BGP Configuration - Disabled by default
+# Enable if you have BGP-capable upstream routers
+bgpControlPlane:
+  enabled: false
+
+# Hubble Observability - DISABLED for maximum performance
+# Enable for debugging/troubleshooting (costs 5-10% CPU overhead)
+hubble:
+  enabled: false
+  # To enable Hubble for debugging:
+  # helm upgrade cilium cilium/cilium \
+  #   --set hubble.enabled=true \
+  #   --set hubble.relay.enabled=true \
+  #   --set hubble.ui.enabled=true \
+  #   --reuse-values -n kube-system
+
+# BPF Performance Tuning
+bpf:
+  # Disable trace events to reduce CPU overhead
+  events:
+    trace:
+      enabled: false
+
+  # Increase event queue for high-throughput environments (5000 TPS)
+  eventsQueueSize: 32768  # 2x default for high TPS
+
+  # Connection tracking - increase for many connections
+  ctMax: 524288  # Default is 262144
+
+  # NAT table size - increase for high connection count
+  natMax: 524288  # Default is 524288
+
+# Enable BIG TCP for high-bandwidth networks (100Gbit+)
+enableIPv4BIGTCP: true
+enableIPv6BIGTCP: false  # Disable if not using IPv6
+
+# Node-local DNS caching for better performance
+nodeLocalDNS:
+  enabled: true
+
+# Monitoring - Prometheus integration
+prometheus:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: prometheus  # Match your Prometheus operator label
+
+# Operator Configuration
+operator:
+  replicas: 1  # Single replica for single-node, increase to 2 for HA
+
+  # Prometheus metrics
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+  # Resource limits
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# Cilium Agent Configuration
+resources:
+  limits:
+    cpu: 4000m
+    memory: 4Gi
+  requests:
+    cpu: 1000m
+    memory: 2Gi
+
+# Security - NetworkPolicy enforcement
+policyEnforcementMode: "default"  # Enforce NetworkPolicies when defined
+
+# Enable host firewall for node-level protection
+hostFirewall:
+  enabled: false  # Enable if you want node-level NetworkPolicies
+
+# Bandwidth Manager - QoS and rate limiting
+bandwidthManager:
+  enabled: true
+  bbr: true  # TCP BBR congestion control for better throughput
+
+# IPv4/IPv6 Configuration
+ipv4:
+  enabled: true
+ipv6:
+  enabled: false  # Disable if not using IPv6
+
+# Encryption - Disabled for performance (enable for security)
+encryption:
+  enabled: false
+  type: wireguard  # Use WireGuard if enabling encryption
+  # Enable with: helm upgrade cilium cilium/cilium --set encryption.enabled=true --reuse-values -n kube-system
+
+# Logging
+debug:
+  enabled: false  # Enable for troubleshooting
+  # Subsystems to debug (when enabled):
+  # - datapath
+  # - policy
+  # - kvstore
+
+# Enable auto-direct node routes for better performance
+autoDirectNodeRoutes: true
+
+# Tunnel protocol (only used if routingMode is not "native")
+tunnelProtocol: ""  # Empty when using native routing
+
+# Cluster name for multi-cluster setups
+cluster:
+  name: monad-indexer-production
+  id: 1
+
+# Rollout configuration
+rollOutCiliumPods: true  # Auto-restart pods when Cilium config changes
+
+# Enable Prometheus metrics
+enableRuntimeMetrics: true
+enableMetrics: true

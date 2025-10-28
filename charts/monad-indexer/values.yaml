@@ -350,10 +350,10 @@ postgresql:
 
   # Backup configuration
   backup:
-    enabled: true
+    enabled: false  # Enable and configure S3 path in production
     retentionPolicy: "30d"
     barmanObjectStore:
-      destinationPath: ""  # s3://bucket/path
+      destinationPath: "s3://backup-bucket/monad-indexer"  # Configure for production
       s3Credentials:
         accessKeyId:
           name: postgres-backup-creds
@@ -498,9 +498,13 @@ monitoring:
 # ============================================================
 # NETWORK POLICIES
 # ============================================================
-networkPolicy:
+networkPolicies:
   enabled: true
   defaultDeny: true
+  # Enable Cilium-specific NetworkPolicies (optional, requires Cilium CNI)
+  # These policies provide enhanced L3/L4 capabilities and better performance
+  # Standard Kubernetes NetworkPolicies are always used regardless of this setting
+  enableCiliumPolicies: false
 
 # ============================================================
 # INGRESS

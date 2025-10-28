@@ -1,0 +1,116 @@
+# ArgoCD Application - Cilium CNI
+# Manages Cilium installation via GitOps
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cilium
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"  # Install before other apps
+spec:
+  project: infrastructure
+
+  source:
+    # Cilium Helm repository
+    repoURL: https://helm.cilium.io/
+    targetRevision: 1.18.3
+    chart: cilium
+
+    helm:
+      # Use production values by default
+      # Override with environment-specific values via ApplicationSet if needed
+      valueFiles:
+        - $values/infrastructure/helm/cilium/values-production.yaml
+
+      # Parameters that need to be set dynamically
+      # These override values in values-production.yaml
+      parameters:
+        # API server IP - must be set during installation
+        # Get with: kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'
+        - name: k8sServiceHost
+          value: "REPLACE_WITH_API_SERVER_IP"
+        - name: k8sServicePort
+          value: "6443"
+
+  # Additional source for values files from Git repo
+  sources:
+    - repoURL: https://helm.cilium.io/
+      targetRevision: 1.18.3
+      chart: cilium
+      helm:
+        parameters:
+          - name: k8sServiceHost
+            value: "REPLACE_WITH_API_SERVER_IP"
+          - name: k8sServicePort
+            value: "6443"
+    - repoURL: https://github.com/YOUR_ORG/monad-indexer.git  # Replace with your repo
+      targetRevision: HEAD
+      ref: values
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+
+  syncPolicy:
+    automated:
+      prune: false  # Don't auto-prune CNI resources (dangerous)
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false  # kube-system already exists
+      - ServerSideApply=true   # Required for CRDs
+      - RespectIgnoreDifferences=true
+
+  # Health check configuration
+  ignoreDifferences:
+    - group: ""
+      kind: ConfigMap
+      name: cilium-config
+      jsonPointers:
+        - /data/debug  # Ignore debug flag changes
+
+---
+# ArgoCD Application - Cilium LoadBalancer IP Pool
+# Manages LoadBalancer IP pool for bare metal
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cilium-lb-ippool
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "-4"  # Install after Cilium
+spec:
+  project: infrastructure
+
+  source:
+    repoURL: https://github.com/YOUR_ORG/monad-indexer.git  # Replace with your repo
+    targetRevision: HEAD
+    path: infrastructure/helm/cilium
+
+    # Only sync the lb-ippool.yaml file
+    directory:
+      include: "lb-ippool.yaml"
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+    # Wait for Cilium to be ready before syncing IP pool
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

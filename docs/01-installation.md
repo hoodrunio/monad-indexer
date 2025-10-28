@@ -26,15 +26,16 @@ Complete step-by-step guide for installing the Monad blockchain indexer infrastr
 
 ### Software Requirements
 
-- Linux (Ubuntu 22.04 LTS recommended)
-- Kubernetes 1.25+ (we'll install K3s)
-- Helm 3.12+
-- kubectl
-- Git
+- **Linux** (Ubuntu 22.04 LTS recommended)
+  - Kernel 5.10+ (for Cilium eBPF support, Ubuntu 22.04 has 5.15+)
+- **Kubernetes** 1.25+ (we'll install K3s)
+- **Helm** 3.12+
+- **kubectl**
+- **Git**
 
 ## Infrastructure Setup
 
-### Step 1: Install K3s
+### Step 1: Install K3s + Cilium CNI
 
 On your bare metal server(s):
 
@@ -43,20 +44,51 @@ On your bare metal server(s):
 git clone https://github.com/your-org/monad-indexer-gitops
 cd monad-indexer-gitops
 
-# Run K3s installation
-./infrastructure/k3s-install.sh
+# Run K3s + Cilium installation
+sudo ./infrastructure/k3s-install.sh
 ```
 
 This script will:
-- Install K3s with optimized settings
-- Configure kubectl access
-- Install local-path-provisioner for storage
+- Check kernel version and eBPF support
+- Install K3s without Flannel/kube-proxy (Cilium will replace them)
+- Install Cilium CLI
+- Deploy Cilium CNI with production-optimized configuration
+- Configure local-path-provisioner for storage
+- Optionally run connectivity tests
+
+**Why Cilium?**
+- 41% better throughput vs Flannel (9.2 Gbps vs 6.5 Gbps)
+- 50% lower latency (0.20ms vs 0.40ms)
+- Native NetworkPolicy support (Flannel doesn't support it)
+- Integrated LoadBalancer for bare metal (replaces MetalLB)
+- See `docs/CILIUM.md` for detailed guide
 
 **Verify installation**:
 
 ```bash
+# Export KUBECONFIG
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+
+# Check K3s nodes
 kubectl get nodes
-kubectl get pods -A
+
+# Check Cilium status
+cilium status
+
+# All components should show "OK"
+# Cilium agent pods should be Running
+kubectl get pods -n kube-system -l k8s-app=cilium
+```
+
+**Deploy LoadBalancer IP Pool**:
+
+```bash
+# Apply LoadBalancer IP pool for bare metal
+kubectl apply -f infrastructure/helm/cilium/lb-ippool.yaml
+
+# Verify
+kubectl get ciliumloadbalancerippool
+kubectl get ciliuml2announcementpolicy
 ```
 
 ### Step 2: Configure kubectl (if remote)

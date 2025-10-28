@@ -1,0 +1,183 @@
+{{- if and .Values.networkPolicies.enabled .Values.networkPolicies.enableCiliumPolicies }}
+# CiliumNetworkPolicy for PostgreSQL Cluster
+# Enhanced L3/L4 policy with Cilium-specific features
+# This is optional and complements the standard Kubernetes NetworkPolicy
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-postgresql
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+spec:
+  # Apply policy to PostgreSQL pods
+  endpointSelector:
+    matchLabels:
+      cnpg.io/cluster: {{ include "monad-indexer.fullname" . }}
+
+  # Ingress rules - what can connect TO PostgreSQL
+  ingress:
+    # Allow from backend pods
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: {{ include "monad-indexer.name" . }}
+            app.kubernetes.io/instance: {{ .Release.Name }}
+            app.kubernetes.io/component: backend
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+          rules:
+            tcp:
+              - destinationPort: "5432"
+
+    # Allow from PgBouncer (if enabled)
+    {{- if .Values.postgresql.pooler.enabled }}
+    - fromEndpoints:
+        - matchLabels:
+            cnpg.io/poolerCluster: {{ include "monad-indexer.fullname" . }}
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+    {{- end }}
+
+    # Allow from microservices
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: {{ include "monad-indexer.name" . }}
+            app.kubernetes.io/instance: {{ .Release.Name }}
+            app.kubernetes.io/component: microservice
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+
+    # Allow from CloudNativePG operator
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cnpg-system
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+            - port: "8000"
+              protocol: TCP
+
+    # Allow PostgreSQL replication between instances
+    - fromEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: {{ include "monad-indexer.fullname" . }}
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+
+  # Egress rules - what PostgreSQL can connect TO
+  egress:
+    # Allow PostgreSQL replication to other instances
+    - toEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: {{ include "monad-indexer.fullname" . }}
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+
+    # Allow DNS queries
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+          rules:
+            dns:
+              - matchPattern: "*"
+
+    # Allow connection to Kubernetes API (for operator)
+    - toEndpoints:
+        - matchLabels:
+            component: apiserver
+            provider: kubernetes
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+
+    # Allow external backup destinations (if configured)
+    {{- if .Values.postgresql.backup.enabled }}
+    - toFQDNs:
+        - matchName: "s3.amazonaws.com"
+        - matchPattern: "*.s3.*.amazonaws.com"
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    {{- end }}
+
+---
+# CiliumNetworkPolicy for PgBouncer (Connection Pooler)
+{{- if .Values.postgresql.pooler.enabled }}
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-pgbouncer
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database-pooler
+spec:
+  # Apply policy to PgBouncer pods
+  endpointSelector:
+    matchLabels:
+      cnpg.io/poolerCluster: {{ include "monad-indexer.fullname" . }}
+
+  # Ingress rules - what can connect TO PgBouncer
+  ingress:
+    # Allow from backend pods
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: {{ include "monad-indexer.name" . }}
+            app.kubernetes.io/instance: {{ .Release.Name }}
+            app.kubernetes.io/component: backend
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+
+    # Allow from microservices
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: {{ include "monad-indexer.name" . }}
+            app.kubernetes.io/instance: {{ .Release.Name }}
+            app.kubernetes.io/component: microservice
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+
+  # Egress rules - PgBouncer to PostgreSQL
+  egress:
+    # Allow connection to PostgreSQL cluster
+    - toEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: {{ include "monad-indexer.fullname" . }}
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+
+    # Allow DNS queries
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+{{- end }}
+{{- end }}

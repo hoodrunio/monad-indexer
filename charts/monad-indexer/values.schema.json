@@ -966,6 +966,27 @@
           "description": "Environment variables for the microservice"
         }
       }
+    },
+    "networkPolicies": {
+      "type": "object",
+      "description": "Network policy configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable Kubernetes NetworkPolicies",
+          "default": true
+        },
+        "defaultDeny": {
+          "type": "boolean",
+          "description": "Enable default deny policy",
+          "default": true
+        },
+        "enableCiliumPolicies": {
+          "type": "boolean",
+          "description": "Enable Cilium-specific NetworkPolicies (requires Cilium CNI)",
+          "default": false
+        }
+      }
     }
   }
 }
