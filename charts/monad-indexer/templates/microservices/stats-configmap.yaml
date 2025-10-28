@@ -1,0 +1,50 @@
+{{- $stats := index .Values.microservices "stats" }}
+{{- if $stats.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-stats-config
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: stats
+data:
+  # ============================================
+  # HTTP SERVER CONFIGURATION
+  # ============================================
+  STATS__SERVER__HTTP__ENABLED: {{ $stats.config.server.http.enabled | quote }}
+  STATS__SERVER__HTTP__ADDR: {{ printf "0.0.0.0:%d" ($stats.service.port | int) }}
+  STATS__SERVER__HTTP__MAX_BODY_SIZE: {{ $stats.config.server.http.maxBodySize | quote }}
+
+  # ============================================
+  # gRPC SERVER
+  # ============================================
+  STATS__SERVER__GRPC__ENABLED: {{ $stats.config.server.grpc.enabled | quote }}
+
+  # ============================================
+  # DATABASE CONFIGURATION
+  # ============================================
+  # Database URLs are set via Secret (STATS__DB_URL, STATS__BLOCKSCOUT_DB_URL)
+  STATS__CREATE_DATABASE: {{ $stats.config.database.createDatabase | quote }}
+  STATS__RUN_MIGRATIONS: {{ $stats.config.database.runMigrations | quote }}
+
+  # ============================================
+  # UPDATE SCHEDULE
+  # ============================================
+  STATS__DEFAULT_SCHEDULE: {{ $stats.config.schedule.default | quote }}
+  STATS__FORCE_UPDATE_ON_START: {{ $stats.config.schedule.forceUpdateOnStart | quote }}
+
+  # ============================================
+  # BLOCKSCOUT API CONNECTION
+  # ============================================
+  STATS__BLOCKSCOUT_API_URL: {{ printf "http://%s-backend:%d" (include "monad-indexer.fullname" .) (.Values.backend.service.port | int) }}
+
+  # ============================================
+  # METRICS & TRACING
+  # ============================================
+  STATS__METRICS__ENABLED: {{ $stats.config.metrics.enabled | quote }}
+
+  STATS__TRACING__ENABLED: {{ $stats.config.tracing.enabled | quote }}
+  STATS__TRACING__FORMAT: {{ $stats.config.tracing.format | quote }}
+
+  STATS__JAEGER__ENABLED: {{ $stats.config.jaeger.enabled | quote }}
+{{- end }}

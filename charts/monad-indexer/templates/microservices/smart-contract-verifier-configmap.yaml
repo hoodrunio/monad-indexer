@@ -1,0 +1,63 @@
+{{- $verifier := index .Values.microservices "smart-contract-verifier" }}
+{{- if $verifier.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-smart-contract-verifier-config
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: smart-contract-verifier
+data:
+  # ============================================
+  # HTTP SERVER CONFIGURATION
+  # ============================================
+  SMART_CONTRACT_VERIFIER__SERVER__HTTP__ENABLED: {{ $verifier.config.server.http.enabled | quote }}
+  SMART_CONTRACT_VERIFIER__SERVER__HTTP__ADDR: {{ printf "0.0.0.0:%d" ($verifier.service.port | int) }}
+  SMART_CONTRACT_VERIFIER__SERVER__HTTP__MAX_BODY_SIZE: {{ $verifier.config.server.http.maxBodySize | quote }}
+
+  # ============================================
+  # CORS CONFIGURATION
+  # ============================================
+  SMART_CONTRACT_VERIFIER__SERVER__HTTP__CORS__ENABLED: {{ $verifier.config.server.http.cors.enabled | quote }}
+  SMART_CONTRACT_VERIFIER__SERVER__HTTP__CORS__ALLOWED_ORIGIN: {{ $verifier.config.server.http.cors.allowedOrigin | quote }}
+
+  # ============================================
+  # LOGGING
+  # ============================================
+  RUST_LOG: {{ $verifier.config.logging.rustLog | quote }}
+
+  # ============================================
+  # gRPC SERVER
+  # ============================================
+  SMART_CONTRACT_VERIFIER__SERVER__GRPC__ENABLED: {{ $verifier.config.server.grpc.enabled | quote }}
+
+  # ============================================
+  # SOLIDITY COMPILER SUPPORT
+  # ============================================
+  SMART_CONTRACT_VERIFIER__SOLIDITY__ENABLED: {{ $verifier.config.solidity.enabled | quote }}
+  SMART_CONTRACT_VERIFIER__SOLIDITY__COMPILERS_DIR: {{ $verifier.config.solidity.compilersDir | quote }}
+  SMART_CONTRACT_VERIFIER__SOLIDITY__REFRESH_VERSIONS_SCHEDULE: {{ $verifier.config.solidity.refreshVersionsSchedule | quote }}
+  SMART_CONTRACT_VERIFIER__SOLIDITY__FETCHER__LIST__LIST_URL: {{ $verifier.config.solidity.fetcher.listUrl | quote }}
+
+  # ============================================
+  # VYPER COMPILER SUPPORT
+  # ============================================
+  SMART_CONTRACT_VERIFIER__VYPER__ENABLED: {{ $verifier.config.vyper.enabled | quote }}
+  SMART_CONTRACT_VERIFIER__VYPER__COMPILERS_DIR: {{ $verifier.config.vyper.compilersDir | quote }}
+  SMART_CONTRACT_VERIFIER__VYPER__REFRESH_VERSIONS_SCHEDULE: {{ $verifier.config.vyper.refreshVersionsSchedule | quote }}
+  SMART_CONTRACT_VERIFIER__VYPER__FETCHER__LIST__LIST_URL: {{ $verifier.config.vyper.fetcher.listUrl | quote }}
+
+  # ============================================
+  # SOURCIFY INTEGRATION
+  # ============================================
+  SMART_CONTRACT_VERIFIER__SOURCIFY__ENABLED: {{ $verifier.config.sourcify.enabled | quote }}
+  SMART_CONTRACT_VERIFIER__SOURCIFY__API_URL: {{ $verifier.config.sourcify.apiUrl | quote }}
+  SMART_CONTRACT_VERIFIER__SOURCIFY__VERIFICATION_ATTEMPTS: {{ $verifier.config.sourcify.verificationAttempts | quote }}
+  SMART_CONTRACT_VERIFIER__SOURCIFY__REQUEST_TIMEOUT: {{ $verifier.config.sourcify.requestTimeout | quote }}
+
+  # ============================================
+  # METRICS & TRACING
+  # ============================================
+  SMART_CONTRACT_VERIFIER__METRICS__ENABLED: {{ $verifier.config.metrics.enabled | quote }}
+  SMART_CONTRACT_VERIFIER__JAEGER__ENABLED: {{ $verifier.config.jaeger.enabled | quote }}
+{{- end }}

@@ -1,0 +1,62 @@
+{{- $sigProvider := index .Values.microservices "sig-provider" }}
+{{- if $sigProvider.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-sig-provider-config
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sig-provider
+data:
+  # ============================================
+  # HTTP SERVER CONFIGURATION
+  # ============================================
+  SIG_PROVIDER__SERVER__HTTP__ENABLED: {{ $sigProvider.config.server.http.enabled | quote }}
+  SIG_PROVIDER__SERVER__HTTP__ADDR: {{ printf "0.0.0.0:%d" ($sigProvider.service.port | int) }}
+
+  # ============================================
+  # CORS CONFIGURATION
+  # ============================================
+  SIG_PROVIDER__SERVER__HTTP__CORS__ENABLED: {{ $sigProvider.config.server.http.cors.enabled | quote }}
+  SIG_PROVIDER__SERVER__HTTP__CORS__ALLOWED_ORIGIN: {{ $sigProvider.config.server.http.cors.allowedOrigin | quote }}
+
+  # ============================================
+  # LOGGING
+  # ============================================
+  RUST_LOG: {{ $sigProvider.config.logging.rustLog | quote }}
+
+  # ============================================
+  # gRPC SERVER
+  # ============================================
+  SIG_PROVIDER__SERVER__GRPC__ENABLED: {{ $sigProvider.config.server.grpc.enabled | quote }}
+
+  # ============================================
+  # METRICS
+  # ============================================
+  SIG_PROVIDER__METRICS__ENABLED: {{ $sigProvider.config.metrics.enabled | quote }}
+  {{- if $sigProvider.config.metrics.enabled }}
+  SIG_PROVIDER__METRICS__ADDR: {{ $sigProvider.config.metrics.addr | quote }}
+  SIG_PROVIDER__METRICS__ROUTE: {{ $sigProvider.config.metrics.route | quote }}
+  {{- end }}
+
+  # ============================================
+  # TRACING
+  # ============================================
+  SIG_PROVIDER__TRACING__ENABLED: {{ $sigProvider.config.tracing.enabled | quote }}
+  SIG_PROVIDER__JAEGER__ENABLED: {{ $sigProvider.config.jaeger.enabled | quote }}
+
+  # ============================================
+  # SIGNATURE SOURCES
+  # ============================================
+  # 4byte Directory (Primary source)
+  SIG_PROVIDER__SOURCES__FOURBYTE: {{ $sigProvider.config.sources.fourbyte | quote }}
+
+  # OpenChain Signature Database (Largest database: 2.3M+ methods, 372K+ events)
+  SIG_PROVIDER__SOURCES__SIGETH: {{ $sigProvider.config.sources.sigeth | quote }}
+
+  # Ethereum Bytecode Database
+  SIG_PROVIDER__SOURCES__ETH_BYTECODE_DB__ENABLED: {{ $sigProvider.config.sources.ethBytecodeDb.enabled | quote }}
+  {{- if $sigProvider.config.sources.ethBytecodeDb.enabled }}
+  SIG_PROVIDER__SOURCES__ETH_BYTECODE_DB__URL: {{ $sigProvider.config.sources.ethBytecodeDb.url | quote }}
+  {{- end }}
+{{- end }}

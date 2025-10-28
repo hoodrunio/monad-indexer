@@ -61,6 +61,9 @@ spec:
       # ============================================================
       max_connections: {{ .Values.postgresql.config.maxConnections | quote }}
       superuser_reserved_connections: "5"
+      # Connection health check interval (milliseconds)
+      # Helps detect broken connections from long-running blockchain indexer processes
+      client_connection_check_interval: {{ .Values.postgresql.config.clientConnectionCheckInterval | default "60000" | quote }}
 
       # ============================================================
       # QUERY PLANNER (for NVMe SSD)

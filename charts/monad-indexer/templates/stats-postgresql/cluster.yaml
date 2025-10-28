@@ -1,0 +1,57 @@
+{{- $stats := index .Values.microservices "stats" }}
+{{- if and $stats.enabled .Values.statsPostgresql.enabled }}
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-stats-postgresql
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: stats-database
+spec:
+  instances: {{ .Values.statsPostgresql.replicaCount }}
+
+  imageName: {{ .Values.statsPostgresql.image.registry }}/{{ .Values.statsPostgresql.image.repository }}:{{ .Values.statsPostgresql.image.tag }}
+
+  # Bootstrap configuration
+  bootstrap:
+    initdb:
+      database: {{ .Values.statsPostgresql.auth.database }}
+      owner: {{ .Values.statsPostgresql.auth.username }}
+      secret:
+        name: {{ include "monad-indexer.fullname" . }}-stats-postgresql-app
+
+  # Basic PostgreSQL configuration for stats (lighter than main DB)
+  postgresql:
+    parameters:
+      # Memory configuration
+      shared_buffers: "256MB"
+      effective_cache_size: "1GB"
+      maintenance_work_mem: "128MB"
+      work_mem: "16MB"
+
+      # WAL configuration
+      wal_buffers: "8MB"
+      min_wal_size: "512MB"
+      max_wal_size: "2GB"
+      wal_compression: "on"
+
+      # Connection settings
+      max_connections: "100"
+
+      # Performance
+      random_page_cost: "1.1"
+      effective_io_concurrency: "200"
+
+  # Storage configuration
+  storage:
+    {{- if .Values.statsPostgresql.primary.persistence.storageClass }}
+    storageClass: {{ .Values.statsPostgresql.primary.persistence.storageClass }}
+    {{- end }}
+    size: {{ .Values.statsPostgresql.primary.persistence.size }}
+
+  # Resource configuration
+  {{- if .Values.statsPostgresql.primary.resources }}
+  resources:
+    {{- toYaml .Values.statsPostgresql.primary.resources | nindent 4 }}
+  {{- end }}
+{{- end }}

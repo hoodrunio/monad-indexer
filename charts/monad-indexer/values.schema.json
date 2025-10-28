@@ -36,7 +36,7 @@
       "description": "Blockscout backend configuration",
       "required": [
         "image",
-        "env"
+        "config"
       ],
       "properties": {
         "enabled": {
@@ -161,63 +161,52 @@
             }
           }
         },
-        "env": {
+        "config": {
           "type": "object",
-          "description": "Environment variables for backend",
-          "required": [
-            "ETHEREUM_JSONRPC_HTTP_URL",
-            "CHAIN_ID"
-          ],
+          "description": "Backend configuration structure (mapped to ConfigMap)",
           "properties": {
-            "ETHEREUM_JSONRPC_HTTP_URL": {
-              "type": "string",
-              "description": "RPC endpoint URL",
-              "pattern": "^https?://"
+            "database": {
+              "type": "object",
+              "properties": {
+                "ectoUseSsl": {
+                  "type": "boolean"
+                },
+                "poolSize": {
+                  "type": "integer",
+                  "minimum": 10,
+                  "maximum": 500
+                },
+                "poolSizeApi": {
+                  "type": "integer",
+                  "minimum": 5,
+                  "maximum": 100
+                }
+              }
             },
-            "ETHEREUM_JSONRPC_WS_URL": {
-              "type": "string",
-              "description": "WebSocket RPC endpoint URL",
-              "pattern": "^wss?://"
+            "rpc": {
+              "type": "object",
+              "properties": {
+                "httpUrl": {
+                  "type": "string",
+                  "pattern": "^https?://"
+                },
+                "wsUrl": {
+                  "type": "string",
+                  "pattern": "^wss?://"
+                },
+                "variant": {
+                  "type": "string",
+                  "enum": ["geth", "erigon", "nethermind", "besu"]
+                }
+              }
             },
-            "CHAIN_ID": {
-              "type": "string",
-              "description": "Blockchain chain ID"
-            },
-            "COIN": {
-              "type": "string",
-              "description": "Native coin symbol",
-              "default": "MON"
-            },
-            "NETWORK": {
-              "type": "string",
-              "description": "Network name",
-              "default": "Monad"
-            },
-            "SUBNETWORK": {
-              "type": "string",
-              "description": "Subnetwork name"
-            },
-            "INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER": {
-              "type": "string",
-              "enum": [
-                "true",
-                "false"
-              ]
-            },
-            "POOL_SIZE": {
-              "type": "string",
-              "pattern": "^[0-9]+$"
-            },
-            "POOL_SIZE_API": {
-              "type": "string",
-              "pattern": "^[0-9]+$"
-            },
-            "ECTO_USE_SSL": {
-              "type": "string",
-              "enum": [
-                "true",
-                "false"
-              ]
+            "chain": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                }
+              }
             }
           }
         },

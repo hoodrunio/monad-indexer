@@ -35,19 +35,110 @@ backend:
     pullPolicy: IfNotPresent
     pullSecrets: []
 
-  # Environment variables
-  env:
-    ETHEREUM_JSONRPC_HTTP_URL: "https://testnet-rpc.monad.xyz"
-    ETHEREUM_JSONRPC_WS_URL: "wss://testnet-rpc.monad.xyz"
-    ETHEREUM_JSONRPC_TRACE_URL: ""  # Same as HTTP URL if empty
-    CHAIN_ID: "10143"
-    POOL_SIZE: "80"
-    POOL_SIZE_API: "10"
-    INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER: "false"
-    INDEXER_MEMORY_LIMIT: "5"
-    BLOCK_TRANSFORMER: "base"
+  # Configuration structure (mapped to ConfigMap)
+  config:
+    # Database configuration
+    database:
+      ectoUseSsl: false
+      poolSize: 80
+      poolSizeApi: 10
 
-  # Extra environment variables
+    # RPC endpoints
+    rpc:
+      variant: "geth"
+      transport: "http"
+      httpUrl: "https://testnet-rpc.monad.xyz"
+      traceUrl: ""  # Defaults to httpUrl if empty
+      wsUrl: "wss://testnet-rpc.monad.xyz"
+      disableArchiveBalances: false
+
+    # Chain configuration
+    chain:
+      id: "10143"
+
+    # API server configuration
+    api:
+      disableWebapp: true
+      adminPanelEnabled: false
+      v1ReadMethodsDisabled: false
+      v1WriteMethodsDisabled: false
+      v2Enabled: true
+
+    # Frontend configuration (if webapp is enabled)
+    frontend:
+      webappUrl: ""
+      enableRustVerificationService: true
+
+    # Market data
+    market:
+      coinName: "MON"
+      coin: "MON"
+      disabled: false
+
+    # Microservices integration
+    microservices:
+      verifier:
+        type: "eth_bytecode_db"
+
+    # Redis configuration
+    redis:
+      enabled: true
+
+    # Account features
+    account:
+      enabled: false
+      cloakKey: ""
+
+    # Indexer configuration
+    indexer:
+      disabled: false
+      disableRealtime: false
+      disableCatchup: true
+      memoryLimit: "5"
+      disablePendingTransactionsFetcher: false
+      blockTransformer: "base"
+      # Performance tuning (optional - uncomment to use)
+      performance: {}
+
+    # Performance tuning
+    performance:
+      disableExchangeRates: true
+      disableReadApi: false
+      disableWriteApi: false
+
+    # History mode
+    history:
+      fetchInternalTransactions: true
+
+    # Contract verification
+    contract:
+      allowedSolcVersions: "all"
+      allowedVyperVersions: "all"
+
+    # NFT features
+    nft:
+      mediaHandlerEnabled: true
+
+    # Logging
+    logging:
+      consoleFormat: "json"
+      consoleLevel: "info"
+
+    # reCAPTCHA (disabled)
+    recaptcha:
+      enabled: false
+
+    # Advanced features
+    advanced:
+      cacheAddressWithBalancesUpdateInterval: "30"
+      cacheBlockCountPeriod: "7200"
+
+  # Secret configuration
+  secret:
+    annotations: {}
+    secretKeyBase: ""  # Will use placeholder if empty
+
+  # Extra environment variables (for values not in config structure)
   extraEnv: []
 
   # Container command (Elixir release start)
@@ -211,7 +302,40 @@ microservices:
       pullPolicy: IfNotPresent
     service:
       type: ClusterIP
-      port: 8050
+      port: 8051  # Changed from 8050 to 8051
+    config:
+      server:
+        http:
+          enabled: true
+          maxBodySize: 2097152
+          cors:
+            enabled: true
+            allowedOrigin: "*"
+        grpc:
+          enabled: false
+      logging:
+        rustLog: "info,smart_contract_verifier=debug"
+      solidity:
+        enabled: true
+        compilersDir: "/tmp/solidity-compilers"
+        refreshVersionsSchedule: "0 0 * * * * *"
+        fetcher:
+          listUrl: "https://solc-bin.ethereum.org/linux-amd64/list.json"
+      vyper:
+        enabled: true
+        compilersDir: "/tmp/vyper-compilers"
+        refreshVersionsSchedule: "0 0 * * * * *"
+        fetcher:
+          listUrl: "https://raw.githubusercontent.com/blockscout/solc-bin/main/vyper.list.json"
+      sourcify:
+        enabled: true
+        apiUrl: "https://sourcify.dev/server/"
+        verificationAttempts: 3
+        requestTimeout: 10
+      metrics:
+        enabled: false
+      jaeger:
+        enabled: false
     resources:
       requests:
         cpu: "500m"
@@ -248,6 +372,31 @@ microservices:
     service:
       type: ClusterIP
       port: 8050
+    config:
+      server:
+        http:
+          enabled: true
+          cors:
+            enabled: true
+            allowedOrigin: "*"
+        grpc:
+          enabled: false
+      logging:
+        rustLog: "info,sig_provider=debug"
+      metrics:
+        enabled: true
+        addr: "0.0.0.0:6060"
+        route: "/metrics"
+      tracing:
+        enabled: false
+      jaeger:
+        enabled: false
+      sources:
+        fourbyte: "https://www.4byte.directory/"
+        sigeth: "https://api.openchain.xyz/"
+        ethBytecodeDb:
+          enabled: true
+          url: "https://eth-bytecode-db.services.blockscout.com/"
     resources:
       requests:
         cpu: "250m"
@@ -269,6 +418,10 @@ microservices:
     service:
       type: ClusterIP
       port: 8050
+    config:
+      server:
+        grpc:
+          enabled: false
     resources:
       requests:
         cpu: "250m"
@@ -290,6 +443,29 @@ microservices:
     service:
       type: ClusterIP
       port: 8050
+    config:
+      server:
+        http:
+          enabled: true
+          maxBodySize: 2097152
+        grpc:
+          enabled: false
+      database:
+        createDatabase: false
+        runMigrations: false
+      schedule:
+        default: "0 0 1 * * * *"  # Daily at 1 AM
+        forceUpdateOnStart: false
+      metrics:
+        enabled: false
+      tracing:
+        enabled: true
+        format: "default"
+      jaeger:
+        enabled: false
+    secret:
+      annotations: {}
+    existingSecret: ""
     resources:
       requests:
         cpu: "500m"
@@ -332,6 +508,7 @@ postgresql:
     checkpointCompletionTarget: "0.9"
     maxWalSenders: "10"
     maxConnections: "500"
+    clientConnectionCheckInterval: "60000"  # 60 seconds - connection health check
     randomPageCost: "1.1"  # For NVMe SSD
     effectiveIoConcurrency: "200"
     logMinDurationStatement: "1000"  # Log queries > 1s
@@ -510,6 +687,37 @@ networkPolicies:
   # These policies provide enhanced L3/L4 capabilities and better performance
   # Standard Kubernetes NetworkPolicies are always used regardless of this setting
   enableCiliumPolicies: false
+
+# ============================================================
+# STATS POSTGRESQL (Separate database for stats service)
+# ============================================================
+statsPostgresql:
+  enabled: true
+  replicaCount: 1  # Stats doesn't need HA
+
+  image:
+    registry: ghcr.io
+    repository: cloudnative-pg/postgresql
+    tag: "17"
+
+  auth:
+    database: stats
+    username: stats
+    password: ""  # Set via external secret or generate random
+    existingSecret: ""
+
+  # Storage configuration (smaller than main DB)
+  primary:
+    persistence:
+      enabled: true
+      storageClass: ""
+      size: 50Gi  # Stats data is much smaller
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        memory: "2Gi"
 
 # ============================================================
 # INGRESS

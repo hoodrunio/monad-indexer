@@ -1,0 +1,16 @@
+{{- $visualizer := index .Values.microservices "visualizer" }}
+{{- if $visualizer.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-visualizer-config
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: visualizer
+data:
+  # ============================================
+  # gRPC SERVER CONFIGURATION
+  # ============================================
+  # Visualizer uses HTTP by default, gRPC is disabled
+  VISUALIZER__SERVER__GRPC__ENABLED: {{ $visualizer.config.server.grpc.enabled | quote }}
+{{- end }}

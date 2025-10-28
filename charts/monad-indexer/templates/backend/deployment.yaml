@@ -57,6 +57,9 @@ spec:
             - |
               echo "Running database migrations..."
               bin/blockscout eval "Elixir.Explorer.ReleaseTasks.create_and_migrate()"
+          envFrom:
+            - configMapRef:
+                name: {{ include "monad-indexer.fullname" . }}-backend-config
           env:
             {{- include "monad-indexer.backend.env" . | nindent 12 }}
           {{- if .Values.backend.initContainers.dbMigration.resources }}
@@ -130,13 +133,15 @@ spec:
               containerPort: {{ .Values.backend.service.port }}
               protocol: TCP
 
+          envFrom:
+            - configMapRef:
+                name: {{ include "monad-indexer.fullname" . }}-backend-config
+            {{- if .Values.backend.envFrom }}
+            {{- toYaml .Values.backend.envFrom | nindent 12 }}
+            {{- end }}
+
           env:
             {{- include "monad-indexer.backend.env" . | nindent 12 }}
-
-          {{- if .Values.backend.envFrom }}
-          envFrom:
-            {{- toYaml .Values.backend.envFrom | nindent 12 }}
-          {{- end }}
 
           {{- if .Values.backend.livenessProbe.enabled }}
           livenessProbe:
@@ -241,7 +246,8 @@ spec:
 {{- end }}
 
 {{/*
-Helper template for backend environment variables
+Helper template for backend environment variables from Secrets
+All ConfigMap variables are loaded via envFrom - this template only handles Secret values
 */}}
 {{- define "monad-indexer.backend.env" -}}
 - name: DATABASE_URL
@@ -249,32 +255,11 @@ Helper template for backend environment variables
     secretKeyRef:
       name: {{ .Values.backend.existingSecret | default (printf "%s-backend-secret" (include "monad-indexer.fullname" .)) }}
       key: database-url
-- name: PORT
-  value: {{ .Values.backend.service.port | quote }}
-- name: ETHEREUM_JSONRPC_HTTP_URL
-  value: {{ .Values.backend.env.ETHEREUM_JSONRPC_HTTP_URL | quote }}
-- name: ETHEREUM_JSONRPC_TRACE_URL
-  value: {{ .Values.backend.env.ETHEREUM_JSONRPC_TRACE_URL | default .Values.backend.env.ETHEREUM_JSONRPC_HTTP_URL | quote }}
-- name: ETHEREUM_JSONRPC_WS_URL
-  value: {{ .Values.backend.env.ETHEREUM_JSONRPC_WS_URL | quote }}
-- name: CHAIN_ID
-  value: {{ .Values.backend.env.CHAIN_ID | quote }}
-- name: POOL_SIZE
-  value: {{ .Values.backend.env.POOL_SIZE | default "80" | quote }}
-- name: POOL_SIZE_API
-  value: {{ .Values.backend.env.POOL_SIZE_API | default "10" | quote }}
-{{- if .Values.redis.enabled }}
-- name: REDIS_URL
-  value: redis://{{ include "monad-indexer.fullname" . }}-redis-master:6379
-{{- end }}
-{{- if .Values.backend.env.INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER }}
-- name: INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER
-  value: {{ .Values.backend.env.INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER | quote }}
-{{- end }}
-{{- if .Values.backend.env.INDEXER_MEMORY_LIMIT }}
-- name: INDEXER_MEMORY_LIMIT
-  value: {{ .Values.backend.env.INDEXER_MEMORY_LIMIT | quote }}
-{{- end }}
+- name: SECRET_KEY_BASE
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.backend.existingSecret | default (printf "%s-backend-secret" (include "monad-indexer.fullname" .)) }}
+      key: secret-key-base
 {{- if .Values.backend.extraEnv }}
 {{- toYaml .Values.backend.extraEnv }}
 {{- end }}

@@ -47,8 +47,32 @@ spec:
           containerPort: {{ $serviceConfig.service.port }}
           protocol: TCP
 
-        {{- if $serviceConfig.env }}
+        envFrom:
+        - configMapRef:
+            name: {{ include "monad-indexer.fullname" $ }}-{{ $serviceName }}-config
+        {{- if eq $serviceName "stats" }}
+        {{- if not $serviceConfig.existingSecret }}
+        - secretRef:
+            name: {{ include "monad-indexer.fullname" $ }}-stats-secret
+        {{- end }}
+        {{- end }}
+
         env:
+        {{- if eq $serviceName "stats" }}
+        {{- if not $serviceConfig.existingSecret }}
+        - name: STATS__DB_URL
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "monad-indexer.fullname" $ }}-stats-secret
+              key: stats-db-url
+        - name: STATS__BLOCKSCOUT_DB_URL
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "monad-indexer.fullname" $ }}-stats-secret
+              key: blockscout-db-url
+        {{- end }}
+        {{- end }}
+        {{- if $serviceConfig.env }}
         {{- range $key, $value := $serviceConfig.env }}
         - name: {{ $key }}
           value: {{ $value | quote }}

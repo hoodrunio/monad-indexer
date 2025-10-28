@@ -1,4 +1,7 @@
 {{- if .Values.backend.enabled }}
+{{- $verifier := index .Values.microservices "smart-contract-verifier" }}
+{{- $visualizer := index .Values.microservices "visualizer" }}
+{{- $sigProvider := index .Values.microservices "sig-provider" }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -6,7 +9,219 @@ metadata:
   labels:
     {{- include "monad-indexer.backend.labels" . | nindent 4 }}
 data:
-  {{- if .Values.backend.config }}
-  {{- toYaml .Values.backend.config | nindent 2 }}
+  # ============================================
+  # DATABASE CONFIGURATION
+  # ============================================
+  ECTO_USE_SSL: {{ .Values.backend.config.database.ectoUseSsl | quote }}
+  POOL_SIZE: {{ .Values.backend.config.database.poolSize | quote }}
+  POOL_SIZE_API: {{ .Values.backend.config.database.poolSizeApi | quote }}
+
+  # ============================================
+  # RPC CONFIGURATION
+  # ============================================
+  ETHEREUM_JSONRPC_VARIANT: {{ .Values.backend.config.rpc.variant | quote }}
+  ETHEREUM_JSONRPC_TRANSPORT: {{ .Values.backend.config.rpc.transport | quote }}
+  ETHEREUM_JSONRPC_HTTP_URL: {{ .Values.backend.config.rpc.httpUrl | quote }}
+  ETHEREUM_JSONRPC_TRACE_URL: {{ .Values.backend.config.rpc.traceUrl | default .Values.backend.config.rpc.httpUrl | quote }}
+  ETHEREUM_JSONRPC_WS_URL: {{ .Values.backend.config.rpc.wsUrl | quote }}
+  ETHEREUM_JSONRPC_DISABLE_ARCHIVE_BALANCES: {{ .Values.backend.config.rpc.disableArchiveBalances | quote }}
+
+  # ============================================
+  # CHAIN CONFIGURATION
+  # ============================================
+  CHAIN_ID: {{ .Values.backend.config.chain.id | quote }}
+
+  # ============================================
+  # API SERVER
+  # ============================================
+  PORT: {{ .Values.backend.service.port | quote }}
+  DISABLE_WEBAPP: {{ .Values.backend.config.api.disableWebapp | quote }}
+  ADMIN_PANEL_ENABLED: {{ .Values.backend.config.api.adminPanelEnabled | quote }}
+  API_V1_READ_METHODS_DISABLED: {{ .Values.backend.config.api.v1ReadMethodsDisabled | quote }}
+  API_V1_WRITE_METHODS_DISABLED: {{ .Values.backend.config.api.v1WriteMethodsDisabled | quote }}
+  API_V2_ENABLED: {{ .Values.backend.config.api.v2Enabled | quote }}
+
+  # ============================================
+  # FRONTEND CONFIGURATION
+  # ============================================
+  {{- if .Values.backend.config.frontend.webappUrl }}
+  WEBAPP_URL: {{ .Values.backend.config.frontend.webappUrl | quote }}
+  {{- end }}
+  ENABLE_RUST_VERIFICATION_SERVICE: {{ .Values.backend.config.frontend.enableRustVerificationService | quote }}
+
+  # ============================================
+  # MARKET DATA
+  # ============================================
+  COIN_NAME: {{ .Values.backend.config.market.coinName | default "" | quote }}
+  COIN: {{ .Values.backend.config.market.coin | default "" | quote }}
+  DISABLE_MARKET: {{ .Values.backend.config.market.disabled | quote }}
+
+  # ============================================
+  # MICROSERVICES
+  # ============================================
+  {{- if $verifier.enabled }}
+  MICROSERVICE_SC_VERIFIER_TYPE: {{ .Values.backend.config.microservices.verifier.type | quote }}
+  MICROSERVICE_SC_VERIFIER_URL: http://{{ include "monad-indexer.fullname" . }}-smart-contract-verifier:{{ $verifier.service.port }}/
+  MICROSERVICE_SC_VERIFIER_ENABLED: "true"
+  {{- else }}
+  MICROSERVICE_SC_VERIFIER_ENABLED: "false"
+  {{- end }}
+
+  {{- if $visualizer.enabled }}
+  MICROSERVICE_VISUALIZE_SOL2UML_URL: http://{{ include "monad-indexer.fullname" . }}-visualizer:{{ $visualizer.service.port }}/
+  MICROSERVICE_VISUALIZE_SOL2UML_ENABLED: "true"
+  {{- else }}
+  MICROSERVICE_VISUALIZE_SOL2UML_ENABLED: "false"
+  {{- end }}
+
+  {{- if $sigProvider.enabled }}
+  MICROSERVICE_SIG_PROVIDER_URL: http://{{ include "monad-indexer.fullname" . }}-sig-provider:{{ $sigProvider.service.port }}/
+  MICROSERVICE_SIG_PROVIDER_ENABLED: "true"
+  {{- else }}
+  MICROSERVICE_SIG_PROVIDER_ENABLED: "false"
+  {{- end }}
+
+  # ============================================
+  # REDIS CACHE
+  # ============================================
+  {{- if .Values.redis.enabled }}
+  API_RATE_LIMIT_HAMMER_REDIS_URL: redis://{{ include "monad-indexer.fullname" . }}-redis-master:6379/1
+  ACCOUNT_REDIS_URL: redis://{{ include "monad-indexer.fullname" . }}-redis-master:6379
+  {{- end }}
+
+  # ============================================
+  # ACCOUNTS
+  # ============================================
+  ACCOUNT_ENABLED: {{ .Values.backend.config.account.enabled | quote }}
+  {{- if .Values.backend.config.account.cloakKey }}
+  ACCOUNT_CLOAK_KEY: {{ .Values.backend.config.account.cloakKey | quote }}
+  {{- end }}
+
+  # ============================================
+  # INDEXER CONFIGURATION
+  # ============================================
+  DISABLE_INDEXER: {{ .Values.backend.config.indexer.disabled | quote }}
+  {{- if .Values.backend.config.indexer.disableRealtime }}
+  DISABLE_REALTIME_INDEXER: {{ .Values.backend.config.indexer.disableRealtime | quote }}
+  {{- end }}
+  DISABLE_CATCHUP_INDEXER: {{ .Values.backend.config.indexer.disableCatchup | quote }}
+
+  # Indexer performance tuning - optional config
+  # These can be added to values.yaml if needed
+  {{- if .Values.backend.config.indexer.performance.receiptsBatchSize }}
+  INDEXER_RECEIPTS_BATCH_SIZE: {{ .Values.backend.config.indexer.performance.receiptsBatchSize | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.indexer.performance.receiptsConcurrency }}
+  INDEXER_RECEIPTS_CONCURRENCY: {{ .Values.backend.config.indexer.performance.receiptsConcurrency | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.indexer.performance.coinBalancesBatchSize }}
+  INDEXER_COIN_BALANCES_BATCH_SIZE: {{ .Values.backend.config.indexer.performance.coinBalancesBatchSize | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.indexer.performance.coinBalancesConcurrency }}
+  INDEXER_COIN_BALANCES_CONCURRENCY: {{ .Values.backend.config.indexer.performance.coinBalancesConcurrency | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.indexer.performance.tokenBalancesBatchSize }}
+  INDEXER_TOKEN_BALANCES_BATCH_SIZE: {{ .Values.backend.config.indexer.performance.tokenBalancesBatchSize | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.indexer.performance.tokenBalancesConcurrency }}
+  INDEXER_TOKEN_BALANCES_CONCURRENCY: {{ .Values.backend.config.indexer.performance.tokenBalancesConcurrency | quote }}
+  {{- end }}
+
+  # ============================================
+  # TRANSACTION HISTORY
+  # ============================================
+  TXS_STATS_DAYS_TO_COMPILE_AT_INIT: {{ .Values.backend.config.history.txsStatsDaysToCompileAtInit | quote }}
+  COIN_BALANCE_HISTORY_DAYS: {{ .Values.backend.config.history.coinBalanceHistoryDays | quote }}
+
+  # ============================================
+  # CONTRACT INTERACTION
+  # ============================================
+  DECODE_NOT_A_CONTRACT_CALLS: {{ .Values.backend.config.contract.decodeNotAContractCalls | quote }}
+
+  # ============================================
+  # NFT MEDIA HANDLING
+  # ============================================
+  NFT_MEDIA_HANDLER_ENABLED: {{ .Values.backend.config.nft.mediaHandlerEnabled | quote }}
+  {{- if .Values.backend.config.nft.remoteDispatcherEnabled }}
+  NFT_MEDIA_HANDLER_REMOTE_DISPATCHER_NODE_MODE_ENABLED: {{ .Values.backend.config.nft.remoteDispatcherEnabled | quote }}
+  NFT_MEDIA_HANDLER_BUCKET_FOLDER: {{ .Values.backend.config.nft.bucketFolder | quote }}
+  RELEASE_NODE: {{ .Values.backend.config.nft.releaseNode | quote }}
+  RELEASE_DISTRIBUTION: {{ .Values.backend.config.nft.releaseDistribution | quote }}
+  RELEASE_COOKIE: {{ .Values.backend.config.nft.releaseCookie | quote }}
+  {{- end }}
+
+  # ============================================
+  # LOGGING
+  # ============================================
+  DISABLE_FILE_LOGGING: {{ .Values.backend.config.logging.disableFileLogging | quote }}
+  HEART_BEAT_TIMEOUT: {{ .Values.backend.config.logging.heartBeatTimeout | quote }}
+  {{- if .Values.backend.config.logging.releaseLink }}
+  RELEASE_LINK: {{ .Values.backend.config.logging.releaseLink | quote }}
+  {{- end }}
+
+  # ============================================
+  # RECAPTCHA
+  # ============================================
+  RE_CAPTCHA_DISABLED: {{ .Values.backend.config.recaptcha.disabled | quote }}
+
+  # ============================================
+  # ADVANCED SETTINGS
+  # ============================================
+  {{- if .Values.backend.config.advanced.firstBlock }}
+  FIRST_BLOCK: {{ .Values.backend.config.advanced.firstBlock | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.advanced.lastBlock }}
+  LAST_BLOCK: {{ .Values.backend.config.advanced.lastBlock | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.advanced.indexerDbEventNotificationsCleanupEnabled }}
+  INDEXER_DB_EVENT_NOTIFICATIONS_CLEANUP_ENABLED: {{ .Values.backend.config.advanced.indexerDbEventNotificationsCleanupEnabled | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.advanced.tokenBalanceOnDemandFetcherThreshold }}
+  TOKEN_BALANCE_ON_DEMAND_FETCHER_THRESHOLD: {{ .Values.backend.config.advanced.tokenBalanceOnDemandFetcherThreshold | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.advanced.coinBalanceOnDemandFetcherThreshold }}
+  COIN_BALANCE_ON_DEMAND_FETCHER_THRESHOLD: {{ .Values.backend.config.advanced.coinBalanceOnDemandFetcherThreshold | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.advanced.contractVerificationAllowedSolidityEvmVersions }}
+  CONTRACT_VERIFICATION_ALLOWED_SOLIDITY_EVM_VERSIONS: {{ .Values.backend.config.advanced.contractVerificationAllowedSolidityEvmVersions | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.advanced.contractVerificationAllowedVyperEvmVersions }}
+  CONTRACT_VERIFICATION_ALLOWED_VYPER_EVM_VERSIONS: {{ .Values.backend.config.advanced.contractVerificationAllowedVyperEvmVersions | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.advanced.contractVerificationMaxLibraries }}
+  CONTRACT_VERIFICATION_MAX_LIBRARIES: {{ .Values.backend.config.advanced.contractVerificationMaxLibraries | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.advanced.sourcifyIntegrationEnabled }}
+  SOURCIFY_INTEGRATION_ENABLED: {{ .Values.backend.config.advanced.sourcifyIntegrationEnabled | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.advanced.sourcifyServerUrl }}
+  SOURCIFY_SERVER_URL: {{ .Values.backend.config.advanced.sourcifyServerUrl | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.advanced.sourcifyRepoUrl }}
+  SOURCIFY_REPO_URL: {{ .Values.backend.config.advanced.sourcifyRepoUrl | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.advanced.gasPriceOracleNumOfBlocks }}
+  GAS_PRICE_ORACLE_NUM_OF_BLOCKS: {{ .Values.backend.config.advanced.gasPriceOracleNumOfBlocks | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.advanced.gasPriceOracleSafelowPercentile }}
+  GAS_PRICE_ORACLE_SAFELOW_PERCENTILE: {{ .Values.backend.config.advanced.gasPriceOracleSafelowPercentile | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.advanced.gasPriceOracleAveragePercentile }}
+  GAS_PRICE_ORACLE_AVERAGE_PERCENTILE: {{ .Values.backend.config.advanced.gasPriceOracleAveragePercentile | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.advanced.gasPriceOracleFastPercentile }}
+  GAS_PRICE_ORACLE_FAST_PERCENTILE: {{ .Values.backend.config.advanced.gasPriceOracleFastPercentile | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.advanced.ipfsGatewayUrl }}
+  IPFS_GATEWAY_URL: {{ .Values.backend.config.advanced.ipfsGatewayUrl | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.advanced.ipfsPublicGatewayUrl }}
+  IPFS_PUBLIC_GATEWAY_URL: {{ .Values.backend.config.advanced.ipfsPublicGatewayUrl | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.advanced.healthMonitorCheckInterval }}
+  HEALTH_MONITOR_CHECK_INTERVAL: {{ .Values.backend.config.advanced.healthMonitorCheckInterval | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.advanced.healthMonitorBlocksPeriod }}
+  HEALTH_MONITOR_BLOCKS_PERIOD: {{ .Values.backend.config.advanced.healthMonitorBlocksPeriod | quote }}
   {{- end }}
 {{- end }}

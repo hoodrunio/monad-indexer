@@ -425,3 +425,23 @@ See [values.yaml](values.yaml) for full configuration options.
 ## License
 
 MIT License - see LICENSE file for details
+
+## Sealed Secrets for Production
+
+For production deployments, use Sealed Secrets to encrypt sensitive data:
+
+```bash
+# 1. Add Sealed Secrets Helm repository
+helm repo add sealed-secrets https://bitnami-labs.github.io/sealed-secrets
+helm repo update
+
+# 2. Install Sealed Secrets controller
+helm install sealed-secrets-controller sealed-secrets/sealed-secrets \
+  --namespace kube-system \
+  --create-namespace
+
+# 3. Follow the detailed guide
+cat ../../docs/sealed-secrets-setup.md
+```
+
+See [Sealed Secrets Setup Guide](../../docs/sealed-secrets-setup.md) for complete instructions.
