@@ -20,7 +20,7 @@ spec:
             component: backend
           annotations:
             summary: "Blockchain indexer is lagging"
-            description: "Indexer is {{ $value }} blocks behind chain head"
+            description: {{ `"Indexer is {{ $value }} blocks behind chain head"` | quote }}
 
         # Backend pods down
         - alert: BackendPodsDown
@@ -32,7 +32,7 @@ spec:
             component: backend
           annotations:
             summary: "Backend pods are down"
-            description: "Only {{ $value }} backend pods available"
+            description: {{ `"Only {{ $value }} backend pods available"` | quote }}
 
         # High CPU usage
         - alert: BackendHighCPU
@@ -44,7 +44,7 @@ spec:
             component: backend
           annotations:
             summary: "Backend high CPU usage"
-            description: "Backend CPU usage is {{ $value | humanizePercentage }}"
+            description: {{ `"Backend CPU usage is {{ $value | humanizePercentage }}"` | quote }}
 
         # High memory usage
         - alert: BackendHighMemory
@@ -57,7 +57,7 @@ spec:
             component: backend
           annotations:
             summary: "Backend high memory usage"
-            description: "Backend memory usage is {{ $value | humanizePercentage }}"
+            description: {{ `"Backend memory usage is {{ $value | humanizePercentage }}"` | quote }}
 
     - name: postgresql
       interval: 30s
@@ -72,7 +72,7 @@ spec:
             component: postgresql
           annotations:
             summary: "PostgreSQL instance down"
-            description: "PostgreSQL instance {{ $labels.instance }} is down"
+            description: {{ `"PostgreSQL instance {{ $labels.instance }} is down"` | quote }}
 
         # Replication lag
         - alert: PostgreSQLReplicationLag
@@ -84,44 +84,7 @@ spec:
             component: postgresql
           annotations:
             summary: "PostgreSQL replication lag high"
-            description: "Replication lag is {{ $value }} seconds"
-
-        # Low cache hit ratio
-        - alert: PostgreSQLLowCacheHitRatio
-          expr: |
-            rate(pg_stat_database_blks_hit[5m]) /
-            (rate(pg_stat_database_blks_hit[5m]) + rate(pg_stat_database_blks_read[5m])) < 0.95
-          for: 15m
-          labels:
-            severity: warning
-            component: postgresql
-          annotations:
-            summary: "PostgreSQL cache hit ratio low"
-            description: "Cache hit ratio is {{ $value | humanizePercentage }} (should be >95%)"
-
-        # High connections
-        - alert: PostgreSQLHighConnections
-          expr: |
-            pg_stat_activity_count / pg_settings_max_connections > 0.8
-          for: 5m
-          labels:
-            severity: warning
-            component: postgresql
-          annotations:
-            summary: "PostgreSQL connection limit approaching"
-            description: "Using {{ $value | humanizePercentage }} of max connections"
-
-        # Disk space warning
-        - alert: PostgreSQLDiskSpaceWarning
-          expr: |
-            (pg_database_size_bytes / node_filesystem_size_bytes) > 0.8
-          for: 5m
-          labels:
-            severity: warning
-            component: postgresql
-          annotations:
-            summary: "PostgreSQL disk space warning"
-            description: "Database is using {{ $value | humanizePercentage }} of disk space"
+            description: {{ `"Replication lag is {{ $value }} seconds"` | quote }}
 
     - name: redis
       interval: 30s
@@ -136,29 +99,5 @@ spec:
             component: redis
           annotations:
             summary: "Redis instance down"
-            description: "Redis instance {{ $labels.instance }} is down"
-
-        # High memory usage
-        - alert: RedisHighMemoryUsage
-          expr: |
-            redis_memory_used_bytes / redis_memory_max_bytes > 0.9
-          for: 5m
-          labels:
-            severity: warning
-            component: redis
-          annotations:
-            summary: "Redis high memory usage"
-            description: "Redis memory usage is {{ $value | humanizePercentage }}"
-
-        # Rejected connections
-        - alert: RedisRejectedConnections
-          expr: |
-            rate(redis_rejected_connections_total[5m]) > 0
-          for: 5m
-          labels:
-            severity: warning
-            component: redis
-          annotations:
-            summary: "Redis rejecting connections"
-            description: "Redis is rejecting {{ $value }} connections per second"
+            description: {{ `"Redis instance {{ $labels.instance }} is down"` | quote }}
 {{- end }}

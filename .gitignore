@@ -12,3 +12,8 @@ logs/
 services/logs/
 services/dets/
 blockscout
+
+
+# Helm
+Chart.lock
+*.tgz

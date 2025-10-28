@@ -16,7 +16,7 @@ spec:
     initdb:
       database: {{ .Values.postgresql.auth.database }}
       owner: {{ .Values.postgresql.auth.username }}
-      {{- if .Values.postgresql.initdb.postInitSQL }}
+      {{- if and .Values.postgresql.initdb (hasKey .Values.postgresql.initdb "postInitSQL") }}
       postInitSQL:
         {{- toYaml .Values.postgresql.initdb.postInitSQL | nindent 8 }}
       {{- end }}

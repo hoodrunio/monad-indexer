@@ -1,0 +1,36 @@
+{{- range $serviceName, $serviceConfig := .Values.microservices }}
+{{- if $serviceConfig.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "monad-indexer.fullname" $ }}-{{ $serviceName }}
+  labels:
+    {{- include "monad-indexer.microservice.labels" $ | nindent 4 }}
+    app.kubernetes.io/service: {{ $serviceName }}
+  {{- if $serviceConfig.service.annotations }}
+  annotations:
+    {{- toYaml $serviceConfig.service.annotations | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ $serviceConfig.service.type | default "ClusterIP" }}
+  {{- if and (eq ($serviceConfig.service.type | default "ClusterIP") "LoadBalancer") $serviceConfig.service.loadBalancerIP }}
+  loadBalancerIP: {{ $serviceConfig.service.loadBalancerIP }}
+  {{- end }}
+  {{- if and (eq ($serviceConfig.service.type | default "ClusterIP") "ClusterIP") $serviceConfig.service.clusterIP }}
+  clusterIP: {{ $serviceConfig.service.clusterIP }}
+  {{- end }}
+  ports:
+    - port: {{ $serviceConfig.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+      {{- if and (or (eq ($serviceConfig.service.type | default "ClusterIP") "NodePort") (eq ($serviceConfig.service.type | default "ClusterIP") "LoadBalancer")) $serviceConfig.service.nodePort }}
+      nodePort: {{ $serviceConfig.service.nodePort }}
+      {{- end }}
+  selector:
+    {{- include "monad-indexer.selectorLabels" $ | nindent 4 }}
+    app.kubernetes.io/component: microservice
+    app.kubernetes.io/service: {{ $serviceName }}
+{{- end }}
+{{- end }}
