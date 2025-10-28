@@ -111,11 +111,33 @@ Get the Redis connection string
 */}}
 {{- define "monad-indexer.redis.connectionString" -}}
 {{- if .Values.redis.enabled }}
+{{- if .Values.redis.auth.enabled }}
+redis://:{{ include "monad-indexer.redis.password" . }}@{{ include "monad-indexer.fullname" . }}-redis-master:6379
+{{- else }}
 redis://{{ include "monad-indexer.fullname" . }}-redis-master:6379
+{{- end }}
 {{- else }}
 {{- .Values.externalRedis.url }}
 {{- end }}
 {{- end }}
+
+{{/*
+Get the Redis password
+*/}}
+{{- define "monad-indexer.redis.password" -}}
+{{- if .Values.redis.auth.existingSecret -}}
+{{- printf "%s" .Values.redis.auth.existingSecret -}}
+{{- else if .Values.redis.auth.password -}}
+{{- .Values.redis.auth.password -}}
+{{- else -}}
+{{- $secret := (lookup "v1" "Secret" .Release.Namespace (printf "%s-redis" (include "monad-indexer.fullname" .))) -}}
+{{- if $secret -}}
+{{- index $secret.data "redis-password" | b64dec -}}
+{{- else -}}
+{{- randAlphaNum 10 -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
 
 {{/*
 Return true if a secret object should be created for PostgreSQL
@@ -140,6 +162,68 @@ Backend selector labels
 {{- define "monad-indexer.backend.selectorLabels" -}}
 {{ include "monad-indexer.selectorLabels" . }}
 app.kubernetes.io/component: backend
+{{- end }}
+
+{{/*
+Get PostgreSQL secret name
+*/}}
+{{- define "monad-indexer.postgresql.secretName" -}}
+{{- if .Values.postgresql.auth.existingSecret -}}
+{{- .Values.postgresql.auth.existingSecret -}}
+{{- else -}}
+{{- printf "%s-postgresql-app" (include "monad-indexer.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Get backend secret name
+*/}}
+{{- define "monad-indexer.backend.secretName" -}}
+{{- if .Values.backend.existingSecret -}}
+{{- .Values.backend.existingSecret -}}
+{{- else -}}
+{{- printf "%s-backend-secret" (include "monad-indexer.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Backend environment variables
+*/}}
+{{- define "monad-indexer.backend.env" -}}
+- name: DATABASE_URL
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "monad-indexer.postgresql.secretName" . }}
+      key: uri
+- name: SECRET_KEY_BASE
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "monad-indexer.backend.secretName" . }}
+      key: secret-key-base
+{{- if .Values.redis.enabled }}
+{{- if .Values.redis.auth.enabled }}
+- name: REDIS_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "monad-indexer.fullname" . }}-redis
+      key: redis-password
+- name: API_RATE_LIMIT_HAMMER_REDIS_URL
+  value: "redis://:$(REDIS_PASSWORD)@$(REDIS_HOST):$(REDIS_PORT)/1"
+- name: ACCOUNT_REDIS_URL
+  value: "redis://:$(REDIS_PASSWORD)@$(REDIS_HOST):$(REDIS_PORT)"
+{{- else }}
+- name: API_RATE_LIMIT_HAMMER_REDIS_URL
+  value: "redis://$(REDIS_HOST):$(REDIS_PORT)/1"
+- name: ACCOUNT_REDIS_URL
+  value: "redis://$(REDIS_HOST):$(REDIS_PORT)"
+{{- end }}
+{{- end }}
+{{- if .Values.backend.env }}
+{{- range $key, $value := .Values.backend.env }}
+- name: {{ $key }}
+  value: {{ $value | quote }}
+{{- end }}
+{{- end }}
 {{- end }}
 
 {{/*

@@ -208,6 +208,8 @@ spec:
               mountPath: /tmp
             - name: cache
               mountPath: /app/.cache
+            - name: dets
+              mountPath: /app/dets
             {{- if .Values.backend.extraVolumeMounts }}
             {{- toYaml .Values.backend.extraVolumeMounts | nindent 12 }}
             {{- end }}
@@ -221,6 +223,8 @@ spec:
         - name: tmp
           emptyDir: {}
         - name: cache
+          emptyDir: {}
+        - name: dets
           emptyDir: {}
         {{- if .Values.backend.extraVolumes }}
         {{- toYaml .Values.backend.extraVolumes | nindent 8 }}
