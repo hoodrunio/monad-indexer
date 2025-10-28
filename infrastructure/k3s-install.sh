@@ -105,9 +105,11 @@ cilium install \
   --set hubble.enabled=false \
   --set bpf.events.trace.enabled=false \
   --set prometheus.enabled=true \
-  --set prometheus.serviceMonitor.enabled=true \
+  --set prometheus.serviceMonitor.enabled=false \
   --set operator.replicas=1 \
   --wait
+
+echo "💡 Note: Prometheus ServiceMonitor disabled (will be enabled after Prometheus Operator is installed)"
 
 # Wait for Cilium to be ready
 echo "⏳ Waiting for Cilium to be ready..."
