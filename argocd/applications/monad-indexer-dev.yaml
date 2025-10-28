@@ -13,7 +13,7 @@ spec:
   project: monad-indexer
 
   source:
-    repoURL: https://github.com/your-org/monad-indexer-gitops
+    repoURL: https://github.com/hoodrunio/monad-indexer-gitops
     targetRevision: main  # Always latest
     path: charts/monad-indexer
     helm:

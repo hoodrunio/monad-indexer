@@ -41,7 +41,7 @@ On your bare metal server(s):
 
 ```bash
 # Clone repository
-git clone https://github.com/your-org/monad-indexer-gitops
+git clone https://github.com/hoodrunio/monad-indexer-gitops
 cd monad-indexer-gitops
 
 # Run K3s + Cilium installation
@@ -225,7 +225,7 @@ kubectl apply -f secret-store.yaml
 1. **Fork and customize the repository**:
 
 ```bash
-git clone https://github.com/your-org/monad-indexer-gitops
+git clone https://github.com/hoodrunio/monad-indexer-gitops
 cd monad-indexer-gitops
 ```
 
@@ -235,7 +235,7 @@ Edit `argocd/applications/monad-indexer-production.yaml`:
 
 ```yaml
 source:
-  repoURL: https://github.com/YOUR_ORG/monad-indexer-gitops  # Update this
+  repoURL: https://github.com/hoodrunio/monad-indexer  # Update this
 ```
 
 Edit `charts/monad-indexer/environments/values-production.yaml`:

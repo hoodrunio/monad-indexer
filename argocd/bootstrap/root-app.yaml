@@ -14,7 +14,7 @@ spec:
   project: default
 
   source:
-    repoURL: https://github.com/your-org/monad-indexer-gitops
+    repoURL: https://github.com/hoodrunio/monad-indexer-gitops
     targetRevision: main
     path: argocd/applications
 
