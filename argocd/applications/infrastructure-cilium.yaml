@@ -46,7 +46,7 @@ spec:
             value: "REPLACE_WITH_API_SERVER_IP"
           - name: k8sServicePort
             value: "6443"
-    - repoURL: https://github.com/YOUR_ORG/monad-indexer.git  # Replace with your repo
+    - repoURL: https://github.com/hoodrunio/monad-indexer.git
       targetRevision: HEAD
       ref: values
 
@@ -88,7 +88,7 @@ spec:
   project: infrastructure
 
   source:
-    repoURL: https://github.com/YOUR_ORG/monad-indexer.git  # Replace with your repo
+    repoURL: https://github.com/hoodrunio/monad-indexer.git
     targetRevision: HEAD
     path: infrastructure/helm/cilium
 

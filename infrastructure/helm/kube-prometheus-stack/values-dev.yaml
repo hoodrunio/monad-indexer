@@ -1,0 +1,125 @@
+# Kube-Prometheus-Stack Development Configuration
+# Minimal resources for dev environment
+
+# Prometheus configuration
+prometheus:
+  enabled: true
+
+  prometheusSpec:
+    retention: 7d
+    retentionSize: "10GB"
+
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "1Gi"
+      limits:
+        memory: "2Gi"
+
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 20Gi
+
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+    serviceMonitorNamespaceSelector: {}
+
+    podMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelector: {}
+    podMonitorNamespaceSelector: {}
+
+    scrapeInterval: "60s"
+    evaluationInterval: "60s"
+
+    externalLabels:
+      cluster: "monad-indexer-dev"
+      environment: "development"
+
+# Grafana configuration
+grafana:
+  enabled: true
+  adminPassword: "admin"  # Default for dev
+
+  persistence:
+    enabled: false  # No persistence in dev
+
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      memory: "512Mi"
+
+  ingress:
+    enabled: false
+
+  # Same dashboards as prod
+  dashboards:
+    default:
+      cilium-dashboard:
+        gnetId: 16611
+        revision: 1
+        datasource: Prometheus
+      postgresql-dashboard:
+        gnetId: 9628
+        revision: 7
+        datasource: Prometheus
+      redis-dashboard:
+        gnetId: 11835
+        revision: 1
+        datasource: Prometheus
+
+# AlertManager - disabled in dev
+alertmanager:
+  enabled: false
+
+# Prometheus Operator
+prometheusOperator:
+  enabled: true
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      memory: "128Mi"
+
+# Node Exporter
+nodeExporter:
+  enabled: true
+
+# Kube State Metrics
+kubeStateMetrics:
+  enabled: true
+
+# Minimal default rules
+defaultRules:
+  create: true
+  rules:
+    alertmanager: false
+    etcd: false
+    configReloaders: false
+    general: true
+    k8s: true
+    kubeApiserverAvailability: false
+    kubeApiserverSlos: false
+    kubelet: true
+    kubeProxy: false
+    kubePrometheusGeneral: false
+    kubePrometheusNodeRecording: false
+    kubernetesApps: true
+    kubernetesResources: true
+    kubernetesStorage: false
+    kubernetesSystem: true
+    kubeScheduler: false
+    kubeStateMetrics: true
+    network: false
+    node: true
+    nodeExporterAlerting: false
+    nodeExporterRecording: false
+    prometheus: true
+    prometheusOperator: true

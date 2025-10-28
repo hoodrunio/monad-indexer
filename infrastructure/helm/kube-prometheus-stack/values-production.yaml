@@ -1,0 +1,253 @@
+# Kube-Prometheus-Stack Production Configuration
+# Includes: Prometheus Operator, Prometheus, Grafana, AlertManager
+# This provides all CRDs needed for ServiceMonitor, PodMonitor, PrometheusRule
+
+# Prometheus configuration
+prometheus:
+  enabled: true
+
+  prometheusSpec:
+    # Retention
+    retention: 30d
+    retentionSize: "100GB"
+
+    # Resources
+    resources:
+      requests:
+        cpu: "1000m"
+        memory: "4Gi"
+      limits:
+        memory: "8Gi"
+
+    # Storage
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path  # K3s default
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 100Gi
+
+    # Service Monitor selectors - discover all ServiceMonitors
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+    serviceMonitorNamespaceSelector: {}
+
+    # Pod Monitor selectors
+    podMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelector: {}
+    podMonitorNamespaceSelector: {}
+
+    # Prometheus Rule selectors
+    ruleSelectorNilUsesHelmValues: false
+    ruleSelector: {}
+    ruleNamespaceSelector: {}
+
+    # Scrape interval
+    scrapeInterval: "30s"
+    evaluationInterval: "30s"
+
+    # External labels
+    externalLabels:
+      cluster: "monad-indexer-prod"
+      environment: "production"
+
+# Grafana configuration
+grafana:
+  enabled: true
+
+  adminPassword: "CHANGE_ME"  # Change in production!
+
+  # Persistence
+  persistence:
+    enabled: true
+    storageClassName: local-path
+    size: 10Gi
+
+  # Resources
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      memory: "1Gi"
+
+  # Ingress (optional)
+  ingress:
+    enabled: false  # Enable if you want external access
+    ingressClassName: nginx
+    hosts:
+      - grafana.monad.example.com
+    tls:
+      - secretName: grafana-tls
+        hosts:
+          - grafana.monad.example.com
+
+  # Datasources - Prometheus auto-configured
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          url: http://kube-prometheus-stack-prometheus:9090
+          access: proxy
+          isDefault: true
+
+  # Dashboards
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: 'default'
+          orgId: 1
+          folder: ''
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+
+  dashboards:
+    default:
+      # Cilium dashboard
+      cilium-dashboard:
+        gnetId: 16611
+        revision: 1
+        datasource: Prometheus
+      # PostgreSQL dashboard
+      postgresql-dashboard:
+        gnetId: 9628
+        revision: 7
+        datasource: Prometheus
+      # Redis dashboard
+      redis-dashboard:
+        gnetId: 11835
+        revision: 1
+        datasource: Prometheus
+      # Kubernetes cluster monitoring
+      k8s-cluster:
+        gnetId: 7249
+        revision: 1
+        datasource: Prometheus
+
+# AlertManager configuration
+alertmanager:
+  enabled: true
+
+  alertmanagerSpec:
+    # Resources
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        memory: "256Mi"
+
+    # Storage
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+
+  # Configuration
+  config:
+    global:
+      resolve_timeout: 5m
+
+    route:
+      group_by: ['alertname', 'cluster', 'service']
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 12h
+      receiver: 'null'
+      routes:
+        - match:
+            alertname: Watchdog
+          receiver: 'null'
+
+    receivers:
+      - name: 'null'
+      # Add your receivers here (Slack, PagerDuty, etc.)
+      # - name: 'slack'
+      #   slack_configs:
+      #     - api_url: 'YOUR_SLACK_WEBHOOK_URL'
+      #       channel: '#alerts'
+
+# Prometheus Operator configuration
+prometheusOperator:
+  enabled: true
+
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      memory: "256Mi"
+
+  # Ensure CRDs are created
+  createCustomResource: true
+
+  # Manage CRDs
+  manageCrds: true
+
+# Node Exporter - system metrics
+nodeExporter:
+  enabled: true
+
+# Kube State Metrics - K8s object metrics
+kubeStateMetrics:
+  enabled: true
+
+# Default rules (alerts)
+defaultRules:
+  create: true
+  rules:
+    alertmanager: true
+    etcd: false  # K3s uses SQLite by default
+    configReloaders: true
+    general: true
+    k8s: true
+    kubeApiserverAvailability: true
+    kubeApiserverSlos: true
+    kubelet: true
+    kubeProxy: false  # Cilium replaces kube-proxy
+    kubePrometheusGeneral: true
+    kubePrometheusNodeRecording: true
+    kubernetesApps: true
+    kubernetesResources: true
+    kubernetesStorage: true
+    kubernetesSystem: true
+    kubeScheduler: true
+    kubeStateMetrics: true
+    network: true
+    node: true
+    nodeExporterAlerting: true
+    nodeExporterRecording: true
+    prometheus: true
+    prometheusOperator: true
+
+# Additional scrape configs for custom metrics
+additionalScrapeConfigs: []
+
+# Service monitors for cluster components
+kubeApiServer:
+  enabled: true
+
+kubelet:
+  enabled: true
+  namespace: kube-system
+
+kubeControllerManager:
+  enabled: true
+
+kubeScheduler:
+  enabled: true
+
+coreDns:
+  enabled: true
