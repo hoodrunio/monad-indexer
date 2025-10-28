@@ -15,7 +15,7 @@ spec:
   project: monad-indexer
 
   source:
-    repoURL: https://github.com/hoodrunio/monad-indexer-gitops
+    repoURL: https://github.com/hoodrunio/monad-indexer
     targetRevision: stable  # Use stable branch for production
     path: charts/monad-indexer
     helm:

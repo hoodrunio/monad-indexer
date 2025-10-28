@@ -10,7 +10,7 @@ spec:
 
   # Source repositories
   sourceRepos:
-    - 'https://github.com/hoodrunio/monad-indexer-gitops'
+    - 'https://github.com/hoodrunio/monad-indexer'
     - 'https://charts.bitnami.com/bitnami'
     - 'https://github.com/cloudnative-pg/charts'
 

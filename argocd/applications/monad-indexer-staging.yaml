@@ -14,7 +14,7 @@ spec:
   project: monad-indexer
 
   source:
-    repoURL: https://github.com/hoodrunio/monad-indexer-gitops
+    repoURL: https://github.com/hoodrunio/monad-indexer
     targetRevision: main
     path: charts/monad-indexer
     helm:
