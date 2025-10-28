@@ -9,3 +9,5 @@ services:
     container_name: 'sig-provider'
     env_file:
       - ../envs/common-sig-provider.env
+    ports:
+      - "8050:8050"
