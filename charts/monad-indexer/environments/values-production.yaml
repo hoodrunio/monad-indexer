@@ -197,6 +197,7 @@ ingress:
 gateway:
   enabled: true
   name: "monad-indexer-gateway"
+  sectionName: "https-monad-indexer"  # Match the Gateway listener name
   annotations:
     prometheus.io/scrape: "true"
   hosts:

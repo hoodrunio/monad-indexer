@@ -147,6 +147,106 @@ chmod +x /usr/local/bin/argocd
 argocd login localhost:8080
 ```
 
+### Configure Repository Credentials
+
+ArgoCD needs credentials to access the private GitHub repository:
+
+**1. Create a GitHub Personal Access Token (PAT)**:
+
+- Go to GitHub Settings > Developer settings > Personal access tokens > Tokens (classic)
+- Click "Generate new token (classic)"
+- Give it a name like "ArgoCD Monad Indexer"
+- Select scopes:
+  - `repo` (Full control of private repositories)
+- Generate and copy the token
+
+**2. Configure repository credentials**:
+
+```bash
+# Edit the repository credentials file
+vi argocd/repository-credentials.yaml
+
+# Replace <GITHUB_PAT_TOKEN> with your actual token
+# The file should look like:
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: monad-indexer-repo
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repository
+stringData:
+  type: git
+  url: https://github.com/hoodrunio/monad-indexer
+  password: ghp_YOUR_ACTUAL_TOKEN_HERE
+  username: not-used
+
+# Apply the credentials
+kubectl apply -f argocd/repository-credentials.yaml
+```
+
+**3. Verify the repository is connected**:
+
+```bash
+# Via ArgoCD CLI
+argocd repo list
+
+# You should see your repository URL listed
+# Or via ArgoCD UI: Settings > Repositories
+```
+
+Alternatively, you can add the repository via the CLI directly:
+
+```bash
+argocd repo add https://github.com/hoodrunio/monad-indexer \
+  --username your-github-username \
+  --password your-github-pat-token
+```
+
+### Create ArgoCD Projects
+
+ArgoCD Projects provide multi-tenancy, access control, and organization for your applications.
+
+**What are ArgoCD Projects?**
+- Logical grouping of applications
+- Define which repositories and clusters applications can use
+- Implement RBAC (Role-Based Access Control)
+- Set resource whitelists/blacklists
+
+**1. Create the monad-indexer project**:
+
+```bash
+# Apply the project configuration
+kubectl apply -f argocd/projects/monad-indexer-project.yaml
+
+# This creates a project that allows:
+# - Access to your GitHub repository
+# - Deployment to monad-* namespaces
+# - RBAC roles for read-only, developer, and admin access
+```
+
+**2. Create the infrastructure project** (if deploying Gateway/Monitoring):
+
+```bash
+kubectl apply -f argocd/projects/infrastructure-project.yaml
+```
+
+**3. Verify projects are created**:
+
+```bash
+# Via CLI
+argocd proj list
+
+# Expected output:
+# NAME            DESCRIPTION
+# default         Default project
+# monad-indexer   Monad Blockchain Indexer Project
+# infrastructure  Infrastructure Components
+
+# Or via UI: Settings > Projects
+```
+
 ## Operators Installation
 
 ### Install CloudNativePG Operator
@@ -283,16 +383,60 @@ git commit -m "Configure Monad indexer"
 git push
 ```
 
-4. **Deploy root application**:
+4. **Deploy applications** (Environment-specific deployment):
 
-```bash
-kubectl apply -f argocd/bootstrap/root-app.yaml
+We use an **App-of-Apps pattern** where a root application manages child applications.
+
+**Understanding the Structure**:
+```
+argocd/
+  bootstrap/
+    root-app-dev.yaml        # Deploys only dev environment
+    root-app-staging.yaml    # Deploys only staging environment
+    root-app-production.yaml # Deploys only production environment
+  applications/
+    dev/
+      monad-indexer-dev.yaml
+    staging/
+      monad-indexer-staging.yaml
+    production/
+      monad-indexer-production.yaml
 ```
 
-This will automatically deploy all environments:
-- `monad-indexer-dev` (auto-sync enabled)
-- `monad-indexer-staging` (auto-sync enabled)
-- `monad-indexer-production` (manual sync required)
+**For Development Environment**:
+
+```bash
+# Deploy only the dev environment
+kubectl apply -f argocd/bootstrap/root-app-dev.yaml
+
+# This will automatically deploy:
+# - monad-indexer-dev application (auto-sync enabled, targets 'main' branch)
+```
+
+**For Staging Environment** (when ready):
+
+```bash
+# Deploy staging environment
+kubectl apply -f argocd/bootstrap/root-app-staging.yaml
+
+# This will automatically deploy:
+# - monad-indexer-staging application (auto-sync enabled, targets 'staging' branch)
+```
+
+**For Production Environment** (when ready):
+
+```bash
+# Deploy production environment
+kubectl apply -f argocd/bootstrap/root-app-production.yaml
+
+# This will deploy:
+# - monad-indexer-production application (MANUAL sync required, targets 'stable' branch)
+```
+
+**Branch Strategy**:
+- **Dev**: Always deploys from `main` branch (latest changes)
+- **Staging**: Deploys from `staging` branch (pre-production testing)
+- **Production**: Deploys from `stable` branch (stable releases only)
 
 5. **Sync production application**:
 

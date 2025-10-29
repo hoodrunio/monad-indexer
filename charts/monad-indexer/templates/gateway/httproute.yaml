@@ -22,7 +22,9 @@ spec:
       {{- else }}
       namespace: {{ .Release.Namespace }}
       {{- end }}
-      sectionName: https  # Use HTTPS listener
+      {{- if .Values.gateway.sectionName }}
+      sectionName: {{ .Values.gateway.sectionName }}  # Configurable HTTPS listener name
+      {{- end }}
 
   # Hostname matching
   hostnames:

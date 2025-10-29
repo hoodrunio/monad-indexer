@@ -102,20 +102,30 @@ networkPolicies:
   enabled: true
   enableCiliumPolicies: false  # Optional: set to true for enhanced Cilium policies
 
-# Ingress
+# Ingress - DISABLED (using Gateway API)
 ingress:
+  enabled: false
+
+# Gateway API - Cilium native ingress
+gateway:
   enabled: true
+  name: "monad-indexer-gateway"
+  sectionName: "https-monad-indexer"  # Match the Gateway listener name
   annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-staging"
+    prometheus.io/scrape: "true"
   hosts:
     - host: indexer-staging.example.com
       paths:
         - path: /
           pathType: Prefix
   tls:
-    - secretName: indexer-staging-tls
-      hosts:
-        - indexer-staging.example.com
+    enabled: true
+    secretName: indexer-staging-tls
+    clusterIssuer: letsencrypt-staging
+  timeout: 300s
+  retries:
+    attempts: 3
+    backoff: 1s
 
 # Stats PostgreSQL (if enabled)
 statsPostgresql:
