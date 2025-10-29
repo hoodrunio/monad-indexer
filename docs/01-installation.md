@@ -181,45 +181,27 @@ This operator synchronizes secrets from external stores (AWS Secrets Manager, Va
 kubectl get pods -n external-secrets-system
 ```
 
-### Configure Secret Store
+### Configure AWS Secrets
 
-Create a SecretStore for your secrets backend:
+For detailed secrets management, see [secrets-management.md](secrets-management.md).
 
-**AWS Secrets Manager Example**:
-
-```yaml
-# Create service account with IRSA
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: external-secrets-sa
-  namespace: monad-indexer-prod
-  annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/external-secrets-role
-
----
-# Create SecretStore
-apiVersion: external-secrets.io/v1beta1
-kind: SecretStore
-metadata:
-  name: aws-secrets-manager
-  namespace: monad-indexer-prod
-spec:
-  provider:
-    aws:
-      service: SecretsManager
-      region: us-east-1
-      auth:
-        jwt:
-          serviceAccountRef:
-            name: external-secrets-sa
-```
-
-**Apply**:
+**Quick setup**:
 
 ```bash
-kubectl apply -f secret-store.yaml
+# 1. Create AWS secret with credentials
+make create-aws-secret ENV=prod
+
+# 2. Create AWS credentials in Kubernetes
+make create-aws-credentials-secret ENV=prod
+
+# 3. Verify SecretStore is ready (created by Helm chart)
+make verify-secrets ENV=prod
 ```
+
+The Helm chart automatically creates:
+- **SecretStore**: Connects to AWS Secrets Manager
+- **ExternalSecrets**: Syncs credentials to Kubernetes Secrets
+- **Kubernetes Secrets**: Auto-generated with correct formats
 
 ### Install Nginx Ingress Controller
 

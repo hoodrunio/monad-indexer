@@ -42,10 +42,14 @@ Application Pods (consume secrets)
 ### 1. Install External Secrets Operator
 
 ```bash
+# Using script
 ./infrastructure/external-secrets-operator-install.sh
+
+# Or using Makefile
+make setup-external-secrets
 ```
 
-This script will:
+This will:
 - Add External Secrets Helm repository
 - Install operator to `external-secrets-system` namespace
 - Verify installation
@@ -55,12 +59,14 @@ This script will:
 Create a single secret named `blockscout` containing all credentials:
 
 ```bash
-# Generate strong credentials
+# Using Makefile (recommended)
+make create-aws-secret
+
+# Or manually
 SECRET_KEY_BASE=$(openssl rand -base64 64 | tr -d '\n')
 POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -d '+/=\n')
 STATS_PASSWORD=$(openssl rand -base64 32 | tr -d '+/=\n')
 
-# Create single secret in AWS Secrets Manager (eu-north-1)
 aws secretsmanager create-secret \
   --name "blockscout" \
   --description "All credentials for Blockscout/Monad Indexer" \
@@ -82,7 +88,10 @@ aws secretsmanager create-secret \
 ### 3. Create AWS Credentials Secret in Kubernetes
 
 ```bash
-# Create Kubernetes Secret with your AWS credentials
+# Using Makefile (interactive)
+make create-aws-credentials-secret ENV=dev
+
+# Or manually
 kubectl create secret generic aws-credentials \
   --from-literal=access-key-id=YOUR_AWS_ACCESS_KEY_ID \
   --from-literal=secret-access-key=YOUR_AWS_SECRET_ACCESS_KEY \
@@ -104,7 +113,10 @@ argocd app sync monad-indexer-dev
 ### Check ExternalSecrets
 
 ```bash
-# List ExternalSecrets
+# Using Makefile (comprehensive check)
+make verify-secrets ENV=dev
+
+# Or manually
 kubectl get externalsecrets -n monad-indexer-dev
 
 # Should show:
@@ -166,7 +178,10 @@ kubectl annotate externalsecret monad-indexer-dev-postgresql \
 ### ExternalSecret shows "SecretSyncedError"
 
 ```bash
-# Check ExternalSecret status
+# Using Makefile for debugging
+make debug-externalsecret NAME=monad-indexer-dev-backend ENV=dev
+
+# Or manually
 kubectl describe externalsecret monad-indexer-dev-backend -n monad-indexer-dev
 
 # Common issues:
@@ -174,6 +189,8 @@ kubectl describe externalsecret monad-indexer-dev-backend -n monad-indexer-dev
 kubectl get secret aws-credentials -n monad-indexer-dev -o yaml
 
 # 2. Secret doesn't exist in AWS
+make view-aws-secret  # Using Makefile
+# Or:
 aws secretsmanager describe-secret \
   --secret-id "blockscout" \
   --region eu-north-1
@@ -279,8 +296,44 @@ If migrating from SealedSecrets:
    kubectl delete sealedsecret -n monad-indexer-dev --all
    ```
 
+## Makefile Commands Reference
+
+The project includes comprehensive Makefile commands for managing secrets:
+
+### Setup Commands
+```bash
+make setup-external-secrets              # Install External Secrets Operator
+make create-aws-secret                   # Create AWS secret (interactive)
+make create-aws-credentials-secret       # Create AWS credentials in K8s (interactive)
+```
+
+### AWS Secrets Management
+```bash
+make view-aws-secret                     # View AWS secret contents
+make update-aws-secret                   # Update AWS secret (interactive)
+make delete-aws-secret                   # Delete AWS secret
+make list-aws-secrets                    # List all AWS secrets
+```
+
+### Verification & Debugging
+```bash
+make verify-secrets ENV=dev              # Verify all secrets are synced
+make check-secret-store ENV=dev          # Check SecretStore status
+make debug-externalsecret NAME=... ENV=dev  # Debug specific ExternalSecret
+make decode-k8s-secret NAME=... ENV=dev  # Decode Kubernetes secret
+```
+
+### Deployment
+```bash
+make deploy-dev                          # Deploy to dev via ArgoCD
+make argocd-sync ENV=dev                 # Sync ArgoCD application
+```
+
+Run `make help` to see all available commands.
+
 ## References
 
 - [External Secrets Operator Docs](https://external-secrets.io)
 - [AWS Secrets Manager Docs](https://docs.aws.amazon.com/secretsmanager/)
 - [Helm Chart values.yaml](../charts/monad-indexer/values.yaml)
+- [Makefile](../Makefile) - All automation commands
