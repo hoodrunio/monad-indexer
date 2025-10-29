@@ -10,7 +10,7 @@ Complete step-by-step guide for installing the Monad blockchain indexer infrastr
 4. [Operators Installation](#operators-installation)
    - [CloudNativePG Operator](#install-cloudnativepg-operator)
    - [External Secrets Operator](#install-external-secrets-operator)
-   - [Nginx Ingress Controller](#install-nginx-ingress-controller)
+   - [Gateway API (Cilium Native Ingress)](#configure-gateway-api-cilium-native-ingress)
 5. [Helm Chart Deployment](#helm-chart-deployment)
 6. [Verification](#verification)
 7. [Next Steps](#next-steps)
@@ -222,38 +222,24 @@ The Helm chart automatically creates:
 - **ExternalSecrets**: Syncs credentials to Kubernetes Secrets
 - **Kubernetes Secrets**: Auto-generated with correct formats
 
-### Install Nginx Ingress Controller
+### Configure Gateway API (Cilium Native Ingress)
 
-Required for exposing services via HTTP/HTTPS with domain-based routing.
+Gateway API is already enabled in Cilium. No separate ingress controller needed!
 
-```bash
-# Add Nginx Ingress Helm repository
-helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
-helm repo update
-
-# Install Nginx Ingress Controller
-helm install ingress-nginx ingress-nginx/ingress-nginx \
-  --namespace ingress-nginx \
-  --create-namespace \
-  --set controller.service.type=NodePort \
-  --set controller.ingressClassResource.default=true \
-  --set controller.admissionWebhooks.enabled=false
-```
-
-**Verify**:
+**Verify Gateway API is ready**:
 
 ```bash
-kubectl get pods -n ingress-nginx
-kubectl get ingressclass
+# Check Gateway API CRDs
+kubectl get crd | grep gateway
+
+# Check GatewayClass
+kubectl get gatewayclass
+
+# Check LoadBalancer IP pool
+kubectl get ciliumloadbalancerippool
 ```
 
-**Get access info**:
-
-```bash
-export HTTP_NODE_PORT=$(kubectl get service --namespace ingress-nginx ingress-nginx-controller --output jsonpath="{.spec.ports[0].nodePort}")
-export NODE_IP=$(kubectl get nodes --output jsonpath="{.items[0].status.addresses[0].address}")
-echo "Ingress HTTP URL: http://$NODE_IP:$HTTP_NODE_PORT"
-```
+**For detailed Gateway API setup, see [GATEWAY-API.md](GATEWAY-API.md).**
 
 ## Helm Chart Deployment
 
@@ -378,15 +364,11 @@ monad-indexer-postgresql   5m     3           3       Cluster in healthy state  
 
 ### Check Database Connectivity
 
-**Option 1: Via Ingress (if enabled)**
+**Option 1: Via Gateway (if configured)**
 
 ```bash
-# Get ingress access info
-export HTTP_NODE_PORT=$(kubectl get service --namespace ingress-nginx ingress-nginx-controller --output jsonpath="{.spec.ports[0].nodePort}")
-export NODE_IP=$(kubectl get nodes --output jsonpath="{.items[0].status.addresses[0].address}")
-
-# Test API via ingress
-curl -H "Host: indexer-prod.local" http://$NODE_IP:$HTTP_NODE_PORT/api/v2/stats | jq
+# Test API via Gateway
+curl https://indexer.monad.example.com/api/v2/stats | jq
 ```
 
 **Option 2: Via Port Forward**
@@ -452,35 +434,34 @@ See [03-monitoring.md](03-monitoring.md) for:
 - Importing dashboards
 - Configuring alerts
 
-### 3. Configure Ingress with TLS (Optional)
+### 3. Configure Gateway with TLS
 
-To expose the API externally with automatic HTTPS:
+Gateway API is already configured with automatic HTTPS via cert-manager.
 
+**To expose your domain**:
+
+1. Update DNS A record to point to your cluster IP
+2. Update domain in `values-production.yaml`:
 ```yaml
-# Update values-production.yaml
-ingress:
+gateway:
   enabled: true
-  annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
   hosts:
     - host: indexer.monad.example.com
-      paths:
-        - path: /
-          pathType: Prefix
-  tls:
-    - secretName: indexer-monad-tls
-      hosts:
-        - indexer.monad.example.com
 ```
 
-**Important**: Ensure your DNS A record points to your cluster's external IP before cert-manager attempts to issue the certificate.
+3. Deploy Gateway resources:
+```bash
+argocd app sync gateway-api-production
+```
 
 **Verify certificate**:
 
 ```bash
 kubectl get certificate -n monad-indexer-prod
-kubectl describe certificate indexer-monad-tls -n monad-indexer-prod
+kubectl get gateway -n monad-indexer-prod
 ```
+
+**For detailed Gateway setup, see [GATEWAY-API-DEPLOYMENT.md](GATEWAY-API-DEPLOYMENT.md).**
 
 ### 4. Test Failover
 

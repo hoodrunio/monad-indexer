@@ -189,23 +189,34 @@ networkPolicies:
   defaultDeny: true
   enableCiliumPolicies: true  # Enhanced Cilium policies for production
 
-# Ingress - production
+# Ingress - DISABLED (using Gateway API)
 ingress:
+  enabled: false
+
+# Gateway API - Cilium native ingress
+gateway:
   enabled: true
-  className: "nginx"
+  name: "monad-indexer-gateway"
   annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
-    nginx.ingress.kubernetes.io/rate-limit: "1000"
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    prometheus.io/scrape: "true"
   hosts:
-    - host: indexer.monad.example.com
+    - host: indexer.monad.example.com  # Update with your production domain
       paths:
         - path: /
           pathType: Prefix
   tls:
-    - secretName: indexer-prod-tls
-      hosts:
-        - indexer.monad.example.com
+    enabled: true
+    secretName: indexer-prod-tls
+    clusterIssuer: letsencrypt-prod
+  timeout: 300s
+  retries:
+    attempts: 3
+    backoff: 2s
+  # Production rate limiting
+  rateLimit:
+    enabled: true
+    requestsPerSecond: 1000
+    burst: 2000
 
 # Stats PostgreSQL (if enabled)
 statsPostgresql:

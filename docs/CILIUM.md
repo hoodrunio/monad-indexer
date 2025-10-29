@@ -423,9 +423,13 @@ spec:
     - Egress
   ingress:
     - from:
+        # Allow from Cilium Gateway (Envoy proxy)
         - namespaceSelector:
             matchLabels:
-              name: ingress-nginx
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cilium-envoy
       ports:
         - protocol: TCP
           port: 4000

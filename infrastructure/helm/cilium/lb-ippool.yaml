@@ -1,51 +1,68 @@
-# CiliumLoadBalancerIPPool - IP Pool for LoadBalancer Services
-# Defines the IP range that Cilium will assign to LoadBalancer services
-#
-# This replaces MetalLB/ServiceLB for bare metal Kubernetes clusters
-# IPs are announced via L2 (ARP/NDP) by default
+# CiliumLoadBalancerIPPool - Public IP for Gateway
+# This pool contains the public IP that will be used by the Gateway
+# L2 announcements will advertise this IP via ARP
 
 apiVersion: cilium.io/v2alpha1
 kind: CiliumLoadBalancerIPPool
 metadata:
-  name: monad-indexer-pool
+  name: monad-indexer-public-pool
 spec:
-  # CIDR block for LoadBalancer IPs
+  # Public IP for Gateway LoadBalancer service
+  blocks:
+    - cidr: "65.21.183.30/32"  # Single public IP
+
+  # Service selector - only assign to Gateway service
+  serviceSelector:
+    matchLabels:
+      gateway: monad-indexer
+
+---
+# CiliumLoadBalancerIPPool - Internal services pool
+# Internal IP range for other LoadBalancer services
+
+apiVersion: cilium.io/v2alpha1
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: monad-indexer-internal-pool
+spec:
+  # Internal IP range for other LoadBalancer services
   # Range: 10.0.0.100 - 10.0.0.131 (32 addresses)
   blocks:
     - cidr: "10.0.0.100/27"
 
-  # Service selector - only apply to monad-indexer services
-  # Remove or modify to apply to all services
+  # Service selector - only apply to internal services (not Gateway)
   serviceSelector:
-    matchLabels:
-      app.kubernetes.io/name: monad-indexer
+    matchExpressions:
+      - key: gateway
+        operator: DoesNotExist  # Not gateway services
 
 ---
 # CiliumL2AnnouncementPolicy - L2 announcement configuration
-# Defines how IPs are announced on the local network
+# Announces both public and internal IPs on the local network
 
 apiVersion: cilium.io/v2alpha1
 kind: CiliumL2AnnouncementPolicy
 metadata:
   name: monad-indexer-l2-policy
 spec:
-  # Use all network interfaces for announcements
-  # Modify if you want to restrict to specific interfaces (e.g., eth0, ens192)
+  # Network interfaces for announcements
+  # Modify if your interface name is different (check with `ip a`)
   interfaces:
     - ^eth[0-9]+
     - ^ens[0-9]+
     - ^enp[0-9]+s[0-9]+
 
-  # Load balancer IP pool to announce
+  # Announce LoadBalancer IPs
   loadBalancerIPs: true
 
-  # Service selector - match services from the IP pool
+  # Apply to all services (both public and internal pools)
   serviceSelector:
-    matchLabels:
-      app.kubernetes.io/name: monad-indexer
+    matchExpressions:
+      - key: io.cilium/lb-ipam
+        operator: Exists
 
   # Node selector - which nodes should announce IPs
-  # Empty means all nodes can announce (recommended for HA)
+  # Empty means all nodes can announce (recommended for single-node)
   nodeSelector:
     matchLabels: {}
 

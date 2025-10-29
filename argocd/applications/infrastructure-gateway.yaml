@@ -1,0 +1,102 @@
+---
+# ArgoCD Application - Gateway API Infrastructure
+# Manages GatewayClass for Cilium (cluster-scoped resource)
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gateway-api-infrastructure
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"  # After Cilium (-4), before apps
+spec:
+  project: infrastructure
+
+  source:
+    repoURL: https://github.com/hoodrunio/monad-indexer.git
+    targetRevision: HEAD
+    path: infrastructure/gateway
+
+    # Only sync GatewayClass (cluster-scoped)
+    directory:
+      include: "gatewayclass.yaml"
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system  # GatewayClass is cluster-scoped
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+---
+# ArgoCD Application - Gateway API Dev Environment
+# Manages Gateway and Certificate for dev environment
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gateway-api-dev
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"  # After Gateway infrastructure
+spec:
+  project: infrastructure
+
+  source:
+    repoURL: https://github.com/hoodrunio/monad-indexer.git
+    targetRevision: HEAD
+    path: infrastructure/gateway
+
+    # Only sync dev-specific resources
+    directory:
+      include: "{gateway-dev.yaml,certificate-dev.yaml}"
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monad-indexer-dev
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+    # Wait for Gateway to get LoadBalancer IP
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+
+  # Ignore differences in status fields (managed by controller)
+  ignoreDifferences:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      jsonPointers:
+        - /status
+    - group: cert-manager.io
+      kind: Certificate
+      jsonPointers:
+        - /status

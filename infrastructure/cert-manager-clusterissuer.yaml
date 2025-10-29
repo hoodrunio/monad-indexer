@@ -12,6 +12,16 @@ spec:
     privateKeySecretRef:
       name: letsencrypt-staging
     solvers:
+    # Gateway API HTTP-01 solver (primary)
+    - http01:
+        gatewayHTTPRoute:
+          parentRefs:
+            - name: monad-indexer-gateway
+              namespace: monad-indexer-dev
+              kind: Gateway
+          labels:
+            acme.cert-manager.io/http01-solver: "true"
+    # Fallback to Ingress (for compatibility)
     - http01:
         ingress:
           class: nginx
@@ -30,6 +40,16 @@ spec:
     privateKeySecretRef:
       name: letsencrypt-prod
     solvers:
+    # Gateway API HTTP-01 solver (primary)
+    - http01:
+        gatewayHTTPRoute:
+          parentRefs:
+            - name: monad-indexer-gateway
+              namespace: monad-indexer-dev
+              kind: Gateway
+          labels:
+            acme.cert-manager.io/http01-solver: "true"
+    # Fallback to Ingress (for compatibility)
     - http01:
         ingress:
           class: nginx

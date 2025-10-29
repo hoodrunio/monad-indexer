@@ -66,9 +66,54 @@ bpf:
   # NAT table size - increase for high connection count
   natMax: 524288  # Default is 524288
 
+  # Additional tuning for L7 routing with Gateway API
+  lbExternalClusterIP: false
+  lbMapMax: 65536  # Service load balancer map size
+
+  # Policy map sizes (for L7 policies)
+  policyMapMax: 16384  # Policy map size
+
 # Enable BIG TCP for high-bandwidth networks (100Gbit+)
 enableIPv4BIGTCP: true
 enableIPv6BIGTCP: false  # Disable if not using IPv6
+
+# Gateway API Configuration
+# Replaces nginx-ingress with Cilium's native Gateway API implementation
+gatewayAPI:
+  enabled: true
+  # Install Gateway API CRDs (GatewayClass, Gateway, HTTPRoute, etc.)
+  # Note: Only install if not already present in cluster
+  installCRDs: true
+  # Enable HTTPS redirect for HTTP listeners
+  enableHttpsRedirect: true
+
+# Envoy Configuration (required for Gateway API L7 routing)
+# Envoy handles TLS termination, HTTP routing, and L7 features
+envoy:
+  enabled: true
+  # Deploy Envoy as DaemonSet for better performance
+  # Each node runs its own Envoy instance
+  # Resources for Envoy (per node)
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+  # Prometheus metrics for Envoy
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+  # Connection limits and performance tuning
+  connectTimeout: 5s
+  maxConnectionDuration: 0  # No limit
+  maxRequestsPerConnection: 0  # No limit
+  # HTTP/2 configuration
+  http2:
+    enabled: true
+    maxConcurrentStreams: 100
 
 # Node-local DNS caching for better performance
 nodeLocalDNS:

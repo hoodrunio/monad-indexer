@@ -730,7 +730,7 @@ statsPostgresql:
         memory: "2Gi"
 
 # ============================================================
-# INGRESS
+# INGRESS (Deprecated - use Gateway API)
 # ============================================================
 ingress:
   enabled: false
@@ -742,6 +742,46 @@ ingress:
         - path: /
           pathType: Prefix
   tls: []
+
+# ============================================================
+# GATEWAY API (Recommended)
+# ============================================================
+gateway:
+  enabled: false  # Enable per environment
+
+  # Gateway name and namespace
+  name: "monad-indexer-gateway"
+  namespace: ""  # Defaults to Release.Namespace
+
+  # Gateway annotations
+  annotations: {}
+
+  # Hostnames and paths
+  hosts:
+    - host: indexer.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+
+  # TLS configuration
+  tls:
+    enabled: true
+    # Secret name for TLS certificate (created by cert-manager)
+    secretName: "indexer-tls"
+    # ClusterIssuer for cert-manager
+    clusterIssuer: "letsencrypt-prod"
+
+  # Traffic policies
+  timeout: 300s  # Request timeout
+  retries:
+    attempts: 3
+    backoff: 1s
+
+  # Rate limiting (optional, requires Envoy config)
+  rateLimit:
+    enabled: false
+    requestsPerSecond: 1000
+    burst: 2000
 
 # ============================================================
 # EXTERNAL SECRETS (AWS Secrets Manager Integration)

@@ -177,21 +177,9 @@ SMART_CONTRACT_VERIFIER__SERVER__HTTP__CORS__ALLOWED_ORIGIN=https://explorer.exa
 # Birden fazla origin için reverse proxy kullanın
 ```
 
-**Not:** Microservice'ler artık CORS header'ları gönderiyor, reverse proxy'ye gerek yok.
+**Not:** Microservice'ler artık CORS header'ları gönderiyor, ek konfigürasyona gerek yok.
 
-```nginx
-location /verifier/ {
-    if ($request_method = 'OPTIONS') {
-        add_header 'Access-Control-Allow-Origin' '*';
-        add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
-        add_header 'Access-Control-Allow-Headers' 'Content-Type';
-        return 204;
-    }
-
-    add_header 'Access-Control-Allow-Origin' '*' always;
-    proxy_pass http://localhost:8051/api/v2/verifier/;
-}
-```
+Gateway API ile HTTPRoute üzerinden CORS ayarları yapılabilir (gerekirse).
 
 ---
 

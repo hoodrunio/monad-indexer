@@ -109,20 +109,29 @@ networkPolicies:
   enabled: false
   enableCiliumPolicies: false
 
-# Ingress - optional
+# Ingress - DISABLED (using Gateway API)
 ingress:
+  enabled: false
+
+# Gateway API - Cilium native ingress
+gateway:
   enabled: true
+  name: "monad-indexer-gateway"
   annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    prometheus.io/scrape: "true"
   hosts:
     - host: monad-tn1-indexer.hoodscan.io
       paths:
         - path: /
           pathType: Prefix
   tls:
-    - secretName: monad-tn1-indexer-tls
-      hosts:
-        - monad-tn1-indexer.hoodscan.io
+    enabled: true
+    secretName: monad-tn1-indexer-tls
+    clusterIssuer: letsencrypt-prod
+  timeout: 300s
+  retries:
+    attempts: 3
+    backoff: 1s
 
 # External Secrets configuration for dev environment
 externalSecrets:
