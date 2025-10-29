@@ -60,7 +60,7 @@ helm repo update
 kubectl apply -f infrastructure/helm/cilium/api-server-config-secret.yaml
 # Then install Cilium
 helm install cilium cilium/cilium \
-  --version 1.18.3 \
+  --version 1.19.0-pre.1 \
   --namespace kube-system \
   -f infrastructure/helm/cilium/values.yaml
 
@@ -68,7 +68,7 @@ helm install cilium cilium/cilium \
 # Get API server IP manually
 API_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
 helm install cilium cilium/cilium \
-  --version 1.18.3 \
+  --version 1.19.0-pre.1 \
   --namespace kube-system \
   -f infrastructure/helm/cilium/values.yaml \
   --set k8sServiceHostRef=null \
@@ -284,7 +284,7 @@ helm upgrade monad-indexer . \
 ```bash
 # Enable Hubble for debugging network issues
 helm upgrade cilium cilium/cilium \
-  --version 1.18.3 \
+  --version 1.19.0-pre.1 \
   --namespace kube-system \
   --set hubble.enabled=true \
   --set hubble.relay.enabled=true \
@@ -300,7 +300,7 @@ kubectl port-forward -n kube-system svc/hubble-ui 12000:80
 
 # Disable Hubble to restore performance
 helm upgrade cilium cilium/cilium \
-  --version 1.18.3 \
+  --version 1.19.0-pre.1 \
   --namespace kube-system \
   --set hubble.enabled=false \
   --reuse-values

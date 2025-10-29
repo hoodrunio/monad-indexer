@@ -34,7 +34,7 @@ Comprehensive guide for Cilium Container Network Interface (CNI) in production.
 
 ### Version
 
-- **Cilium**: 1.18.3
+- **Cilium**: 1.19.0-pre.1
 - **Kubernetes**: 1.24+
 - **Kernel**: 5.10+ (Ubuntu 22.04 LTS: 5.15+)
 
@@ -242,7 +242,7 @@ kubectl get externalsecret -n kube-system cilium-api-server-config
 # API server IP is automatically fetched from AWS Secrets Manager
 helm repo add cilium https://helm.cilium.io/
 helm install cilium cilium/cilium \
-  --version 1.18.3 \
+  --version 1.19.0-pre.1 \
   --namespace kube-system \
   -f infrastructure/helm/cilium/values.yaml \
   --wait
@@ -280,7 +280,7 @@ helm repo add cilium https://helm.cilium.io/
 helm repo update
 
 helm install cilium cilium/cilium \
-  --version 1.18.3 \
+  --version 1.19.0-pre.1 \
   --namespace kube-system \
   -f infrastructure/helm/cilium/values.yaml
 ```
@@ -406,7 +406,7 @@ vim infrastructure/helm/cilium/values.yaml
 
 # Apply changes
 helm upgrade cilium cilium/cilium \
-  --version 1.18.3 \
+  --version 1.19.0-pre.1 \
   --namespace kube-system \
   -f infrastructure/helm/cilium/values.yaml \
   --reuse-values
@@ -652,7 +652,7 @@ sum(cilium_endpoint_state{state="ready"})
 **Enable Hubble:**
 ```bash
 helm upgrade cilium cilium/cilium \
-  --version 1.18.3 \
+  --version 1.19.0-pre.1 \
   --namespace kube-system \
   --set hubble.enabled=true \
   --set hubble.relay.enabled=true \
@@ -694,7 +694,7 @@ kubectl port-forward -n kube-system svc/hubble-ui 12000:80
 **Disable Hubble (restore performance):**
 ```bash
 helm upgrade cilium cilium/cilium \
-  --version 1.18.3 \
+  --version 1.19.0-pre.1 \
   --namespace kube-system \
   --set hubble.enabled=false \
   --reuse-values
@@ -913,7 +913,7 @@ kubectl get configmap cilium-config -n kube-system -o yaml | grep trace
 ```bash
 # Disable Hubble and trace events
 helm upgrade cilium cilium/cilium \
-  --version 1.18.3 \
+  --version 1.19.0-pre.1 \
   --namespace kube-system \
   --set hubble.enabled=false \
   --set bpf.events.trace.enabled=false \
@@ -1024,7 +1024,7 @@ helm rollback cilium -n kube-system
 
 # Or reinstall specific version
 helm upgrade cilium cilium/cilium \
-  --version 1.18.3 \
+  --version 1.19.0-pre.1 \
   --namespace kube-system \
   --reuse-values
 ```
@@ -1279,4 +1279,4 @@ kubectl get secret aws-credentials -n monad-indexer-dev -o yaml | \
 
 **Version**: 1.0
 **Last Updated**: 2025-10-28
-**Cilium Version**: 1.18.3
+**Cilium Version**: 1.19.0-pre.1
