@@ -1,6 +1,22 @@
 #!/bin/bash
 set -euo pipefail
 
+wait_for_secret() {
+  local namespace="$1"
+  local secret="$2"
+  local retries=30
+  local delay=2
+
+  for ((i=1; i<=retries; i++)); do
+    if kubectl get secret "$secret" -n "$namespace" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep "$delay"
+  done
+
+  return 1
+}
+
 # Environment Installation Script
 # Installs Gateway, LoadBalancer IP Pools, and TLS Certificates for a specific environment
 
@@ -43,58 +59,15 @@ echo ""
 echo "📦 Creating LoadBalancer IP Pool..."
 kubectl apply -f "$ENV_DIR/lb-ippool.yaml"
 
-# Wait for IP pool to be ready
+# Wait for IP pool to settle
 sleep 2
 
-# 3. Apply Gateway (HTTP-only initially, for cert-manager challenges)
-echo ""
-echo "📦 Creating Gateway (HTTP-only for cert-manager)..."
-
-# Create temporary HTTP-only Gateway for certificate challenges
-cat <<EOF | kubectl apply -f -
-apiVersion: gateway.networking.k8s.io/v1
-kind: Gateway
-metadata:
-  name: ${GATEWAY_NAME}
-  namespace: ${NAMESPACE}
-  labels:
-    gateway: monad-indexer
-    environment: ${ENVIRONMENT}
-spec:
-  gatewayClassName: ${GATEWAY_CLASS}
-  addresses:
-    - type: IPAddress
-      value: "${PUBLIC_IP}"
-  listeners:
-    - name: http
-      protocol: HTTP
-      port: 80
-      allowedRoutes:
-        namespaces:
-          from: All
-EOF
-
-# Wait for Gateway to be ready
-echo ""
-echo "⏳ Waiting for Gateway to be programmed..."
-kubectl wait --for=condition=Programmed \
-  gateway/${GATEWAY_NAME} \
-  -n ${NAMESPACE} \
-  --timeout=120s || {
-    echo "⚠️  Gateway not ready yet, checking status..."
-    kubectl describe gateway/${GATEWAY_NAME} -n ${NAMESPACE}
-  }
-
-# Check Gateway status
-GATEWAY_STATUS=$(kubectl get gateway/${GATEWAY_NAME} -n ${NAMESPACE} -o jsonpath='{.status.conditions[?(@.type=="Programmed")].status}')
-if [ "$GATEWAY_STATUS" != "True" ]; then
-  echo "❌ Gateway failed to become ready!"
-  kubectl describe gateway/${GATEWAY_NAME} -n ${NAMESPACE}
-  exit 1
+# 3. Apply ReferenceGrants (for cross-namespace refs)
+if [ -f "$ENV_DIR/referencegrants.yaml" ]; then
+  echo ""
+  echo "📦 Applying ReferenceGrants..."
+  kubectl apply -f "$ENV_DIR/referencegrants.yaml"
 fi
-
-GATEWAY_IP=$(kubectl get gateway/${GATEWAY_NAME} -n ${NAMESPACE} -o jsonpath='{.status.addresses[0].value}')
-echo "✅ Gateway ready with IP: ${GATEWAY_IP}"
 
 # 4. Verify ClusterIssuer exists
 echo ""
@@ -117,6 +90,56 @@ echo "📦 Creating TLS Certificates..."
 kubectl apply -f "$ENV_DIR/certificates.yaml"
 
 echo ""
+echo "⏳ Waiting for temporary TLS secrets..."
+
+# Parse domains from config and ensure placeholder secrets exist
+for domain_config in "${DOMAINS[@]}"; do
+  IFS='|' read -r name hostname service service_ns port tls_secret <<< "$domain_config"
+
+  # Determine which namespace the certificate is in
+  cert_namespace="${service_ns}"
+
+  echo "  - Ensuring secret: ${tls_secret} in namespace: ${cert_namespace}"
+  if wait_for_secret "${cert_namespace}" "${tls_secret}"; then
+    echo "    ✅ Secret ${tls_secret} detected"
+  else
+    echo "    ❌ Secret ${tls_secret} not created within timeout"
+    exit 1
+  fi
+done
+
+# 6. Apply Gateway with HTTP and HTTPS listeners
+echo ""
+echo "📦 Creating Gateway (HTTP + HTTPS listeners)..."
+kubectl apply -f "$ENV_DIR/gateway.yaml"
+
+echo ""
+echo "⏳ Waiting for Gateway to be programmed..."
+kubectl wait --for=condition=Programmed \
+  gateway/${GATEWAY_NAME} \
+  -n ${NAMESPACE} \
+  --timeout=120s || {
+    echo "⚠️  Gateway not ready yet, checking status..."
+    kubectl describe gateway/${GATEWAY_NAME} -n ${NAMESPACE}
+  }
+
+# Check Gateway status
+GATEWAY_STATUS=$(kubectl get gateway/${GATEWAY_NAME} -n ${NAMESPACE} -o jsonpath='{.status.conditions[?(@.type=="Programmed")].status}')
+if [ "$GATEWAY_STATUS" != "True" ]; then
+  echo "❌ Gateway failed to become ready!"
+  kubectl describe gateway/${GATEWAY_NAME} -n ${NAMESPACE}
+  exit 1
+fi
+
+GATEWAY_IP=$(kubectl get gateway/${GATEWAY_NAME} -n ${NAMESPACE} -o jsonpath='{.status.addresses[0].value}')
+echo "✅ Gateway ready with IP: ${GATEWAY_IP}"
+
+# 7. Apply HTTPRoutes
+echo ""
+echo "📦 Creating HTTPRoutes..."
+kubectl apply -f "$ENV_DIR/httproutes.yaml"
+
+echo ""
 echo "⏳ Waiting for certificates to be ready (this may take 1-2 minutes)..."
 
 # Parse domains from config and wait for certificates
@@ -136,19 +159,6 @@ for domain_config in "${DOMAINS[@]}"; do
       kubectl describe certificate/${tls_secret} -n ${cert_namespace}
     }
 done
-
-# 6. Apply full Gateway with HTTPS listeners
-echo ""
-echo "📦 Upgrading Gateway to HTTPS..."
-kubectl apply -f "$ENV_DIR/gateway.yaml"
-
-# Wait for Gateway to reconfigure
-sleep 5
-
-# 7. Apply HTTPRoutes
-echo ""
-echo "📦 Creating HTTPRoutes..."
-kubectl apply -f "$ENV_DIR/httproutes.yaml"
 
 # Final verification
 echo ""
