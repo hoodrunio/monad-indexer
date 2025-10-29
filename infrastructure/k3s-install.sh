@@ -79,6 +79,11 @@ API_SERVER_IP=$(sudo kubectl get nodes -o jsonpath='{.items[0].status.addresses[
 API_SERVER_PORT=6443
 echo "📍 API Server: $API_SERVER_IP:$API_SERVER_PORT"
 
+# Install Gateway API CRDs (required before Cilium)
+echo "📥 Installing Gateway API CRDs..."
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.1/standard-install.yaml
+echo "✅ Gateway API CRDs installed"
+
 # Install Cilium CLI
 echo "📥 Installing Cilium CLI..."
 CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/main/stable.txt)
@@ -91,7 +96,7 @@ rm cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
 echo "✅ Cilium CLI installed: $(cilium version --client)"
 
 # Install Cilium with production configuration
-echo "🔧 Installing Cilium CNI (production configuration)..."
+echo "🔧 Installing Cilium CNI (production configuration with Gateway API)..."
 cilium install \
   --version 1.18.3 \
   --set ipam.operator.clusterPoolIPv4PodCIDRList="10.42.0.0/16" \
@@ -106,6 +111,8 @@ cilium install \
   --set loadBalancer.acceleration=native \
   --set loadBalancer.mode=hybrid \
   --set l2announcements.enabled=true \
+  --set gatewayAPI.enabled=true \
+  --set envoy.enabled=true \
   --set hubble.enabled=false \
   --set bpf.events.trace.enabled=false \
   --set prometheus.enabled=true \

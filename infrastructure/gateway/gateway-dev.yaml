@@ -27,8 +27,8 @@ spec:
         namespaces:
           from: Same
 
-    # HTTPS listener - terminates TLS
-    - name: https
+    # HTTPS listener - terminates TLS (Monad Indexer)
+    - name: https-monad
       protocol: HTTPS
       port: 443
       hostname: "monad-tn1-indexer.hoodscan.io"
@@ -40,6 +40,21 @@ spec:
         certificateRefs:
           - kind: Secret
             name: monad-tn1-indexer-tls  # cert-manager will create this
+
+    # HTTPS listener - terminates TLS (ArgoCD)
+    - name: https-argocd
+      protocol: HTTPS
+      port: 443
+      hostname: "cd.hoodscan.io"
+      allowedRoutes:
+        namespaces:
+          from: All  # Allow routes from argocd namespace
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: argocd-gateway-tls
+            namespace: monad-indexer-dev
 
   # Address configuration - request public IP from LoadBalancer pool
   addresses:
