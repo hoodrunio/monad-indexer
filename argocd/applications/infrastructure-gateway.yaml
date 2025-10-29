@@ -1,6 +1,6 @@
 ---
-# ArgoCD Application - Gateway API Infrastructure
-# Manages GatewayClass for Cilium (cluster-scoped resource)
+# ArgoCD Application - GatewayClass (Cluster-wide)
+# Manages GatewayClass for Cilium
 
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -10,14 +10,14 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io
   annotations:
-    argocd.argoproj.io/sync-wave: "-3"  # After Cilium (-4), before apps
+    argocd.argoproj.io/sync-wave: "-3"  # After Cilium (-4), before environments
 spec:
   project: infrastructure
 
   source:
     repoURL: https://github.com/hoodrunio/monad-indexer.git
     targetRevision: HEAD
-    path: infrastructure/gateway
+    path: infrastructure/common
 
     # Only sync GatewayClass (cluster-scoped)
     directory:
@@ -25,7 +25,7 @@ spec:
 
   destination:
     server: https://kubernetes.default.svc
-    namespace: kube-system  # GatewayClass is cluster-scoped
+    namespace: default  # GatewayClass is cluster-scoped
 
   syncPolicy:
     automated:
@@ -42,33 +42,35 @@ spec:
         maxDuration: 3m
 
 ---
-# ArgoCD Application - Gateway API Dev Environment
-# Manages Gateway and Certificate for dev environment
+# ArgoCD Application - Gateway Dev Environment
+# Manages Gateway, LoadBalancer IP Pool, Certificates, and HTTPRoutes for dev
 
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: gateway-api-dev
+  name: gateway-dev
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
   annotations:
-    argocd.argoproj.io/sync-wave: "-2"  # After Gateway infrastructure
+    argocd.argoproj.io/sync-wave: "-2"  # After GatewayClass
 spec:
   project: infrastructure
 
   source:
     repoURL: https://github.com/hoodrunio/monad-indexer.git
     targetRevision: HEAD
-    path: infrastructure/gateway
+    path: infrastructure/environments/dev
 
-    # Only sync dev-specific resources
+    # Sync all environment-specific resources
     directory:
-      include: "{gateway-dev.yaml,certificate-dev.yaml}"
+      recurse: false
+      include: "*.yaml"
 
   destination:
     server: https://kubernetes.default.svc
-    namespace: monad-indexer-dev
+    # Gateway and certificates go to their respective namespaces
+    # ArgoCD will respect the namespace specified in each resource
 
   syncPolicy:
     automated:
@@ -77,6 +79,7 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
     retry:
       limit: 5
       backoff:
@@ -84,13 +87,7 @@ spec:
         factor: 2
         maxDuration: 3m
 
-    # Wait for Gateway to get LoadBalancer IP
-    syncOptions:
-      - CreateNamespace=true
-      - ServerSideApply=true
-      - RespectIgnoreDifferences=true
-
-  # Ignore differences in status fields (managed by controller)
+  # Ignore differences in status fields (managed by controllers)
   ignoreDifferences:
     - group: gateway.networking.k8s.io
       kind: Gateway
@@ -98,5 +95,109 @@ spec:
         - /status
     - group: cert-manager.io
       kind: Certificate
+      jsonPointers:
+        - /status
+    - group: cilium.io
+      kind: CiliumLoadBalancerIPPool
+      jsonPointers:
+        - /status
+
+---
+# ArgoCD Application - Gateway Staging Environment (Optional)
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gateway-staging
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  project: infrastructure
+
+  source:
+    repoURL: https://github.com/hoodrunio/monad-indexer.git
+    targetRevision: HEAD
+    path: infrastructure/environments/staging
+
+    directory:
+      recurse: false
+      include: "*.yaml"
+
+  destination:
+    server: https://kubernetes.default.svc
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+
+  ignoreDifferences:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      jsonPointers:
+        - /status
+    - group: cert-manager.io
+      kind: Certificate
+      jsonPointers:
+        - /status
+    - group: cilium.io
+      kind: CiliumLoadBalancerIPPool
+      jsonPointers:
+        - /status
+
+---
+# ArgoCD Application - Gateway Production Environment (Optional)
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gateway-production
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  project: infrastructure
+
+  source:
+    repoURL: https://github.com/hoodrunio/monad-indexer.git
+    targetRevision: HEAD
+    path: infrastructure/environments/production
+
+    directory:
+      recurse: false
+      include: "*.yaml"
+
+  destination:
+    server: https://kubernetes.default.svc
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+
+  ignoreDifferences:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      jsonPointers:
+        - /status
+    - group: cert-manager.io
+      kind: Certificate
+      jsonPointers:
+        - /status
+    - group: cilium.io
+      kind: CiliumLoadBalancerIPPool
       jsonPointers:
         - /status
