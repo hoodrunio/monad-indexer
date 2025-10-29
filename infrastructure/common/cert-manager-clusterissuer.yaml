@@ -12,8 +12,8 @@ spec:
     privateKeySecretRef:
       name: letsencrypt-staging
     solvers:
-    # Gateway API HTTP-01 solver (uses Gateway HTTP listener)
-    # Supports all environments - cert-manager will use the Gateway in the same namespace as the Certificate
+    # Gateway API HTTP-01 solver (uses Gateway HTTP listener on port 80)
+    # Each environment has its own Gateway - specify only the dev one
     - http01:
         gatewayHTTPRoute:
           labels:
@@ -23,16 +23,22 @@ spec:
           - name: monad-indexer-gateway
             namespace: monad-indexer-dev
             kind: Gateway
+            sectionName: http
+            port: 80
             group: gateway.networking.k8s.io
           # Staging environment (future)
           - name: monad-indexer-gateway
             namespace: monad-indexer-staging
             kind: Gateway
+            sectionName: http
+            port: 80
             group: gateway.networking.k8s.io
           # Production environment (future)
           - name: monad-indexer-gateway
             namespace: monad-indexer-prod
             kind: Gateway
+            sectionName: http
+            port: 80
             group: gateway.networking.k8s.io
 
 ---
@@ -49,25 +55,30 @@ spec:
     privateKeySecretRef:
       name: letsencrypt-prod
     solvers:
-    # Gateway API HTTP-01 solver (uses Gateway HTTP listener)
-    # Supports all environments - cert-manager will use the Gateway in the same namespace as the Certificate
+    # Gateway API HTTP-01 solver (uses Gateway HTTP listener on port 80)
+    # Each environment has its own Gateway - specify only the dev one
     - http01:
         gatewayHTTPRoute:
           labels:
             acme.cert-manager.io/http01-solver: "true"
           parentRefs:
-          # Dev environment
           - name: monad-indexer-gateway
             namespace: monad-indexer-dev
             kind: Gateway
+            sectionName: http
+            port: 80
             group: gateway.networking.k8s.io
           # Staging environment (future)
           - name: monad-indexer-gateway
             namespace: monad-indexer-staging
             kind: Gateway
+            sectionName: http
+            port: 80
             group: gateway.networking.k8s.io
           # Production environment (future)
           - name: monad-indexer-gateway
             namespace: monad-indexer-prod
             kind: Gateway
+            sectionName: http
+            port: 80
             group: gateway.networking.k8s.io
