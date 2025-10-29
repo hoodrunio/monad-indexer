@@ -182,7 +182,7 @@ backend:
   startupProbe:
     enabled: true
     httpGet:
-      path: /api/v2/health
+      path: /api/health
       port: http
     initialDelaySeconds: 0
     periodSeconds: 10
@@ -193,7 +193,7 @@ backend:
   livenessProbe:
     enabled: true
     httpGet:
-      path: /api/v2/health
+      path: /api/health/liveness
       port: http
     initialDelaySeconds: 60
     periodSeconds: 30
@@ -204,7 +204,7 @@ backend:
   readinessProbe:
     enabled: true
     httpGet:
-      path: /api/v2/health
+      path: /api/health/readiness
       port: http
     initialDelaySeconds: 15
     periodSeconds: 10
