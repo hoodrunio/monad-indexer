@@ -48,13 +48,6 @@ spec:
       timeouts:
         request: {{ $.Values.gateway.timeout }}
       {{- end }}
-      {{- if $.Values.gateway.retries }}
-      filters:
-        - type: RequestRetry
-          requestRetry:
-            attempts: {{ $.Values.gateway.retries.attempts }}
-            backoff: {{ $.Values.gateway.retries.backoff }}
-      {{- end }}
     {{- end }}
     {{- end }}
 {{- end }}

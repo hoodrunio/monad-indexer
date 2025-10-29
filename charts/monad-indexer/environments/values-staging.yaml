@@ -117,15 +117,15 @@ gateway:
     - host: indexer-staging.example.com
       paths:
         - path: /
-          pathType: Prefix
+          pathType: PathPrefix
   tls:
     enabled: true
     secretName: indexer-staging-tls
     clusterIssuer: letsencrypt-staging
   timeout: 300s
-  retries:
-    attempts: 3
-    backoff: 1s
+  # retries:  # RequestRetry filter not supported in current Gateway API version
+  #   attempts: 3
+  #   backoff: 1s
 
 # Stats PostgreSQL (if enabled)
 statsPostgresql:

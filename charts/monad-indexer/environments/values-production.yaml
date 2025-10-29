@@ -204,15 +204,15 @@ gateway:
     - host: indexer.monad.example.com  # Update with your production domain
       paths:
         - path: /
-          pathType: Prefix
+          pathType: PathPrefix
   tls:
     enabled: true
     secretName: indexer-prod-tls
     clusterIssuer: letsencrypt-prod
   timeout: 300s
-  retries:
-    attempts: 3
-    backoff: 2s
+  # retries:  # RequestRetry filter not supported in current Gateway API version
+  #   attempts: 3
+  #   backoff: 2s
   # Production rate limiting
   rateLimit:
     enabled: true
