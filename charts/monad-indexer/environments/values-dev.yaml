@@ -113,11 +113,14 @@ networkPolicies:
 ingress:
   enabled: true
   hosts:
-    - host: indexer-dev.local
+    - host: monad-tn1-indexer.hoodscan.io
       paths:
         - path: /
           pathType: Prefix
-  tls: []
+  tls:
+    - secretName: monad-tn1-indexer-tls
+      hosts:
+        - monad-tn1-indexer.hoodscan.io
 
 # External Secrets configuration for dev environment
 externalSecrets:
