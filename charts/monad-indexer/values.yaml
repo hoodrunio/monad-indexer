@@ -182,7 +182,7 @@ backend:
   startupProbe:
     enabled: true
     httpGet:
-      path: /api/health
+      path: /api/health/liveness
       port: http
     initialDelaySeconds: 0
     periodSeconds: 10

@@ -106,13 +106,24 @@ data:
   {{- end }}
   DISABLE_CATCHUP_INDEXER: {{ .Values.backend.config.indexer.disableCatchup | quote }}
 
-  # Indexer performance tuning - optional config
-  # These can be added to values.yaml if needed
+  # Indexer performance tuning - RPC rate limiting mitigation
+  {{- if .Values.backend.config.indexer.performance.catchupBlocksBatchSize }}
+  INDEXER_CATCHUP_BLOCKS_BATCH_SIZE: {{ .Values.backend.config.indexer.performance.catchupBlocksBatchSize | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.indexer.performance.catchupBlocksConcurrency }}
+  INDEXER_CATCHUP_BLOCKS_CONCURRENCY: {{ .Values.backend.config.indexer.performance.catchupBlocksConcurrency | quote }}
+  {{- end }}
   {{- if .Values.backend.config.indexer.performance.receiptsBatchSize }}
   INDEXER_RECEIPTS_BATCH_SIZE: {{ .Values.backend.config.indexer.performance.receiptsBatchSize | quote }}
   {{- end }}
   {{- if .Values.backend.config.indexer.performance.receiptsConcurrency }}
   INDEXER_RECEIPTS_CONCURRENCY: {{ .Values.backend.config.indexer.performance.receiptsConcurrency | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.indexer.performance.internalTxsBatchSize }}
+  INDEXER_INTERNAL_TRANSACTIONS_BATCH_SIZE: {{ .Values.backend.config.indexer.performance.internalTxsBatchSize | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.indexer.performance.internalTxsConcurrency }}
+  INDEXER_INTERNAL_TRANSACTIONS_CONCURRENCY: {{ .Values.backend.config.indexer.performance.internalTxsConcurrency | quote }}
   {{- end }}
   {{- if .Values.backend.config.indexer.performance.coinBalancesBatchSize }}
   INDEXER_COIN_BALANCES_BATCH_SIZE: {{ .Values.backend.config.indexer.performance.coinBalancesBatchSize | quote }}
