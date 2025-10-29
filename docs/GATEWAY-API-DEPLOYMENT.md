@@ -133,7 +133,7 @@ kubectl describe clusterissuer letsencrypt-prod
 
 Deploy dev environment Gateway and Certificate.
 
-> Not: Argo CD senkronizasyonunda önce `Certificate` ve ilgili `ReferenceGrant` kaynakları çalışır (`sync-wave: -1`). `Certificate` manifestlerine eklenen `cert-manager.io/issue-temporary-certificate` ve `acme.cert-manager.io/http01-edit-in-place` anotasyonları sayesinde cert-manager gerçek sertifika gelene kadar otomatik olarak geçici (self-signed) bir Secret üretir. Böylece Gateway listener'ları hiçbir zaman `InvalidCertificateRef` durumuna düşmez ve Cilium HTTP listener konfigürasyonu kesintisiz kalır.
+> Not: Argo CD senkronizasyonunda sırasıyla `ReferenceGrant`/`Certificate` (`sync-wave: -1`), HTTP-only Gateway (`gateway-http.yaml`, `sync-wave: -0.5`) ve en son HTTPS Gateway (`gateway.yaml`, `sync-wave: 0`) uygulanır. `Certificate` manifestlerindeki `cert-manager.io/issue-temporary-certificate` ve `acme.cert-manager.io/http01-edit-in-place` anotasyonlarıyla cert-manager geçici bir Secret üretir; HTTP-only Gateway ise ACME trafiğini taşıdığı için Cilium'un `listener-insecure` bug'ı tetiklenmez.
 
 ```bash
 # 1. Sync Gateway API dev environment
@@ -146,26 +146,30 @@ kubectl get namespace monad-indexer-dev
 kubectl get gateway -n monad-indexer-dev
 # Expected:
 # NAME                      CLASS    ADDRESS         PROGRAMMED   AGE
-# monad-indexer-gateway    cilium   65.21.183.30    True         1m
+# monad-indexer-http-gateway   cilium   65.21.183.30   True         1m
+# monad-indexer-gateway        cilium   65.21.183.30   True         1m
 
 # 4. Check Gateway status details
 kubectl describe gateway monad-indexer-gateway -n monad-indexer-dev
 
-# 5. Verify Gateway listeners are ready
+# 5. Verify HTTP Gateway status
+kubectl describe gateway monad-indexer-http-gateway -n monad-indexer-dev
+
+# 6. Verify HTTPS Gateway listeners are ready
 kubectl get gateway monad-indexer-gateway -n monad-indexer-dev \
   -o jsonpath='{.status.listeners[*].conditions[*].message}'
 
-# 6. Verify Certificate is being requested
+# 7. Verify Certificate is being requested
 kubectl get certificate -n monad-indexer-dev
 # Expected (initially):
 # NAME                        READY   SECRET                      AGE
 # monad-tn1-indexer-tls      False   monad-tn1-indexer-tls       30s
 
-# 7. Wait for certificate to be issued (1-2 minutes)
+# 8. Wait for certificate to be issued (1-2 minutes)
 kubectl wait --for=condition=Ready certificate/monad-tn1-indexer-tls \
   -n monad-indexer-dev --timeout=5m
 
-# 8. Verify certificate is ready
+# 9. Verify certificate is ready
 kubectl get certificate -n monad-indexer-dev
 # Expected (after ~2 min):
 # NAME                        READY   SECRET                      AGE

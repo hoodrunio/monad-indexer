@@ -8,6 +8,7 @@ metadata:
 spec:
   blocks:
     - cidr: "65.21.183.30/32"
+    - cidr: "95.216.177.23/32"
 
   # Match Gateway-owned LoadBalancer services
   serviceSelector:

@@ -113,10 +113,10 @@ kubectl -n argocd get secret argocd-initial-admin-secret \
 - ✅ Config'ler `infrastructure/environments/*/`
 
 ### ✅ Otomatik TLS
-- ✅ Gateway HTTP listener (cert-manager için)
+- ✅ HTTP-only Gateway (ACME HTTP-01 için)
 - ✅ Cert-manager otomatik HTTPRoute oluşturur
 - ✅ Let's Encrypt sertifikası alınır
-- ✅ Gateway HTTPS listener'larla upgrade edilir
+- ✅ HTTPS Gateway application trafiğini sonlandırır
 
 ### ✅ Cilium Best Practices
 - ✅ kube-proxy replacement (eBPF)

@@ -40,6 +40,8 @@ fi
 
 source "$ENV_DIR/config.env"
 
+HTTP_GATEWAY_NAME="${GATEWAY_NAME/-gateway/-http-gateway}"
+
 echo "============================================"
 echo "Installing Environment: ${ENVIRONMENT}"
 echo "============================================"
@@ -69,7 +71,24 @@ if [ -f "$ENV_DIR/referencegrants.yaml" ]; then
   kubectl apply -f "$ENV_DIR/referencegrants.yaml"
 fi
 
-# 4. Verify ClusterIssuer exists
+# 4. Apply HTTP-only Gateway for ACME challenges
+if [ -f "$ENV_DIR/gateway-http.yaml" ]; then
+  echo ""
+  echo "📦 Creating HTTP-only Gateway for ACME challenges..."
+  kubectl apply -f "$ENV_DIR/gateway-http.yaml"
+
+  echo ""
+  echo "⏳ Waiting for HTTP Gateway to be programmed..."
+  kubectl wait --for=condition=Programmed \
+    gateway/${HTTP_GATEWAY_NAME} \
+    -n ${NAMESPACE} \
+    --timeout=120s || {
+      echo "⚠️  HTTP Gateway not ready yet, checking status..."
+      kubectl describe gateway/${HTTP_GATEWAY_NAME} -n ${NAMESPACE}
+    }
+fi
+
+# 5. Verify ClusterIssuer exists
 echo ""
 echo "🔍 Checking for ClusterIssuer (letsencrypt-prod)..."
 if ! kubectl get clusterissuer letsencrypt-prod &>/dev/null; then
@@ -84,7 +103,7 @@ if ! kubectl get clusterissuer letsencrypt-prod &>/dev/null; then
 fi
 echo "✅ ClusterIssuer 'letsencrypt-prod' found"
 
-# 5. Apply TLS Certificates
+# 6. Apply TLS Certificates
 echo ""
 echo "📦 Creating TLS Certificates..."
 kubectl apply -f "$ENV_DIR/certificates.yaml"
@@ -108,9 +127,9 @@ for domain_config in "${DOMAINS[@]}"; do
   fi
 done
 
-# 6. Apply Gateway with HTTP and HTTPS listeners
+# 7. Apply Gateway with HTTPS listeners
 echo ""
-echo "📦 Creating Gateway (HTTP + HTTPS listeners)..."
+echo "📦 Creating HTTPS Gateway..."
 kubectl apply -f "$ENV_DIR/gateway.yaml"
 
 echo ""
@@ -134,7 +153,7 @@ fi
 GATEWAY_IP=$(kubectl get gateway/${GATEWAY_NAME} -n ${NAMESPACE} -o jsonpath='{.status.addresses[0].value}')
 echo "✅ Gateway ready with IP: ${GATEWAY_IP}"
 
-# 7. Apply HTTPRoutes
+# 8. Apply HTTPRoutes
 echo ""
 echo "📦 Creating HTTPRoutes..."
 kubectl apply -f "$ENV_DIR/httproutes.yaml"
