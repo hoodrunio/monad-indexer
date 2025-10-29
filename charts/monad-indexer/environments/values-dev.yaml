@@ -122,4 +122,3 @@ ingress:
 # External Secrets configuration for dev environment
 externalSecrets:
   enabled: true
-  environment: "dev"

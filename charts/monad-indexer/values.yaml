@@ -748,11 +748,10 @@ ingress:
 # ============================================================
 externalSecrets:
   enabled: true  # Set to false to use plain Kubernetes Secrets
-  environment: "dev"  # Override in values-{env}.yaml (dev/staging/production)
 
   aws:
     region: "eu-north-1"  # Stockholm region
-    secretsPrefix: "monad-indexer"  # Prefix for secret names in AWS
+    secretName: "blockscout"  # Single AWS Secrets Manager secret containing all credentials
     credentialsSecret: "aws-credentials"  # Kubernetes Secret containing AWS access keys
     # Create this secret manually with:
     # kubectl create secret generic aws-credentials \

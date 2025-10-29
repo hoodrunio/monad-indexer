@@ -15,13 +15,17 @@ This guide explains how Monad Indexer manages secrets using **External Secrets O
 
 ```
 AWS Secrets Manager (eu-north-1)
-  └─ monad-indexer/dev/backend
-  └─ monad-indexer/dev/postgresql
-  └─ monad-indexer/dev/stats-postgresql
+  └─ blockscout (single secret containing all credentials)
+     ├─ SECRET_KEY_BASE
+     ├─ POSTGRES_PASSWORD
+     └─ STATS_PASSWORD
           ↓
 External Secrets Operator (Kubernetes)
           ↓
 Kubernetes Secrets (auto-created)
+  ├─ monad-indexer-dev-backend-secret
+  ├─ monad-indexer-dev-postgresql-app
+  └─ monad-indexer-dev-stats-postgresql-app
           ↓
 Application Pods (consume secrets)
 ```
@@ -46,59 +50,34 @@ This script will:
 - Install operator to `external-secrets-system` namespace
 - Verify installation
 
-### 2. Create AWS Secrets
+### 2. Create AWS Secret
 
-For each environment, create 3 secrets in AWS Secrets Manager:
-
-#### Backend Secret (SECRET_KEY_BASE)
+Create a single secret named `blockscout` containing all credentials:
 
 ```bash
-# Generate a strong secret key
-SECRET_KEY=$(openssl rand -base64 64 | tr -d '\n')
-
-# Create in AWS Secrets Manager (eu-north-1)
-aws secretsmanager create-secret \
-  --name "monad-indexer/dev/backend" \
-  --description "Backend secret key for Monad Indexer dev environment" \
-  --secret-string "{\"SECRET_KEY_BASE\":\"${SECRET_KEY}\"}" \
-  --region eu-north-1
-```
-
-#### PostgreSQL Secret
-
-```bash
-# Generate password (alphanumeric only - Blockscout compatibility)
+# Generate strong credentials
+SECRET_KEY_BASE=$(openssl rand -base64 64 | tr -d '\n')
 POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -d '+/=\n')
-
-# Create in AWS
-aws secretsmanager create-secret \
-  --name "monad-indexer/dev/postgresql" \
-  --description "PostgreSQL credentials for Monad Indexer dev" \
-  --secret-string "{
-    \"username\": \"blockscout\",
-    \"password\": \"${POSTGRES_PASSWORD}\",
-    \"uri\": \"postgresql://blockscout:${POSTGRES_PASSWORD}@monad-indexer-dev-postgresql-rw:5432/blockscout?sslmode=disable\"
-  }" \
-  --region eu-north-1
-```
-
-#### Stats PostgreSQL Secret
-
-```bash
-# Generate password
 STATS_PASSWORD=$(openssl rand -base64 32 | tr -d '+/=\n')
 
-# Create in AWS
+# Create single secret in AWS Secrets Manager (eu-north-1)
 aws secretsmanager create-secret \
-  --name "monad-indexer/dev/stats-postgresql" \
-  --description "Stats PostgreSQL credentials for Monad Indexer dev" \
-  --secret-string "{
-    \"username\": \"stats\",
-    \"password\": \"${STATS_PASSWORD}\",
-    \"uri\": \"postgresql://stats:${STATS_PASSWORD}@monad-indexer-dev-stats-postgresql-rw:5432/stats?sslmode=disable\"
-  }" \
+  --name "blockscout" \
+  --description "All credentials for Blockscout/Monad Indexer" \
+  --secret-string "{\"SECRET_KEY_BASE\":\"${SECRET_KEY_BASE}\",\"POSTGRES_PASSWORD\":\"${POSTGRES_PASSWORD}\",\"STATS_PASSWORD\":\"${STATS_PASSWORD}\"}" \
   --region eu-north-1
 ```
+
+**Secret Structure:**
+```json
+{
+  "SECRET_KEY_BASE": "base64-encoded-key-for-phoenix-backend",
+  "POSTGRES_PASSWORD": "base64-encoded-postgres-password",
+  "STATS_PASSWORD": "base64-encoded-stats-db-password"
+}
+```
+
+**Note:** Usernames are hardcoded in Helm templates (`blockscout` for main DB, `stats` for stats DB). Database URIs are auto-generated from passwords.
 
 ### 3. Create AWS Credentials Secret in Kubernetes
 
@@ -162,27 +141,24 @@ kubectl logs -n monad-indexer-dev -l app.kubernetes.io/component=backend --tail=
 To rotate credentials:
 
 ```bash
-# 1. Generate new password
-NEW_PASSWORD=$(openssl rand -base64 32 | tr -d '+/=\n')
+# 1. Get current secret
+CURRENT=$(aws secretsmanager get-secret-value --secret-id blockscout --region eu-north-1 --query SecretString --output text)
 
-# 2. Update secret in AWS
+# 2. Generate new password
+NEW_POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -d '+/=\n')
+
+# 3. Update secret in AWS (example: rotating POSTGRES_PASSWORD)
 aws secretsmanager update-secret \
-  --secret-id "monad-indexer/dev/postgresql" \
-  --secret-string "{
-    \"username\": \"blockscout\",
-    \"password\": \"${NEW_PASSWORD}\",
-    \"uri\": \"postgresql://blockscout:${NEW_PASSWORD}@monad-indexer-dev-postgresql-rw:5432/blockscout?sslmode=disable\"
-  }" \
+  --secret-id "blockscout" \
+  --secret-string "{\"SECRET_KEY_BASE\":\"$(echo $CURRENT | jq -r .SECRET_KEY_BASE)\",\"POSTGRES_PASSWORD\":\"${NEW_POSTGRES_PASSWORD}\",\"STATS_PASSWORD\":\"$(echo $CURRENT | jq -r .STATS_PASSWORD)\"}" \
   --region eu-north-1
 
-# 3. Force refresh (or wait up to 1 hour for automatic refresh)
+# 4. Force refresh (or wait up to 1 hour for automatic refresh)
 kubectl annotate externalsecret monad-indexer-dev-postgresql \
   force-sync=$(date +%s) \
   -n monad-indexer-dev
 
-# 4. Restart pods to use new secret
-kubectl rollout restart deployment/monad-indexer-dev-backend -n monad-indexer-dev
-kubectl rollout restart statefulset/monad-indexer-dev-postgresql -n monad-indexer-dev
+# 5. CloudNativePG will automatically restart pods (cnpg.io/reload: "true" label)
 ```
 
 ## Troubleshooting
@@ -199,7 +175,7 @@ kubectl get secret aws-credentials -n monad-indexer-dev -o yaml
 
 # 2. Secret doesn't exist in AWS
 aws secretsmanager describe-secret \
-  --secret-id "monad-indexer/dev/backend" \
+  --secret-id "blockscout" \
   --region eu-north-1
 
 # 3. IAM permissions insufficient
@@ -232,32 +208,46 @@ kubectl describe pod <pod-name> -n monad-indexer-dev
 
 ## Multi-Environment Setup
 
+For multiple environments, use different AWS secret names:
+
 ### Staging
 
 ```bash
-# Create secrets with staging prefix
+# Create separate secret for staging
+SECRET_KEY_BASE=$(openssl rand -base64 64 | tr -d '\n')
+POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -d '+/=\n')
+STATS_PASSWORD=$(openssl rand -base64 32 | tr -d '+/=\n')
+
 aws secretsmanager create-secret \
-  --name "monad-indexer/staging/backend" \
-  --secret-string "{\"SECRET_KEY_BASE\":\"$(openssl rand -base64 64 | tr -d '\n')\"}" \
+  --name "blockscout-staging" \
+  --description "Staging credentials for Blockscout/Monad Indexer" \
+  --secret-string "{\"SECRET_KEY_BASE\":\"${SECRET_KEY_BASE}\",\"POSTGRES_PASSWORD\":\"${POSTGRES_PASSWORD}\",\"STATS_PASSWORD\":\"${STATS_PASSWORD}\"}" \
   --region eu-north-1
 
 # Update values-staging.yaml:
 # externalSecrets:
-#   environment: "staging"
+#   aws:
+#     secretName: "blockscout-staging"
 ```
 
 ### Production
 
 ```bash
-# Create secrets with production prefix
+# Create separate secret for production
+SECRET_KEY_BASE=$(openssl rand -base64 64 | tr -d '\n')
+POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -d '+/=\n')
+STATS_PASSWORD=$(openssl rand -base64 32 | tr -d '+/=\n')
+
 aws secretsmanager create-secret \
-  --name "monad-indexer/production/backend" \
-  --secret-string "{\"SECRET_KEY_BASE\":\"$(openssl rand -base64 64 | tr -d '\n')\"}" \
+  --name "blockscout-production" \
+  --description "Production credentials for Blockscout/Monad Indexer" \
+  --secret-string "{\"SECRET_KEY_BASE\":\"${SECRET_KEY_BASE}\",\"POSTGRES_PASSWORD\":\"${POSTGRES_PASSWORD}\",\"STATS_PASSWORD\":\"${STATS_PASSWORD}\"}" \
   --region eu-north-1
 
 # Update values-production.yaml:
 # externalSecrets:
-#   environment: "production"
+#   aws:
+#     secretName: "blockscout-production"
 ```
 
 ## Security Best Practices
@@ -281,9 +271,11 @@ AWS Secrets Manager pricing (eu-north-1):
 - $0.40 per secret per month
 - $0.05 per 10,000 API calls
 
-For 3 secrets per environment:
-- Monthly: ~$1.20/environment
-- Annual: ~$14.40/environment
+For 1 secret per environment:
+- Monthly: ~$0.40/environment
+- Annual: ~$4.80/environment
+
+**Significant cost savings** compared to 3 separate secrets per environment!
 
 ## Migration from SealedSecrets
 
