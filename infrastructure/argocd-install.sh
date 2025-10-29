@@ -27,6 +27,17 @@ if [ -f "$(dirname "$0")/argocd/argocd-cmd-params-cm.yaml" ]; then
   kubectl apply -f "$(dirname "$0")/argocd/argocd-cmd-params-cm.yaml"
 fi
 
+# Apply custom services (HTTP/gRPC split services and NodePort for CLI access)
+if [ -f "$(dirname "$0")/argocd/argocd-server-services.yaml" ]; then
+  echo "📦 Applying ArgoCD custom services..."
+  kubectl apply -f "$(dirname "$0")/argocd/argocd-server-services.yaml"
+fi
+
+if [ -f "$(dirname "$0")/argocd/argocd-server-nodeport.yaml" ]; then
+  echo "📦 Applying ArgoCD NodePort service for CLI access..."
+  kubectl apply -f "$(dirname "$0")/argocd/argocd-server-nodeport.yaml"
+fi
+
 if [ -f "$(dirname "$0")/argocd/argocd-configmap.yaml" ] || [ -f "$(dirname "$0")/argocd/argocd-cmd-params-cm.yaml" ]; then
   echo "🔄 Restarting ArgoCD server to pick up new configuration..."
   kubectl rollout restart deployment/argocd-server -n argocd
@@ -36,6 +47,9 @@ fi
 # Get initial admin password
 ARGOCD_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
 
+# Get node IP for NodePort access
+NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' | awk '{print $1}')
+
 echo ""
 echo "✅ ArgoCD installed successfully!"
 echo ""
@@ -44,21 +58,24 @@ echo "   Username: admin"
 echo "   Password: ${ARGOCD_PASSWORD}"
 echo ""
 echo "🌐 Access ArgoCD:"
-echo "   Web UI: https://cd.hoodscan.io (via Cilium Gateway with HTTPS)"
-echo "   Or port-forward: kubectl port-forward svc/argocd-server -n argocd 8080:80"
-echo "   Then visit: http://localhost:8080"
+echo "   Web UI: https://cd.hoodscan.io (via Cilium Gateway)"
 echo ""
-echo "📝 ArgoCD CLI Login:"
+echo "📝 ArgoCD CLI Login Options:"
 echo "   brew install argocd"
-echo "   # Via Gateway (requires Gateway with ALPN enabled):"
-echo "   argocd login cd.hoodscan.io"
-echo "   # Or via port-forward:"
+echo ""
+echo "   Option 1 - NodePort (Recommended for CLI):"
+echo "   argocd login ${NODE_IP}:30080 --insecure --plaintext"
+echo ""
+echo "   Option 2 - SSH Tunnel (if NodePort not accessible):"
+echo "   ssh -L 8080:localhost:30080 root@${NODE_IP}"
 echo "   argocd login localhost:8080 --insecure --plaintext"
 echo ""
-echo "💡 Note: CLI access via Gateway requires:"
-echo "   - Cilium Gateway API with ALPN enabled (enableAlpn: true)"
-echo "   - GRPCRoute configured for ArgoCD"
-echo "   - Valid TLS certificate"
+echo "   Option 3 - Via Gateway (Web UI only, CLI not supported):"
+echo "   # Gateway doesn't support mixed HTTP/gRPC on same hostname (Gateway API limitation)"
+echo "   # Use NodePort for CLI access instead"
+echo ""
+echo "💡 Note: Port-forward doesn't work with Cilium due to network namespace issues."
+echo "   Use NodePort (port 30080) for CLI access instead."
 echo ""
 echo "🎯 Next step: Deploy root application"
 echo "   kubectl apply -f argocd/bootstrap/root-app.yaml"
