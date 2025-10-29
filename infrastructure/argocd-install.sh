@@ -16,6 +16,23 @@ kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/st
 echo "⏳ Waiting for ArgoCD to be ready..."
 kubectl wait --for=condition=Available deployment -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s
 
+# Apply custom ArgoCD configuration (URL, resource exclusions, etc.)
+if [ -f "$(dirname "$0")/argocd/argocd-configmap.yaml" ]; then
+  echo "📦 Applying ArgoCD configuration overrides..."
+  kubectl apply -f "$(dirname "$0")/argocd/argocd-configmap.yaml"
+fi
+
+if [ -f "$(dirname "$0")/argocd/argocd-cmd-params-cm.yaml" ]; then
+  echo "📦 Applying ArgoCD command parameters..."
+  kubectl apply -f "$(dirname "$0")/argocd/argocd-cmd-params-cm.yaml"
+fi
+
+if [ -f "$(dirname "$0")/argocd/argocd-configmap.yaml" ] || [ -f "$(dirname "$0")/argocd/argocd-cmd-params-cm.yaml" ]; then
+  echo "🔄 Restarting ArgoCD server to pick up new configuration..."
+  kubectl rollout restart deployment/argocd-server -n argocd
+  kubectl rollout status deployment/argocd-server -n argocd --timeout=300s
+fi
+
 # Get initial admin password
 ARGOCD_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
 

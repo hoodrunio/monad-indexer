@@ -1,5 +1,5 @@
 # HTTP-only Gateway dedicated to ACME HTTP-01 challenges
-# Shares the same public IP as the main Gateway
+# Shares the same public IP as the main Gateway (95.216.177.23)
 
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway

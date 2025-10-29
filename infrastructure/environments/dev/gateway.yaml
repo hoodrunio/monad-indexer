@@ -1,5 +1,5 @@
 # Gateway for Development Environment
-# Public IP: 65.21.183.30
+# Public IP: 95.216.177.23
 # Domains: cd.hoodscan.io, monad-tn1-indexer.hoodscan.io
 
 apiVersion: gateway.networking.k8s.io/v1
