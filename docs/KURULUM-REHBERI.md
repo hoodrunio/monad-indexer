@@ -2,19 +2,49 @@
 
 ## 🎯 Gereksinimler
 
-- K3s cluster hazır ve çalışır durumda
-- kubectl cluster'a erişebiliyor
+- Ubuntu 22.04 LTS (kernel 5.15+) veya uyumlu Linux dağıtımı
+- Root erişimi veya sudo yetkisi
 - helm 3.x yüklü
 - AWS credentials (Secrets Manager için)
 
 ## 📋 Kurulum Sırası
 
+0. K3s + Cilium Kurulumu
 1. Cert-Manager
 2. External Secrets Operator
 3. AWS Credentials Secret
-4. Cilium (Network Plugin)
+4. Cilium LoadBalancer IP Pool
 5. ArgoCD
 6. ArgoCD Bootstrap (Root App)
+
+---
+
+## 0️⃣ K3s + Cilium Kurulumu
+
+**Not:** K3s zaten Cilium ile kurulu ise bu adımı atlayın ve Adım 1'e geçin.
+
+```bash
+cd infrastructure
+./k3s-install.sh
+```
+
+Bu script:
+- K3s'i Flannel, kube-proxy, ServiceLB, Traefik **olmadan** kurar
+- Cilium CNI'ı production ayarlarıyla kurar (kube-proxy replacement)
+- Cilium CLI'ı yükler
+- kubectl'i tüm kullanıcılar için yapılandırır
+
+**Doğrulama:**
+```bash
+kubectl get nodes
+kubectl get pods -n kube-system -l app.kubernetes.io/name=cilium-agent
+cilium status
+```
+
+**Beklenen çıktı:**
+- Node durumu: `Ready`
+- Cilium agent pod'ları: `Running`
+- Cilium status: `OK`
 
 ---
 
@@ -106,61 +136,30 @@ kubectl get secret aws-credentials -n monad-indexer-dev
 
 ---
 
-## 4️⃣ Cilium Network Plugin Kurulumu
+## 4️⃣ Cilium LoadBalancer IP Pool Kurulumu
 
-### 4.1. Cilium API Server Config ExternalSecret Oluştur
-
-```bash
-kubectl apply -f infrastructure/helm/cilium/api-server-config-secret.yaml
-```
-
-**Bekleme (ExternalSecret senkronize olsun):**
-```bash
-kubectl wait --for=jsonpath='{.status.conditions[0].status}'=True \
-  externalsecret/cilium-api-server-config -n kube-system --timeout=60s
-```
-
-**Doğrulama:**
-```bash
-kubectl get externalsecret -n kube-system
-kubectl get secret cilium-api-server-config -n kube-system
-```
-
-### 4.2. Cilium Helm Repo Ekle
-
-```bash
-helm repo add cilium https://helm.cilium.io/
-helm repo update
-```
-
-### 4.3. Cilium Kur
-
-```bash
-helm upgrade --install cilium cilium/cilium \
-  --version 1.18.3 \
-  --namespace kube-system \
-  --values infrastructure/helm/cilium/values.yaml \
-  --wait \
-  --timeout 10m
-```
-
-**Doğrulama:**
-```bash
-kubectl get pods -n kube-system -l k8s-app=cilium
-kubectl get pods -n kube-system -l name=cilium-operator
-kubectl get pods -n kube-system -l k8s-app=cilium-envoy
-```
-
-### 4.4. Cilium LoadBalancer IP Pool Oluştur
+**Not:** K3s kurulumu sırasında Cilium zaten kuruldu. Bu adımda sadece LoadBalancer IP pool'larını oluşturacağız.
 
 ```bash
 kubectl apply -f infrastructure/helm/cilium/lb-ippool.yaml
 ```
 
+Bu dosya şunları oluşturur:
+- **monad-indexer-public-pool**: Gateway için public IP (65.21.183.30)
+- **monad-indexer-internal-pool**: Internal servisler için IP'ler (10.0.0.100/27)
+- **monad-indexer-l2-policy**: L2 announcement policy (ARP)
+
 **Doğrulama:**
 ```bash
 kubectl get ciliumloadbalancerippool
 kubectl get ciliuml2announcementpolicy
+```
+
+**Beklenen çıktı:**
+```
+NAME                            DISABLED   CONFLICTING   IPS AVAILABLE   AGE
+monad-indexer-public-pool       false      False         1               10s
+monad-indexer-internal-pool     false      False         32              10s
 ```
 
 ---
@@ -269,18 +268,27 @@ kubectl get certificates -n monad-indexer-dev
 
 ### Cilium pod'ları CrashLoopBackOff
 ```bash
-kubectl logs -n kube-system -l k8s-app=cilium --tail=50
+kubectl logs -n kube-system -l app.kubernetes.io/name=cilium-agent --tail=50
+cilium status
 ```
 
-Muhtemel sebep: `cilium-api-server-config` secret'ı yok veya hatalı.
+Muhtemel sebepler:
+- API server bilgileri hatalı (k3s-install.sh sırasında otomatik algılandı)
+- Kernel eBPF desteği yok (kernel 5.10+ gerekli)
+- Network interface bulunamıyor
 
 ### ExternalSecret senkronize olmuyor
 ```bash
-kubectl describe externalsecret cilium-api-server-config -n kube-system
+kubectl get externalsecret -A
+kubectl describe externalsecret <secret-name> -n <namespace>
 kubectl logs -n external-secrets-system -l app.kubernetes.io/name=external-secrets
 ```
 
-Muhtemel sebep: AWS credentials yanlış veya AWS secret'ta alan eksik.
+Muhtemel sebepler:
+- AWS credentials yanlış (`aws-credentials` secret'ını kontrol edin)
+- AWS secret'ta alan eksik (blockscout secret'ında tüm alanlar var mı?)
+- AWS Secrets Manager region'u yanlış (eu-north-1 olmalı)
+- IAM permissions yetersiz
 
 ### ArgoCD application sync olmuyorsa
 ```bash
