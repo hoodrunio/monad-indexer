@@ -14,6 +14,27 @@ metadata:
 spec:
   project: monad-indexer
 
+  # Wait for sealed secrets to be deployed first
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true  # Auto-heal in dev
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  # Ensure sealed secrets are deployed before this application
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      jsonPointers:
+        - /data
+
   source:
     repoURL: https://github.com/hoodrunio/monad-indexer
     targetRevision: main  # Always latest
@@ -26,16 +47,3 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: monad-indexer-dev
-
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true  # Auto-heal in dev
-    syncOptions:
-      - CreateNamespace=true
-    retry:
-      limit: 5
-      backoff:
-        duration: 5s
-        factor: 2
-        maxDuration: 3m

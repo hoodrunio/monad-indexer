@@ -742,3 +742,20 @@ ingress:
         - path: /
           pathType: Prefix
   tls: []
+
+# ============================================================
+# EXTERNAL SECRETS (AWS Secrets Manager Integration)
+# ============================================================
+externalSecrets:
+  enabled: true  # Set to false to use plain Kubernetes Secrets
+  environment: "dev"  # Override in values-{env}.yaml (dev/staging/production)
+
+  aws:
+    region: "eu-north-1"  # Stockholm region
+    secretsPrefix: "monad-indexer"  # Prefix for secret names in AWS
+    credentialsSecret: "aws-credentials"  # Kubernetes Secret containing AWS access keys
+    # Create this secret manually with:
+    # kubectl create secret generic aws-credentials \
+    #   --from-literal=access-key-id=YOUR_KEY \
+    #   --from-literal=secret-access-key=YOUR_SECRET \
+    #   -n <namespace>
