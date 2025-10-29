@@ -8,6 +8,9 @@ Complete step-by-step guide for installing the Monad blockchain indexer infrastr
 2. [Infrastructure Setup](#infrastructure-setup)
 3. [ArgoCD Installation](#argocd-installation)
 4. [Operators Installation](#operators-installation)
+   - [CloudNativePG Operator](#install-cloudnativepg-operator)
+   - [External Secrets Operator](#install-external-secrets-operator)
+   - [Nginx Ingress Controller](#install-nginx-ingress-controller)
 5. [Helm Chart Deployment](#helm-chart-deployment)
 6. [Verification](#verification)
 7. [Next Steps](#next-steps)
@@ -218,6 +221,39 @@ spec:
 kubectl apply -f secret-store.yaml
 ```
 
+### Install Nginx Ingress Controller
+
+Required for exposing services via HTTP/HTTPS with domain-based routing.
+
+```bash
+# Add Nginx Ingress Helm repository
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo update
+
+# Install Nginx Ingress Controller
+helm install ingress-nginx ingress-nginx/ingress-nginx \
+  --namespace ingress-nginx \
+  --create-namespace \
+  --set controller.service.type=NodePort \
+  --set controller.ingressClassResource.default=true \
+  --set controller.admissionWebhooks.enabled=false
+```
+
+**Verify**:
+
+```bash
+kubectl get pods -n ingress-nginx
+kubectl get ingressclass
+```
+
+**Get access info**:
+
+```bash
+export HTTP_NODE_PORT=$(kubectl get service --namespace ingress-nginx ingress-nginx-controller --output jsonpath="{.spec.ports[0].nodePort}")
+export NODE_IP=$(kubectl get nodes --output jsonpath="{.items[0].status.addresses[0].address}")
+echo "Ingress HTTP URL: http://$NODE_IP:$HTTP_NODE_PORT"
+```
+
 ## Helm Chart Deployment
 
 ### Option A: GitOps Deployment (Recommended)
@@ -340,6 +376,19 @@ monad-indexer-postgresql   5m     3           3       Cluster in healthy state  
 ```
 
 ### Check Database Connectivity
+
+**Option 1: Via Ingress (if enabled)**
+
+```bash
+# Get ingress access info
+export HTTP_NODE_PORT=$(kubectl get service --namespace ingress-nginx ingress-nginx-controller --output jsonpath="{.spec.ports[0].nodePort}")
+export NODE_IP=$(kubectl get nodes --output jsonpath="{.items[0].status.addresses[0].address}")
+
+# Test API via ingress
+curl -H "Host: indexer-prod.local" http://$NODE_IP:$HTTP_NODE_PORT/api/v2/stats | jq
+```
+
+**Option 2: Via Port Forward**
 
 ```bash
 # Port forward to backend
