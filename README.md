@@ -116,21 +116,17 @@ cd monad-indexer-gitops
 
 ### 2. Configure Secrets
 
-Create AWS Secrets Manager secrets (or use your preferred backend):
+Create AWS Secrets Manager secret with all credentials:
 
 ```bash
-# PostgreSQL password
-aws secretsmanager create-secret \
-  --name monad-indexer/postgresql/password \
-  --secret-string "your-secure-password"
+# Using Makefile (recommended)
+make create-aws-secret ENV=prod
 
-# Redis password
-aws secretsmanager create-secret \
-  --name monad-indexer/redis/password \
-  --secret-string "your-secure-password"
+# Create AWS credentials in Kubernetes
+make create-aws-credentials-secret ENV=prod
 ```
 
-Configure SecretStore and update `values-production.yaml`.
+See [docs/secrets-management.md](docs/secrets-management.md) for detailed setup.
 
 ### 3. Deploy via GitOps
 
@@ -159,6 +155,7 @@ curl http://localhost:4000/api/v2/stats
 ## 📖 Documentation
 
 - **[Installation Guide](docs/01-installation.md)** - Complete setup instructions
+- **[Secrets Management](docs/secrets-management.md)** - AWS Secrets Manager with External Secrets Operator
 - **[Scaling Guide](docs/02-scaling-guide.md)** - Horizontal and vertical scaling
 - **[Backup & Restore](docs/03-backup-restore.md)** - Disaster recovery procedures
 - **[Troubleshooting](docs/04-troubleshooting.md)** - Common issues and solutions
