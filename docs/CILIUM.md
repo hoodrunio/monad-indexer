@@ -216,31 +216,39 @@ sudo tar xzvfC cilium-linux-${CLI_ARCH}.tar.gz /usr/local/bin
 rm cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
 ```
 
-**Step 3: Install Cilium CNI**
+**Step 3: Setup External Secrets for API Server IP**
 
 ```bash
-# Get API server IP
-API_SERVER_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+# Ensure aws-credentials secret exists in kube-system namespace
+kubectl get secret aws-credentials -n kube-system
 
-# Install with production configuration
-cilium install \
+# If not, copy from application namespace
+kubectl get secret aws-credentials -n monad-indexer-dev -o yaml | \
+  sed 's/namespace: monad-indexer-dev/namespace: kube-system/' | \
+  kubectl apply -f -
+
+# Deploy ExternalSecret for Cilium
+kubectl apply -f infrastructure/helm/cilium/api-server-config-secret.yaml
+
+# Verify secret was created
+kubectl get externalsecret -n kube-system cilium-api-server-config
+# STATUS should be: SecretSynced
+```
+
+**Step 4: Install Cilium CNI**
+
+```bash
+# Install with Helm using production configuration
+# API server IP is automatically fetched from AWS Secrets Manager
+helm repo add cilium https://helm.cilium.io/
+helm install cilium cilium/cilium \
   --version 1.18.3 \
-  --set ipam.operator.clusterPoolIPv4PodCIDRList="10.42.0.0/16" \
-  --set kubeProxyReplacement=true \
-  --set k8sServiceHost=${API_SERVER_IP} \
-  --set k8sServicePort=6443 \
-  --set routingMode=native \
-  --set loadBalancer.acceleration=native \
-  --set loadBalancer.mode=hybrid \
-  --set l2announcements.enabled=true \
-  --set hubble.enabled=false \
-  --set bpf.events.trace.enabled=false \
-  --set prometheus.enabled=true \
-  --set prometheus.serviceMonitor.enabled=true \
+  --namespace kube-system \
+  -f infrastructure/helm/cilium/values.yaml \
   --wait
 ```
 
-**Step 4: Validate Installation**
+**Step 5: Validate Installation**
 
 ```bash
 # Check Cilium status
@@ -261,20 +269,23 @@ cilium connectivity test
 ### Method 3: Helm (for GitOps with ArgoCD)
 
 ```bash
+# Setup External Secrets first
+kubectl apply -f infrastructure/helm/cilium/api-server-config-secret.yaml
+
+# Wait for secret sync
+kubectl wait --for=condition=Ready externalsecret/cilium-api-server-config -n kube-system --timeout=60s
+
+# Install Cilium via Helm
 helm repo add cilium https://helm.cilium.io/
 helm repo update
 
-# Get API server IP
-API_SERVER_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
-
-# Install with production values
 helm install cilium cilium/cilium \
   --version 1.18.3 \
   --namespace kube-system \
-  -f infrastructure/helm/cilium/values-production.yaml \
-  --set k8sServiceHost=${API_SERVER_IP} \
-  --set k8sServicePort=6443
+  -f infrastructure/helm/cilium/values.yaml
 ```
+
+**Note:** API server IP is automatically fetched from AWS Secrets Manager using External Secrets Operator. No manual IP configuration needed!
 
 ### Multi-Node Cluster
 
@@ -299,21 +310,18 @@ kubectl get nodes
 
 ## Configuration
 
-### Production vs Development
+### Configuration File
 
-**Production** (`infrastructure/helm/cilium/values-production.yaml`):
+**Single Cluster Configuration** (`infrastructure/helm/cilium/values.yaml`):
+- Environment-agnostic (cluster-wide CNI)
+- Production-optimized settings
 - Hubble: **disabled** (max performance)
 - BPF trace events: **disabled**
 - Resources: 4 CPU / 4GB RAM
 - LoadBalancer: **enabled**
 - Monitoring: **enabled**
 
-**Development** (`infrastructure/helm/cilium/values-dev.yaml`):
-- Hubble: **enabled** (debugging)
-- BPF trace events: **enabled**
-- Resources: 2 CPU / 2GB RAM
-- LoadBalancer: **enabled**
-- Monitoring: **optional**
+**Note:** Since Cilium is cluster-wide, we use a single configuration file optimized for production. Development/staging/production environments are separated at the namespace level, not cluster level.
 
 ### Key Configuration Options
 
@@ -321,14 +329,21 @@ kubectl get nodes
 
 ```yaml
 kubeProxyReplacement: "true"  # CRITICAL for performance
-k8sServiceHost: "10.0.0.1"    # API server IP (required when replacing kube-proxy)
-k8sServicePort: "6443"
+
+# API server IP is fetched from AWS Secrets Manager via External Secrets
+k8sServiceHostRef:
+  secretName: cilium-api-server-config
+  key: k8sServiceHost
+k8sServicePortRef:
+  secretName: cilium-api-server-config
+  key: k8sServicePort
 ```
 
 **Why it matters:**
 - iptables-based kube-proxy has O(n) complexity
 - Cilium eBPF service routing is O(1)
 - 40% better throughput, 50% lower latency
+- API server IP is automatically managed (no hardcoding)
 
 #### 2. Routing Mode
 
@@ -387,13 +402,13 @@ prometheus:
 
 ```bash
 # Edit values file
-vim infrastructure/helm/cilium/values-production.yaml
+vim infrastructure/helm/cilium/values.yaml
 
 # Apply changes
 helm upgrade cilium cilium/cilium \
   --version 1.18.3 \
   --namespace kube-system \
-  -f infrastructure/helm/cilium/values-production.yaml \
+  -f infrastructure/helm/cilium/values.yaml \
   --reuse-values
 
 # Verify
@@ -828,16 +843,18 @@ cilium status | grep "KubeProxyReplacement"
 
 **Fix:**
 ```bash
-# If kube-proxy replacement is missing k8sServiceHost
-helm upgrade cilium cilium/cilium \
-  --version 1.18.3 \
-  --namespace kube-system \
-  --set k8sServiceHost=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}') \
-  --set k8sServicePort=6443 \
-  --reuse-values
+# Check if ExternalSecret exists and is synced
+kubectl get externalsecret -n kube-system cilium-api-server-config
 
-# Restart Cilium
+# If not synced, check External Secrets Operator logs
+kubectl logs -n external-secrets-system deploy/external-secrets
+
+# Check if secret was created
+kubectl get secret -n kube-system cilium-api-server-config
+
+# If secret exists but Cilium can't read it, restart Cilium
 kubectl rollout restart ds/cilium-agent -n kube-system
+kubectl rollout restart deploy/cilium-operator -n kube-system
 ```
 
 ### 3. NetworkPolicy Blocking Traffic
@@ -1076,6 +1093,177 @@ If you're on Cilium anyway, use CiliumNetworkPolicy instead of standard NetworkP
 - Better performance (eBPF vs iptables)
 - More features (DNS-aware, identity-based)
 - More resilient (labels persist across pod restarts)
+
+---
+
+## External Secrets Integration
+
+### Overview
+
+Cilium requires the Kubernetes API server IP when `kubeProxyReplacement` is enabled. Instead of hardcoding this IP in values files, we use **External Secrets Operator** to fetch it dynamically from AWS Secrets Manager.
+
+### Architecture
+
+```
+AWS Secrets Manager (blockscout secret)
+  ├── Prodk8sServiceHost: "65.21.183.30"
+  └── Prodk8sServicePort: "6443"
+           ↓
+External Secrets Operator
+           ↓
+Kubernetes Secret (cilium-api-server-config)
+  ├── k8sServiceHost: "65.21.183.30"
+  └── k8sServicePort: "6443"
+           ↓
+Cilium Helm Chart (k8sServiceHostRef)
+```
+
+### Setup
+
+**1. Add API Server IP to AWS Secrets Manager**
+
+```bash
+# Get your cluster's API server IP
+API_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+
+# Update AWS secret (merge with existing blockscout secret)
+aws secretsmanager update-secret \
+  --secret-id blockscout \
+  --secret-string "$(aws secretsmanager get-secret-value --secret-id blockscout --query SecretString --output text | \
+    jq ". + {Prodk8sServiceHost: \"$API_IP\", Prodk8sServicePort: \"6443\"}")" \
+  --region eu-north-1
+```
+
+**2. Ensure AWS Credentials in kube-system**
+
+```bash
+# Check if aws-credentials exists
+kubectl get secret aws-credentials -n kube-system
+
+# If not, copy from application namespace
+kubectl get secret aws-credentials -n monad-indexer-dev -o yaml | \
+  sed 's/namespace: monad-indexer-dev/namespace: kube-system/' | \
+  kubectl apply -f -
+```
+
+**3. Deploy ExternalSecret CRD**
+
+```bash
+kubectl apply -f infrastructure/helm/cilium/api-server-config-secret.yaml
+```
+
+**File:** `infrastructure/helm/cilium/api-server-config-secret.yaml`
+```yaml
+---
+apiVersion: external-secrets.io/v1beta1
+kind: SecretStore
+metadata:
+  name: cilium-config-aws-secrets
+  namespace: kube-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+spec:
+  provider:
+    aws:
+      service: SecretsManager
+      region: eu-north-1
+      auth:
+        secretRef:
+          accessKeyIDSecretRef:
+            name: aws-credentials
+            key: access-key-id
+          secretAccessKeySecretRef:
+            name: aws-credentials
+            key: secret-access-key
+
+---
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: cilium-api-server-config
+  namespace: kube-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: cilium-config-aws-secrets
+    kind: SecretStore
+  target:
+    name: cilium-api-server-config
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      data:
+        k8sServiceHost: "{{ .Prodk8sServiceHost }}"
+        k8sServicePort: "{{ .Prodk8sServicePort }}"
+  dataFrom:
+    - extract:
+        key: blockscout
+```
+
+**4. Verify Secret Sync**
+
+```bash
+# Check ExternalSecret status
+kubectl get externalsecret -n kube-system cilium-api-server-config
+
+# Should show:
+# STATUS: SecretSynced
+# READY: True
+
+# Verify secret was created
+kubectl get secret -n kube-system cilium-api-server-config -o jsonpath='{.data.k8sServiceHost}' | base64 -d
+# Should output your API server IP
+```
+
+### Troubleshooting External Secrets
+
+**Problem: ExternalSecret not syncing**
+
+```bash
+# Check ExternalSecret status
+kubectl describe externalsecret -n kube-system cilium-api-server-config
+
+# Check External Secrets Operator logs
+kubectl logs -n external-secrets-system deploy/external-secrets
+
+# Common issues:
+# 1. AWS credentials invalid
+# 2. Secret not found in AWS Secrets Manager
+# 3. Wrong region
+```
+
+**Problem: Secret exists but Cilium can't access it**
+
+```bash
+# Verify secret content
+kubectl get secret -n kube-system cilium-api-server-config -o yaml
+
+# Check Cilium configuration
+kubectl get configmap -n kube-system cilium-config -o yaml | grep k8sService
+
+# Restart Cilium to pick up secret
+kubectl rollout restart ds/cilium-agent -n kube-system
+kubectl rollout restart deploy/cilium-operator -n kube-system
+```
+
+**Problem: AWS credentials missing in kube-system**
+
+```bash
+# Copy from another namespace
+kubectl get secret aws-credentials -n monad-indexer-dev -o yaml | \
+  sed 's/namespace: monad-indexer-dev/namespace: kube-system/' | \
+  kubectl apply -f -
+```
+
+### Benefits
+
+✅ **No hardcoded IPs** - API server IP stored securely in AWS
+✅ **Automatic updates** - ExternalSecret refreshes every hour
+✅ **GitOps friendly** - No secrets in git repository
+✅ **Environment agnostic** - Same config works across environments
+✅ **Centralized management** - All secrets in AWS Secrets Manager
 
 ---
 
