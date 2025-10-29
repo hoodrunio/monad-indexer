@@ -10,10 +10,21 @@ echo "============================================"
 echo "Installing cert-manager ${CERT_MANAGER_VERSION}"
 echo "============================================"
 
-# Apply cert-manager CRDs and deployment
+# Apply cert-manager with Gateway API support
 echo ""
-echo "📦 Installing cert-manager..."
+echo "📦 Installing cert-manager with Gateway API support..."
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/${CERT_MANAGER_VERSION}/cert-manager.yaml
+
+# Enable Gateway API feature gate
+echo ""
+echo "🔧 Enabling Gateway API support..."
+kubectl patch deployment cert-manager -n cert-manager --type='json' -p='[
+  {
+    "op": "add",
+    "path": "/spec/template/spec/containers/0/args/-",
+    "value": "--feature-gates=ExperimentalGatewayAPISupport=true"
+  }
+]'
 
 # Wait for cert-manager to be ready
 echo ""
@@ -27,18 +38,19 @@ echo ""
 echo "Verifying installation:"
 kubectl get pods -n cert-manager
 
-# Apply ClusterIssuers if they exist
-if [ -f "infrastructure/cert-manager-clusterissuer.yaml" ]; then
+# Apply ClusterIssuers
+CLUSTERISSUER_FILE="infrastructure/common/cert-manager-clusterissuer.yaml"
+if [ -f "$CLUSTERISSUER_FILE" ]; then
     echo ""
     echo "📝 Applying ClusterIssuers..."
-    kubectl apply -f infrastructure/cert-manager-clusterissuer.yaml
+    kubectl apply -f "$CLUSTERISSUER_FILE"
 
     echo ""
     echo "✅ ClusterIssuers created:"
     kubectl get clusterissuer
 else
     echo ""
-    echo "⚠️  ClusterIssuer file not found at: infrastructure/cert-manager-clusterissuer.yaml"
+    echo "⚠️  ClusterIssuer file not found at: $CLUSTERISSUER_FILE"
     echo "You can create it manually or apply it later."
 fi
 

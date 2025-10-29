@@ -80,8 +80,13 @@ API_SERVER_PORT=6443
 echo "📍 API Server: $API_SERVER_IP:$API_SERVER_PORT"
 
 # Install Gateway API CRDs (required before Cilium)
-echo "📥 Installing Gateway API CRDs..."
-kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.1/standard-install.yaml
+# Using v1.2.0 for maximum Cilium compatibility
+echo "📥 Installing Gateway API CRDs (v1.2.0)..."
+kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.2.0/config/crd/standard/gateway.networking.k8s.io_gatewayclasses.yaml
+kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.2.0/config/crd/standard/gateway.networking.k8s.io_gateways.yaml
+kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.2.0/config/crd/standard/gateway.networking.k8s.io_httproutes.yaml
+kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.2.0/config/crd/standard/gateway.networking.k8s.io_referencegrants.yaml
+kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.2.0/config/crd/standard/gateway.networking.k8s.io_grpcroutes.yaml
 echo "✅ Gateway API CRDs installed"
 
 # Install Cilium CLI
@@ -112,8 +117,8 @@ cilium install \
   --set loadBalancer.mode=hybrid \
   --set l2announcements.enabled=true \
   --set gatewayAPI.enabled=true \
-  --set gatewayAPI.installCRDs=true \
   --set envoy.enabled=true \
+  --set ingressController.enabled=false \
   --set hubble.enabled=false \
   --set bpf.events.trace.enabled=false \
   --set prometheus.enabled=true \

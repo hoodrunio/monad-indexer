@@ -8,23 +8,15 @@ spec:
   acme:
     # Staging server for testing (rate limits are higher)
     server: https://acme-staging-v02.api.letsencrypt.org/directory
-    email: infra@hoodrun.io  # Update with your email
+    email: infra@hoodrun.io
     privateKeySecretRef:
       name: letsencrypt-staging
     solvers:
-    # Gateway API HTTP-01 solver (primary)
+    # Gateway API HTTP-01 solver (uses Gateway HTTP listener)
     - http01:
         gatewayHTTPRoute:
-          parentRefs:
-            - name: monad-indexer-gateway
-              namespace: monad-indexer-dev
-              kind: Gateway
           labels:
             acme.cert-manager.io/http01-solver: "true"
-    # Fallback to Ingress (for compatibility)
-    - http01:
-        ingress:
-          class: nginx
 
 ---
 # Let's Encrypt Production
@@ -36,20 +28,12 @@ spec:
   acme:
     # Production server (rate limited: 50 certificates per registered domain per week)
     server: https://acme-v02.api.letsencrypt.org/directory
-    email: infra@hoodrun.io  # Update with your email
+    email: infra@hoodrun.io
     privateKeySecretRef:
       name: letsencrypt-prod
     solvers:
-    # Gateway API HTTP-01 solver (primary)
+    # Gateway API HTTP-01 solver (uses Gateway HTTP listener)
     - http01:
         gatewayHTTPRoute:
-          parentRefs:
-            - name: monad-indexer-gateway
-              namespace: monad-indexer-dev
-              kind: Gateway
           labels:
             acme.cert-manager.io/http01-solver: "true"
-    # Fallback to Ingress (for compatibility)
-    - http01:
-        ingress:
-          class: nginx

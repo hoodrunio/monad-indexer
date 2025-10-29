@@ -11,10 +11,11 @@ spec:
   blocks:
     - cidr: "65.21.183.30/32"  # Single public IP
 
-  # Service selector - only assign to Gateway service
+  # Service selector - match Gateway-owned services
   serviceSelector:
-    matchLabels:
-      gateway: monad-indexer
+    matchExpressions:
+      - key: io.cilium.gateway/owning-gateway
+        operator: Exists  # Any Gateway-owned service
 
 ---
 # CiliumLoadBalancerIPPool - Internal services pool

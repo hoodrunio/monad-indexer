@@ -1,0 +1,38 @@
+# TLS Certificates for Development Environment
+# Cert-manager will use HTTP-01 challenges via Gateway HTTP listener
+
+---
+# Certificate for ArgoCD (cd.hoodscan.io)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: argocd-tls
+  namespace: argocd
+spec:
+  secretName: argocd-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - cd.hoodscan.io
+  usages:
+    - digital signature
+    - key encipherment
+
+---
+# Certificate for Monad Indexer Backend (monad-tn1-indexer.hoodscan.io)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: monad-indexer-tls
+  namespace: monad-indexer-dev
+spec:
+  secretName: monad-indexer-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - monad-tn1-indexer.hoodscan.io
+  usages:
+    - digital signature
+    - key encipherment

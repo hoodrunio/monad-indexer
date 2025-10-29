@@ -1,4 +1,4 @@
-# Monad Indexer - Sıfırdan Kurulum Rehberi
+# Monad Indexer - Production-Ready Kurulum Rehberi
 
 ## 🎯 Gereksinimler
 
@@ -6,40 +6,40 @@
 - Root erişimi veya sudo yetkisi
 - helm 3.x yüklü
 - AWS credentials (Secrets Manager için)
+- DNS kayıtları (her subdomain için)
 
 ## 📋 Kurulum Sırası
 
-0. K3s + Cilium + Gateway API Kurulumu
-1. Cert-Manager
-2. External Secrets Operator
-3. AWS Credentials Secret
-4. Cilium LoadBalancer IP Pool
-5. Gateway Infrastructure (Gateway, GatewayClass)
-6. ArgoCD
-7. ArgoCD HTTPRoute (Gateway üzerinden erişim)
-8. ArgoCD Bootstrap (Root App)
+0. **K3s + Cilium + Gateway API** (Common Infrastructure)
+1. **Cert-Manager** (TLS Certificate Management)
+2. **External Secrets Operator** (AWS Secrets Manager Integration)
+3. **AWS Credentials Secret** (Per-namespace)
+4. **GatewayClass** (Cluster-wide Gateway Controller)
+5. **Environment Setup** (Dev/Staging/Production specific)
+6. **ArgoCD** (GitOps - Optional)
 
 ---
 
 ## 0️⃣ K3s + Cilium Kurulumu
 
-**Not:** K3s zaten Cilium ile kurulu ise bu adımı atlayın ve Adım 1'e geçin.
+**Not:** K3s zaten kurulu ise bu adımı atlayın.
 
 ```bash
 cd infrastructure
 ./k3s-install.sh
 ```
 
-Bu script:
+Bu script otomatik olarak:
 - K3s'i Flannel, kube-proxy, ServiceLB, Traefik **olmadan** kurar
-- **Gateway API CRD'lerini kurar** (v1.2.1)
+- **Gateway API CRD'lerini kurar** (v1.2.0 - Cilium uyumlu)
 - Cilium CNI'ı production ayarlarıyla kurar:
   - kube-proxy replacement (eBPF)
-  - **Gateway API desteği** (`gatewayAPI.enabled=true`)
+  - **Gateway API etkin** (`gatewayAPI.enabled=true`)
+  - **Ingress Controller kapalı** (Gateway API kullanacağız)
   - **Envoy proxy** (L7 routing için)
   - L2 announcements (LoadBalancer)
 - Cilium CLI'ı yükler
-- kubectl'i tüm kullanıcılar için yapılandırır
+- kubectl'i yapılandırır
 
 **Doğrulama:**
 ```bash
@@ -51,10 +51,10 @@ cilium status
 ```
 
 **Beklenen çıktı:**
-- Node durumu: `Ready`
+- Node: `Ready`
 - Cilium agent pod'ları: `Running`
 - **Cilium envoy pod'ları: `Running`**
-- **Gateway API CRD'leri: 5 adet (gateways, httproutes, grpcroutes, gatewayclass, referencegrants)**
+- **Gateway API CRD'leri: 5 adet**
 - Cilium status: `OK`
 
 ---
@@ -62,8 +62,14 @@ cilium status
 ## 1️⃣ Cert-Manager Kurulumu
 
 ```bash
-./infrastructure/cert-manager-install.sh
+cd infrastructure
+./cert-manager-install.sh
 ```
+
+Bu script otomatik olarak:
+- Cert-manager v1.16.2 kurar
+- **Gateway API support'u etkinleştirir** (ExperimentalGatewayAPISupport=true)
+- ClusterIssuer'ları oluşturur (letsencrypt-staging, letsencrypt-prod)
 
 **Doğrulama:**
 ```bash
@@ -71,12 +77,16 @@ kubectl get pods -n cert-manager
 kubectl get clusterissuer
 ```
 
+**Beklenen çıktı:**
+- 3 pod `Running` (cert-manager, webhook, cainjector)
+- 2 ClusterIssuer `Ready`
+
 ---
 
 ## 2️⃣ External Secrets Operator Kurulumu
 
 ```bash
-./infrastructure/external-secrets-operator-install.sh
+./external-secrets-operator-install.sh
 ```
 
 **Doğrulama:**
@@ -97,294 +107,205 @@ SECRET_KEY_BASE=$(openssl rand -base64 64 | tr -d '\n')
 POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -d '+/=\n')
 STATS_PASSWORD=$(openssl rand -base64 32 | tr -d '+/=\n')
 
-# Kubernetes API server bilgileri (cluster IP:PORT)
-K8S_SERVICE_HOST=$(kubectl get svc kubernetes -n default -o jsonpath='{.spec.clusterIP}')
-K8S_SERVICE_PORT="6443"
-
 # AWS Secrets Manager'a secret oluştur
 aws secretsmanager create-secret \
   --name "blockscout" \
   --description "All credentials for Monad Indexer" \
-  --secret-string "{
-    \"SECRET_KEY_BASE\":\"${SECRET_KEY_BASE}\",
-    \"POSTGRES_PASSWORD\":\"${POSTGRES_PASSWORD}\",
-    \"STATS_PASSWORD\":\"${STATS_PASSWORD}\",
-    \"Prodk8sServiceHost\":\"${K8S_SERVICE_HOST}\",
-    \"Prodk8sServicePort\":\"${K8S_SERVICE_PORT}\"
+  --secret-string "{\
+    \"SECRET_KEY_BASE\":\"${SECRET_KEY_BASE}\",\
+    \"POSTGRES_PASSWORD\":\"${POSTGRES_PASSWORD}\",\
+    \"STATS_PASSWORD\":\"${STATS_PASSWORD}\"\
   }" \
   --region eu-north-1
 ```
 
-**Not:** `Prodk8sServiceHost` ve `Prodk8sServicePort` Cilium için gerekli!
+### 3.2. AWS Credentials Secret Oluştur
 
-### 3.2. AWS Credentials Secret Oluştur (kube-system için)
-
-```bash
-# Cilium için kube-system namespace'inde
-kubectl create secret generic aws-credentials \
-  --from-literal=access-key-id=YOUR_AWS_ACCESS_KEY_ID \
-  --from-literal=secret-access-key=YOUR_AWS_SECRET_ACCESS_KEY \
-  -n kube-system
-```
-
-### 3.3. AWS Credentials Secret Oluştur (monad-indexer-dev için)
+Her environment için ayrı namespace'de:
 
 ```bash
-# Uygulama için monad-indexer-dev namespace'inde
+# Dev environment
 kubectl create namespace monad-indexer-dev
-
 kubectl create secret generic aws-credentials \
   --from-literal=access-key-id=YOUR_AWS_ACCESS_KEY_ID \
   --from-literal=secret-access-key=YOUR_AWS_SECRET_ACCESS_KEY \
   -n monad-indexer-dev
+
+# ArgoCD namespace (eğer kullanılıyorsa)
+kubectl create namespace argocd
+kubectl create secret generic aws-credentials \
+  --from-literal=access-key-id=YOUR_AWS_ACCESS_KEY_ID \
+  --from-literal=secret-access-key=YOUR_AWS_SECRET_ACCESS_KEY \
+  -n argocd
 ```
 
 **Doğrulama:**
 ```bash
-kubectl get secret aws-credentials -n kube-system
 kubectl get secret aws-credentials -n monad-indexer-dev
+kubectl get secret aws-credentials -n argocd
 ```
 
 ---
 
-## 4️⃣ Cilium LoadBalancer IP Pool Kurulumu
+## 4️⃣ GatewayClass Kurulumu
 
-**Not:** K3s kurulumu sırasında Cilium zaten kuruldu. Bu adımda sadece LoadBalancer IP pool'larını oluşturacağız.
-
-```bash
-kubectl apply -f infrastructure/helm/cilium/lb-ippool.yaml
-```
-
-Bu dosya şunları oluşturur:
-- **monad-indexer-public-pool**: Gateway için public IP (65.21.183.30)
-- **monad-indexer-internal-pool**: Internal servisler için IP'ler (10.0.0.100/27)
-- **monad-indexer-l2-policy**: L2 announcement policy (ARP)
-
-**Doğrulama:**
-```bash
-kubectl get ciliumloadbalancerippool
-kubectl get ciliuml2announcementpolicy
-```
-
-**Beklenen çıktı:**
-```
-NAME                            DISABLED   CONFLICTING   IPS AVAILABLE   AGE
-monad-indexer-public-pool       false      False         1               10s
-monad-indexer-internal-pool     false      False         32              10s
-```
-
----
-
-## 5️⃣ Gateway Infrastructure Kurulumu
-
-**Not:** Bu adım Gateway, GatewayClass ve gerekli TLS sertifikalarını oluşturur.
+GatewayClass cluster-wide bir resource, tüm environment'lar için tek seferlik:
 
 ```bash
-cd infrastructure
-./gateway-install.sh
+kubectl apply -f infrastructure/common/gatewayclass.yaml
 ```
-
-Bu script:
-- GatewayClass oluşturur (Cilium controller)
-- Gateway oluşturur (65.21.183.30 public IP ile)
-- ArgoCD için TLS sertifikası oluşturur
-- Gateway'in hazır olmasını bekler
 
 **Doğrulama:**
 ```bash
 kubectl get gatewayclass
-kubectl get gateway -n monad-indexer-dev
-kubectl get certificate -n monad-indexer-dev
 ```
 
 **Beklenen çıktı:**
 ```
 NAME     CONTROLLER                     ACCEPTED   AGE
 cilium   io.cilium/gateway-controller   True       10s
-
-NAME                    CLASS    ADDRESS          PROGRAMMED   AGE
-monad-indexer-gateway   cilium   65.21.183.30     True         10s
 ```
 
 ---
 
-## 6️⃣ ArgoCD Kurulumu
+## 5️⃣ Environment Setup (Dev/Staging/Production)
+
+### Environment-Specific Yaklaşım
+
+Her environment'ın kendi:
+- **Domain'leri** (cd.hoodscan.io, monad-tn1-indexer.hoodscan.io vs.)
+- **Public IP'si** (65.21.183.30, 88.99.11.22 vs.)
+- **Gateway'i** (listener'lar, TLS sertifikaları)
+- **HTTPRoute'ları** (routing kuralları)
+
+### Dev Environment Kurulumu
+
+```bash
+./infrastructure/install-environment.sh dev
+```
+
+Bu script otomatik olarak:
+1. ✅ Namespace oluşturur (`monad-indexer-dev`)
+2. ✅ LoadBalancer IP Pool oluşturur (65.21.183.30)
+3. ✅ Gateway'i HTTP-only başlatır (cert-manager için)
+4. ✅ TLS sertifikalarını oluşturur
+5. ✅ Sertifikalar hazır olana kadar bekler
+6. ✅ Gateway'i HTTPS listener'larla upgrade eder
+7. ✅ HTTPRoute'ları oluşturur
+
+**Doğrulama:**
+```bash
+# Gateway durumu
+kubectl get gateway -n monad-indexer-dev
+
+# LoadBalancer IP
+kubectl get svc -n monad-indexer-dev -l io.cilium.gateway/owning-gateway
+
+# TLS Sertifikalar
+kubectl get certificate -A
+
+# HTTPRoute'lar
+kubectl get httproute -A
+```
+
+**Beklenen çıktı:**
+```
+# Gateway
+NAME                    CLASS    ADDRESS          PROGRAMMED   AGE
+monad-indexer-gateway   cilium   65.21.183.30     True         2m
+
+# LoadBalancer
+NAME                                   TYPE           EXTERNAL-IP
+cilium-gateway-monad-indexer-gateway   LoadBalancer   65.21.183.30
+
+# Certificates (tümü READY=True olmalı)
+NAMESPACE           NAME                 READY
+argocd              argocd-tls           True
+monad-indexer-dev   monad-indexer-tls    True
+```
+
+### DNS Yapılandırması
+
+Environment kurulduktan sonra, DNS kayıtlarını oluşturun:
+
+```bash
+# Dev environment için
+cd.hoodscan.io                    A    65.21.183.30
+monad-tn1-indexer.hoodscan.io     A    65.21.183.30
+```
+
+---
+
+## 6️⃣ ArgoCD Kurulumu (Optional)
 
 ```bash
 cd infrastructure
 ./argocd-install.sh
 ```
 
-**Admin Şifresi Görüntüle:**
+**Admin Şifresi:**
 ```bash
 kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d && echo
 ```
 
-**Doğrulama:**
-```bash
-kubectl get pods -n argocd
-```
-
-Tüm pod'lar `Running` durumunda olmalı.
+**Erişim:**
+- **URL**: https://cd.hoodscan.io
+- **Username**: admin
+- **Password**: (yukarıdaki komuttan)
 
 ---
 
-## 7️⃣ ArgoCD Gateway Erişimi (HTTPRoute)
+## 📊 Environment Yapısı
 
-**Not:** ArgoCD'ye production'da erişim için Gateway API kullanıyoruz.
-
-### 7.1. DNS Kaydı Oluştur
-
-```bash
-# DNS sağlayıcınızda A kaydı oluşturun:
-cd.hoodscan.io -> 65.21.183.30
+```
+infrastructure/
+├── environments/
+│   ├── dev/
+│   │   ├── config.env           # Environment config
+│   │   ├── lb-ippool.yaml       # IP: 65.21.183.30
+│   │   ├── gateway.yaml         # cd.hoodscan.io, monad-tn1-indexer.hoodscan.io
+│   │   ├── certificates.yaml    # TLS sertifikalar
+│   │   └── httproutes.yaml      # Routing kuralları
+│   │
+│   ├── staging/
+│   │   ├── config.env           # Farklı IP, farklı domain'ler
+│   │   ├── lb-ippool.yaml
+│   │   ├── gateway.yaml
+│   │   ├── certificates.yaml
+│   │   └── httproutes.yaml
+│   │
+│   └── production/
+│       ├── config.env
+│       ├── lb-ippool.yaml
+│       ├── gateway.yaml
+│       ├── certificates.yaml
+│       └── httproutes.yaml
 ```
 
-### 7.2. ReferenceGrant Oluştur
+### Yeni Environment Ekleme
 
-Cross-namespace erişim için gerekli:
-
-```bash
-kubectl apply -f argocd/argocd-referencegrant.yaml
-```
-
-### 7.3. HTTPRoute Deploy Et
-
-```bash
-kubectl apply -f argocd/argocd-httproute.yaml
-```
-
-Bu dosya:
-- `cd.hoodscan.io` için HTTPRoute oluşturur
-- Let's Encrypt TLS sertifikası talep eder
-- ArgoCD server'a trafiği yönlendirir
-
-**Doğrulama:**
-```bash
-kubectl get httproute -n argocd
-kubectl get certificate -n argocd
-```
-
-**Sertifika Hazır Olmasını Bekle (1-2 dakika):**
-```bash
-kubectl wait --for=condition=Ready certificate/argocd-tls -n argocd --timeout=120s
-```
-
-**ArgoCD UI'ya Erişim:**
-
-Tarayıcıda: https://cd.hoodscan.io
-- Username: `admin`
-- Password: (Adım 6'daki komuttan alınan şifre)
-
-**Alternative: Port Forward (Development/Test):**
-```bash
-kubectl port-forward svc/argocd-server -n argocd 8080:443
-```
-Tarayıcıda: https://localhost:8080
-
----
-
-## 8️⃣ ArgoCD Root Application (Bootstrap)
-
-### 8.1. ArgoCD Repository Credentials Oluştur (Eğer private repo ise)
-
-```bash
-# Private GitHub repo için
-kubectl apply -f argocd/repository-credentials.yaml
-```
-
-**Not:** Eğer public repo kullanıyorsanız bu adımı atlayın.
-
-### 8.2. Root Application Deploy Et
-
-```bash
-kubectl apply -f argocd/bootstrap/root-app.yaml
-```
-
-**ArgoCD Senkronize Edecek:**
-- infrastructure-cilium (cilium-lb-ippool)
-- infrastructure-gateway (Gateway API resources)
-- infrastructure-monitoring (kube-prometheus-stack)
-- monad-indexer-dev
-- monad-indexer-staging (optional)
-- monad-indexer-production (optional)
-
-**Doğrulama:**
-```bash
-kubectl get applications -n argocd
-```
-
-**ArgoCD UI'dan takip edin:**
-```bash
-kubectl port-forward svc/argocd-server -n argocd 8080:443
-```
-
----
-
-## 9️⃣ Final Doğrulama
-
-### Namespace'leri Kontrol Et
-```bash
-kubectl get namespaces
-```
-
-Beklenen:
-- argocd
-- cert-manager
-- external-secrets-system
-- kube-system
-- monad-indexer-dev
-- monitoring
-
-### Tüm Pod'ları Kontrol Et
-```bash
-kubectl get pods --all-namespaces
-```
-
-### ArgoCD Applications Durumu
-```bash
-kubectl get applications -n argocd
-```
-
-Tüm uygulamalar `Synced` ve `Healthy` olmalı.
-
-### Gateway ve HTTPRoute Durumu
-```bash
-kubectl get gateway -n monad-indexer-dev
-kubectl get httproute -A
-kubectl get certificate -A
-```
-
-Beklenen:
-- Gateway: `Programmed=True`, `ADDRESS=65.21.183.30`
-- HTTPRoute: `cd.hoodscan.io`, `monad-tn1-indexer.hoodscan.io`
-- Certificates: Tüm sertifikalar `READY=True`
-
-### Monad Indexer Backend Durumu
-```bash
-kubectl get pods -n monad-indexer-dev
-kubectl get httproute -n monad-indexer-dev
-kubectl get certificates -n monad-indexer-dev
-```
+1. `infrastructure/environments/new-env/` klasörü oluştur
+2. `dev/` klasöründen dosyaları kopyala
+3. `config.env` dosyasını güncelle (IP, domain'ler)
+4. YAML dosyalarını environment'a göre düzenle
+5. `./infrastructure/install-environment.sh new-env` çalıştır
 
 ---
 
 ## 🔍 Troubleshooting
 
 ### Gateway "Waiting for controller" hatası
+
+**Kontrol:**
 ```bash
 kubectl describe gateway monad-indexer-gateway -n monad-indexer-dev
 kubectl get pods -n kube-system -l app.kubernetes.io/name=cilium-envoy
 ```
 
-Muhtemel sebepler:
-- Cilium Gateway API etkin değil (k3s-install.sh'de `--set gatewayAPI.enabled=true` gerekli)
-- Envoy pod'ları çalışmıyor (`kubectl logs -n kube-system -l app.kubernetes.io/name=cilium-envoy`)
-- Gateway API CRD'leri eksik (`kubectl get crd | grep gateway`)
+**Sebep:** Cilium Gateway API etkin değil
 
-**Çözüm:**
+**Çözüm:** K3s'i tekrar kur veya Cilium'u manuel güncelle:
 ```bash
-# Gateway API desteğini etkinleştir
 helm upgrade cilium cilium/cilium \
   --namespace kube-system \
   --set gatewayAPI.enabled=true \
@@ -392,56 +313,55 @@ helm upgrade cilium cilium/cilium \
   --reuse-values
 ```
 
-### Cilium pod'ları CrashLoopBackOff
+### TLS Sertifikası Ready olmuyor
+
+**Kontrol:**
 ```bash
-kubectl logs -n kube-system -l app.kubernetes.io/name=cilium-agent --tail=50
-cilium status
+kubectl get certificate <cert-name> -n <namespace>
+kubectl describe certificate <cert-name> -n <namespace>
+kubectl get challenges -A
 ```
 
-Muhtemel sebepler:
-- API server bilgileri hatalı (k3s-install.sh sırasında otomatik algılandı)
-- Kernel eBPF desteği yok (kernel 5.10+ gerekli)
-- Network interface bulunamıyor
+**Sebep:** Cert-manager Gateway API challenge oluşturamıyor
 
-### ExternalSecret senkronize olmuyor
+**Çözüm:** Cert-manager Gateway API support'u kontrol et:
 ```bash
-kubectl get externalsecret -A
-kubectl describe externalsecret <secret-name> -n <namespace>
-kubectl logs -n external-secrets-system -l app.kubernetes.io/name=external-secrets
+kubectl get deployment cert-manager -n cert-manager -o yaml | grep ExperimentalGatewayAPISupport
 ```
 
-Muhtemel sebepler:
-- AWS credentials yanlış (`aws-credentials` secret'ını kontrol edin)
-- AWS secret'ta alan eksik (blockscout secret'ında tüm alanlar var mı?)
-- AWS Secrets Manager region'u yanlış (eu-north-1 olmalı)
-- IAM permissions yetersiz
+### LoadBalancer IP Atanmıyor
 
-### ArgoCD application sync olmuyorsa
+**Kontrol:**
 ```bash
-kubectl describe application monad-indexer-dev -n argocd
+kubectl get ciliumloadbalancerippool
+kubectl get svc -n <namespace>
 ```
 
-ArgoCD UI'dan "Sync" butonuna tıklayın veya:
+**Sebep:** IP pool Gateway service'i match edemiyor
+
+**Çözüm:** IP pool selector'ı kontrol et:
 ```bash
-kubectl patch application monad-indexer-dev -n argocd \
-  --type merge \
-  -p '{"operation":{"sync":{}}}'
+kubectl describe ciliumloadbalancerippool monad-indexer-dev-public-pool
+```
+
+---
+
+## ✅ Kurulum Tamamlandı!
+
+**Erişim URL'leri (Dev):**
+- **ArgoCD**: https://cd.hoodscan.io
+- **Monad Indexer**: https://monad-tn1-indexer.hoodscan.io
+
+**Test:**
+```bash
+curl -I https://cd.hoodscan.io
+curl -I https://monad-tn1-indexer.hoodscan.io
 ```
 
 ---
 
 ## 📚 Daha Fazla Bilgi
 
-- [ArgoCD Documentation](https://argo-cd.readthedocs.io/)
-- [Cilium Documentation](https://docs.cilium.io/)
-- [External Secrets Documentation](https://external-secrets.io/)
-- [Cert-Manager Documentation](https://cert-manager.io/docs/)
-
----
-
-## ✅ Kurulum Tamamlandı!
-
-Monad Indexer artık çalışıyor olmalı:
-- **ArgoCD UI**: https://cd.hoodscan.io
-- **Backend**: https://monad-tn1-indexer.hoodscan.io
-- **Alternative (port-forward)**: https://localhost:8080
+- [Cilium Gateway API Docs](https://docs.cilium.io/en/stable/network/servicemesh/gateway-api/gateway-api/)
+- [Cert-Manager Gateway API](https://cert-manager.io/docs/usage/gateway/)
+- [Kubernetes Gateway API](https://gateway-api.sigs.k8s.io/)

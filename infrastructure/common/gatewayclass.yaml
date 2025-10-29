@@ -1,0 +1,11 @@
+# GatewayClass - Defines the Gateway controller
+# This is a cluster-wide resource used by all environments
+# Uses Cilium as the Gateway implementation with eBPF acceleration
+
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: cilium
+spec:
+  controllerName: io.cilium/gateway-controller
+  description: "Cilium Gateway API implementation with eBPF acceleration"
