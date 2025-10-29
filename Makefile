@@ -16,7 +16,19 @@ help: ## Show this help message
 	@echo 'Available targets:'
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-# External Secrets Operator setup
+# Operators setup
+setup-cert-manager: ## Install cert-manager for automatic TLS certificate management
+	@echo "Installing cert-manager..."
+	@./infrastructure/cert-manager-install.sh
+	@echo "✓ cert-manager installed"
+
+verify-cert-manager: ## Verify cert-manager is running
+	@echo "Checking cert-manager status..."
+	@kubectl get pods -n cert-manager
+	@echo ""
+	@echo "Checking ClusterIssuers..."
+	@kubectl get clusterissuer 2>/dev/null || echo "No ClusterIssuers found"
+
 setup-external-secrets: ## Install External Secrets Operator in the cluster
 	@echo "Installing External Secrets Operator..."
 	@./infrastructure/external-secrets-operator-install.sh
@@ -138,6 +150,33 @@ force-refresh-externalsecret: ## Force refresh an ExternalSecret (usage: make fo
 	@echo "✓ ExternalSecret annotated for refresh"
 	@sleep 2
 	@kubectl get externalsecret monad-indexer-$(ENV)-$(NAME) -n $(NAMESPACE)
+
+# TLS Certificate management
+verify-certificates: ## Verify TLS certificates status
+	@echo "=== Certificates Status ==="
+	@kubectl get certificate -n $(NAMESPACE)
+	@echo ""
+	@echo "=== Certificate Requests ==="
+	@kubectl get certificaterequest -n $(NAMESPACE)
+	@echo ""
+	@echo "=== ACME Challenges ==="
+	@kubectl get challenge -n $(NAMESPACE) 2>/dev/null || echo "No active challenges"
+
+describe-certificate: ## Describe certificate for debugging (usage: make describe-certificate NAME=tls-secret-name)
+	@if [ -z "$(NAME)" ]; then \
+		echo "Error: NAME not specified"; \
+		echo "Usage: make describe-certificate NAME=tls-secret-name"; \
+		exit 1; \
+	fi
+	@echo "=== Certificate Details ==="
+	@kubectl describe certificate $(NAME) -n $(NAMESPACE)
+	@echo ""
+	@echo "=== Certificate Secret Contents ==="
+	@kubectl get secret $(NAME) -n $(NAMESPACE) -o jsonpath='{.data.tls\.crt}' 2>/dev/null | base64 -d | openssl x509 -text -noout | grep -A 2 "Subject:\|Issuer:\|Validity" || echo "Certificate not found or not yet issued"
+
+check-certificate-renewal: ## Check when certificates will be renewed
+	@echo "Checking certificate expiry and renewal status..."
+	@kubectl get certificate -n $(NAMESPACE) -o custom-columns=NAME:.metadata.name,READY:.status.conditions[0].status,RENEWAL:.status.renewalTime,NOT-AFTER:.status.notAfter
 
 # ArgoCD operations
 argocd-sync: ## Sync ArgoCD application

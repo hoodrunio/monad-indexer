@@ -111,6 +111,7 @@ cd monad-indexer-gitops
 
 # Install operators
 ./infrastructure/cloudnativepg-operator-install.sh
+./infrastructure/cert-manager-install.sh
 ./infrastructure/external-secrets-operator-install.sh
 ```
 

@@ -167,6 +167,25 @@ This operator manages PostgreSQL clusters with:
 kubectl get pods -n cnpg-system
 ```
 
+### Install cert-manager
+
+```bash
+./infrastructure/cert-manager-install.sh
+```
+
+This operator automates TLS certificate management with:
+- Automatic certificate issuance from Let's Encrypt
+- Automatic certificate renewal (every 90 days)
+- HTTP-01 and DNS-01 challenge support
+- Integration with Ingress resources
+
+**Verify**:
+
+```bash
+kubectl get pods -n cert-manager
+kubectl get clusterissuer
+```
+
 ### Install External Secrets Operator
 
 ```bash
@@ -433,19 +452,34 @@ See [03-monitoring.md](03-monitoring.md) for:
 - Importing dashboards
 - Configuring alerts
 
-### 3. Configure Ingress (Optional)
+### 3. Configure Ingress with TLS (Optional)
 
-To expose the API externally:
+To expose the API externally with automatic HTTPS:
 
 ```yaml
 # Update values-production.yaml
 ingress:
   enabled: true
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
   hosts:
     - host: indexer.monad.example.com
       paths:
         - path: /
           pathType: Prefix
+  tls:
+    - secretName: indexer-monad-tls
+      hosts:
+        - indexer.monad.example.com
+```
+
+**Important**: Ensure your DNS A record points to your cluster's external IP before cert-manager attempts to issue the certificate.
+
+**Verify certificate**:
+
+```bash
+kubectl get certificate -n monad-indexer-prod
+kubectl describe certificate indexer-monad-tls -n monad-indexer-prod
 ```
 
 ### 4. Test Failover
@@ -503,6 +537,7 @@ You now have:
 ✅ K3s Kubernetes cluster running
 ✅ ArgoCD for GitOps deployments
 ✅ CloudNativePG operator for PostgreSQL management
+✅ cert-manager for automatic TLS certificate management
 ✅ External Secrets Operator for secrets management
 ✅ Monad indexer deployed with full HA
 ✅ Monitoring and alerting configured

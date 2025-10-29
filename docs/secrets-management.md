@@ -331,9 +331,56 @@ make argocd-sync ENV=dev                 # Sync ArgoCD application
 
 Run `make help` to see all available commands.
 
+## TLS Certificates
+
+TLS certificates are managed separately by **cert-manager** (not External Secrets Operator).
+
+### Automatic Certificate Management
+
+cert-manager automatically:
+- Issues certificates from Let's Encrypt
+- Renews certificates before expiry (every 90 days)
+- Stores certificates in Kubernetes TLS secrets
+
+### Configuration
+
+Add annotation to your Ingress:
+
+```yaml
+ingress:
+  enabled: true
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: your-domain.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: your-domain-tls
+      hosts:
+        - your-domain.com
+```
+
+### Verification
+
+```bash
+# Check certificate status
+make verify-certificates ENV=dev
+
+# Describe specific certificate
+make describe-certificate NAME=monad-tn1-indexer-tls ENV=dev
+
+# Check renewal schedule
+make check-certificate-renewal ENV=dev
+```
+
+See [01-installation.md](01-installation.md#install-cert-manager) for cert-manager setup.
+
 ## References
 
 - [External Secrets Operator Docs](https://external-secrets.io)
 - [AWS Secrets Manager Docs](https://docs.aws.amazon.com/secretsmanager/)
+- [cert-manager Docs](https://cert-manager.io/docs/)
 - [Helm Chart values.yaml](../charts/monad-indexer/values.yaml)
 - [Makefile](../Makefile) - All automation commands
