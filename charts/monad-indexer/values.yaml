@@ -144,9 +144,9 @@ backend:
     annotations: {}
     secretKeyBase: ""  # Will use placeholder if empty
 
-  # Existing secret for sensitive data (use sealed secrets in production)
+  # Existing secret for sensitive data (managed by External Secrets Operator in production)
   # If set, the chart will not create a secret and will use this instead
-  # Generate with: make seal-secrets
+  # See: docs/secrets-management.md
   existingSecret: "monad-indexer-backend-secret"
 
   # Extra environment variables (for values not in config structure)
@@ -502,8 +502,8 @@ postgresql:
   auth:
     database: blockscout
     username: blockscout
-    password: ""  # Leave empty when using sealed secrets
-    # Use sealed secret by default (generate with: make seal-secrets)
+    password: ""  # Leave empty when using External Secrets
+    # Managed by External Secrets Operator (see docs/secrets-management.md)
     existingSecret: "monad-indexer-postgresql-app"
 
   # PostgreSQL configuration (optimized for 5k TPS)
@@ -712,8 +712,8 @@ statsPostgresql:
   auth:
     database: stats
     username: stats
-    password: ""  # Leave empty when using sealed secrets
-    # Use sealed secret by default (generate with: make seal-secrets)
+    password: ""  # Leave empty when using External Secrets
+    # Managed by External Secrets Operator (see docs/secrets-management.md)
     existingSecret: "monad-indexer-stats-postgresql-app"
 
   # Storage configuration (smaller than main DB)

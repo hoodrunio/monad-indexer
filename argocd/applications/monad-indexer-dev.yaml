@@ -14,7 +14,7 @@ metadata:
 spec:
   project: monad-indexer
 
-  # Wait for sealed secrets to be deployed first
+  # External Secrets Operator creates Kubernetes Secrets from AWS Secrets Manager
   syncPolicy:
     syncOptions:
       - CreateNamespace=true
@@ -28,7 +28,7 @@ spec:
         factor: 2
         maxDuration: 3m
 
-  # Ensure sealed secrets are deployed before this application
+  # Ignore Secret data changes (managed by External Secrets Operator)
   ignoreDifferences:
     - group: ""
       kind: Secret

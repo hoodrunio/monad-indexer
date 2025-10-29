@@ -426,22 +426,22 @@ See [values.yaml](values.yaml) for full configuration options.
 
 MIT License - see LICENSE file for details
 
-## Sealed Secrets for Production
+## Secrets Management for Production
 
-For production deployments, use Sealed Secrets to encrypt sensitive data:
+For production deployments, use External Secrets Operator with AWS Secrets Manager:
 
 ```bash
-# 1. Add Sealed Secrets Helm repository
-helm repo add sealed-secrets https://bitnami-labs.github.io/sealed-secrets
-helm repo update
+# 1. Install External Secrets Operator
+./infrastructure/external-secrets-operator-install.sh
 
-# 2. Install Sealed Secrets controller
-helm install sealed-secrets-controller sealed-secrets/sealed-secrets \
-  --namespace kube-system \
-  --create-namespace
+# 2. Create secrets in AWS Secrets Manager
+# See docs/secrets-management.md for detailed instructions
 
-# 3. Follow the detailed guide
-cat ../../docs/sealed-secrets-setup.md
+# 3. Create AWS credentials secret in Kubernetes
+kubectl create secret generic aws-credentials \
+  --from-literal=access-key-id=YOUR_AWS_ACCESS_KEY_ID \
+  --from-literal=secret-access-key=YOUR_AWS_SECRET_ACCESS_KEY \
+  -n <namespace>
 ```
 
-See [Sealed Secrets Setup Guide](../../docs/sealed-secrets-setup.md) for complete instructions.
+See [Secrets Management Guide](../../docs/secrets-management.md) for complete instructions.

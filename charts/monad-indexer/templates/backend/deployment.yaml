@@ -260,7 +260,7 @@ All ConfigMap variables are loaded via envFrom - this template only handles Secr
   valueFrom:
     secretKeyRef:
       {{- if .Values.postgresql.auth.existingSecret }}
-      # When using sealed secrets, read DATABASE_URL from PostgreSQL sealed secret (uri key)
+      # Read DATABASE_URL from existing secret (managed by External Secrets Operator)
       name: {{ .Values.postgresql.auth.existingSecret }}
       key: uri
       {{- else }}
