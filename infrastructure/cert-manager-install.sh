@@ -15,14 +15,14 @@ echo ""
 echo "📦 Installing cert-manager with Gateway API support..."
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/${CERT_MANAGER_VERSION}/cert-manager.yaml
 
-# Enable Gateway API feature gate
+# Enable Gateway API support (v1.15+ uses --enable-gateway-api flag instead of feature gate)
 echo ""
-echo "🔧 Enabling Gateway API support..."
+echo "🔧 Enabling Gateway API support on cert-manager controller..."
 kubectl patch deployment cert-manager -n cert-manager --type='json' -p='[
   {
     "op": "add",
     "path": "/spec/template/spec/containers/0/args/-",
-    "value": "--feature-gates=ExperimentalGatewayAPISupport=true"
+    "value": "--enable-gateway-api"
   }
 ]'
 
