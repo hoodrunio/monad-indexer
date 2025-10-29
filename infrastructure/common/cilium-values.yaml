@@ -1,6 +1,6 @@
 # Cilium Production Configuration for Monad Indexer
 # Optimized for high-throughput blockchain indexer (5000 TPS)
-# Version: 1.18.3
+# Version: 1.19.0-pre.1
 
 # IPAM Configuration - Match K3s default pod CIDR
 ipam:
@@ -85,6 +85,8 @@ enableIPv6BIGTCP: false  # Disable if not using IPv6
 # Replaces nginx-ingress with Cilium's native Gateway API implementation
 gatewayAPI:
   enabled: true
+  # Enable ALPN for HTTP/2 support (required for gRPC/ArgoCD CLI)
+  enableAlpn: true
   # Install Gateway API CRDs (GatewayClass, Gateway, HTTPRoute, etc.)
   # Note: Only install if not already present in cluster
   installCRDs: true

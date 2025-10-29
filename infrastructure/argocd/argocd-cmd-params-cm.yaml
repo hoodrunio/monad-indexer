@@ -9,5 +9,5 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
 data:
-  # Run Argo CD server in insecure (HTTP) mode because TLS is terminated at the Gateway
   server.insecure: "true"
+  server.enable.proxy.extension: "true"

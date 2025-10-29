@@ -6,6 +6,7 @@ set -e
 
 echo "🚀 Installing K3s with Cilium CNI for Monad Indexer..."
 
+CILIUM_VERSION="1.19.0-pre.1"
 # Detect node IP
 NODE_IP=$(ip route get 1 | awk '{print $(NF-2);exit}')
 echo "📍 Detected node IP: $NODE_IP"
@@ -103,7 +104,7 @@ echo "✅ Cilium CLI installed: $(cilium version --client)"
 # Install Cilium with production configuration
 echo "🔧 Installing Cilium CNI (production configuration with Gateway API)..."
 cilium install \
-  --version 1.18.3 \
+  --version ${CILIUM_VERSION} \
   --set ipam.operator.clusterPoolIPv4PodCIDRList="10.42.0.0/16" \
   --set ipv4NativeRoutingCIDR="10.42.0.0/16" \
   --set kubeProxyReplacement=true \
@@ -117,6 +118,7 @@ cilium install \
   --set loadBalancer.mode=hybrid \
   --set l2announcements.enabled=true \
   --set gatewayAPI.enabled=true \
+  --set gatewayAPI.enableAlpn=true \
   --set envoy.enabled=true \
   --set ingressController.enabled=false \
   --set hubble.enabled=false \
