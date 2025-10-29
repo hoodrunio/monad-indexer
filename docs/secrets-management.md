@@ -265,18 +265,6 @@ aws secretsmanager create-secret \
 - Use root AWS account credentials
 - Store secrets in ConfigMaps or environment variables directly
 
-## Cost Estimation
-
-AWS Secrets Manager pricing (eu-north-1):
-- $0.40 per secret per month
-- $0.05 per 10,000 API calls
-
-For 1 secret per environment:
-- Monthly: ~$0.40/environment
-- Annual: ~$4.80/environment
-
-**Significant cost savings** compared to 3 separate secrets per environment!
-
 ## Migration from SealedSecrets
 
 If migrating from SealedSecrets:
