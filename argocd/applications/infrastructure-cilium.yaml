@@ -15,20 +15,26 @@ spec:
 
   # Multi-source configuration
   sources:
+    # Source 1: ExternalSecret for API server configuration
+    # This must be deployed first (sync-wave: -10) to create the secret
+    # that Cilium will use for k8sServiceHost
+    - repoURL: https://github.com/hoodrunio/monad-indexer.git
+      targetRevision: HEAD
+      path: infrastructure/helm/cilium
+      directory:
+        include: "api-server-config-secret.yaml"
+
+    # Source 2: Cilium Helm chart
     - repoURL: https://helm.cilium.io/
       targetRevision: 1.18.3
       chart: cilium
       helm:
         valueFiles:
-          - $values/infrastructure/helm/cilium/values-production.yaml
-        # IMPORTANT: Set k8sServiceHost before deploying!
-        # Get API server IP with: kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'
-        # Then update via: argocd app set cilium --helm-set-string k8sServiceHost=YOUR_API_SERVER_IP
-        parameters:
-          - name: k8sServiceHost
-            value: "REPLACE_WITH_API_SERVER_IP"
-          - name: k8sServicePort
-            value: "6443"
+          - $values/infrastructure/helm/cilium/values.yaml
+        # k8sServiceHost is now fetched from AWS Secrets Manager via ExternalSecret
+        # No need for hardcoded parameters anymore
+
+    # Source 3: Values repository reference
     - repoURL: https://github.com/hoodrunio/monad-indexer.git
       targetRevision: HEAD
       ref: values

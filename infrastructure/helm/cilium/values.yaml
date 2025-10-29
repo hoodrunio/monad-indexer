@@ -12,10 +12,14 @@ ipam:
 kubeProxyReplacement: "true"
 
 # API Server Access - Required when kube-proxy is disabled
-# IMPORTANT: Replace with your actual API server IP during installation
-# Get with: kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'
-k8sServiceHost: "REPLACE_WITH_API_SERVER_IP"
-k8sServicePort: "6443"
+# Values are automatically fetched from AWS Secrets Manager via ExternalSecret
+# and stored in the cilium-api-server-config Secret
+k8sServiceHostRef:
+  secretName: cilium-api-server-config
+  key: k8sServiceHost
+k8sServicePortRef:
+  secretName: cilium-api-server-config
+  key: k8sServicePort
 
 # Native Routing - Best performance on bare metal
 # Uses direct routing instead of overlay (VXLAN/Geneve)
