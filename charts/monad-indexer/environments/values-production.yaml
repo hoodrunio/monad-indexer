@@ -2,6 +2,9 @@
 # Full HA, high resources, all features enabled
 
 backend:
+  # ExternalSecret will create this secret from AWS Secrets Manager
+  existingSecret: "monad-indexer-production-backend-secret"
+
   replicaCount: 5
 
   resources:
@@ -98,6 +101,10 @@ microservices:
 # PostgreSQL - production HA
 postgresql:
   replicaCount: 3
+
+  auth:
+    # ExternalSecret will create this secret from AWS Secrets Manager
+    existingSecret: "monad-indexer-production-postgresql-app"
 
   config:
     sharedBuffers: "8GB"
@@ -199,3 +206,15 @@ ingress:
     - secretName: indexer-prod-tls
       hosts:
         - indexer.monad.example.com
+
+# Stats PostgreSQL (if enabled)
+statsPostgresql:
+  auth:
+    # ExternalSecret will create this secret from AWS Secrets Manager
+    existingSecret: "monad-indexer-production-stats-postgresql-app"
+
+# External Secrets configuration for production environment
+externalSecrets:
+  enabled: true
+  aws:
+    secretName: "blockscout-production"  # Separate secret for production

@@ -2,6 +2,9 @@
 # Production-like but smaller scale
 
 backend:
+  # ExternalSecret will create this secret from AWS Secrets Manager
+  existingSecret: "monad-indexer-staging-backend-secret"
+
   replicaCount: 2
 
   resources:
@@ -45,6 +48,10 @@ microservices:
 # PostgreSQL - HA setup
 postgresql:
   replicaCount: 3
+
+  auth:
+    # ExternalSecret will create this secret from AWS Secrets Manager
+    existingSecret: "monad-indexer-staging-postgresql-app"
 
   config:
     sharedBuffers: "4GB"
@@ -109,3 +116,15 @@ ingress:
     - secretName: indexer-staging-tls
       hosts:
         - indexer-staging.example.com
+
+# Stats PostgreSQL (if enabled)
+statsPostgresql:
+  auth:
+    # ExternalSecret will create this secret from AWS Secrets Manager
+    existingSecret: "monad-indexer-staging-stats-postgresql-app"
+
+# External Secrets configuration for staging environment
+externalSecrets:
+  enabled: true
+  aws:
+    secretName: "blockscout-staging"  # Separate secret for staging
