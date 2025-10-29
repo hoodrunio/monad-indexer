@@ -105,7 +105,7 @@ envoy:
   prometheus:
     enabled: true
     serviceMonitor:
-      enabled: true
+      enabled: false  # Disabled until Prometheus Operator is installed
   # Connection limits and performance tuning
   connectTimeout: 5s
   maxConnectionDuration: 0  # No limit
@@ -123,7 +123,7 @@ nodeLocalDNS:
 prometheus:
   enabled: true
   serviceMonitor:
-    enabled: true
+    enabled: false  # Disabled until Prometheus Operator is installed
     labels:
       release: prometheus  # Match your Prometheus operator label
 
@@ -135,7 +135,7 @@ operator:
   prometheus:
     enabled: true
     serviceMonitor:
-      enabled: true
+      enabled: false  # Disabled until Prometheus Operator is installed
 
   # Resource limits
   resources:
