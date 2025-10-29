@@ -133,6 +133,8 @@ kubectl describe clusterissuer letsencrypt-prod
 
 Deploy dev environment Gateway and Certificate.
 
+> Not: Argo CD senkronizasyonunda önce `Certificate` ve ilgili `ReferenceGrant` kaynakları çalışır (`sync-wave: -1`). `Certificate` manifestlerine eklenen `cert-manager.io/issue-temporary-certificate` ve `acme.cert-manager.io/http01-edit-in-place` anotasyonları sayesinde cert-manager gerçek sertifika gelene kadar otomatik olarak geçici (self-signed) bir Secret üretir. Böylece Gateway listener'ları hiçbir zaman `InvalidCertificateRef` durumuna düşmez ve Cilium HTTP listener konfigürasyonu kesintisiz kalır.
+
 ```bash
 # 1. Sync Gateway API dev environment
 argocd app sync gateway-api-dev

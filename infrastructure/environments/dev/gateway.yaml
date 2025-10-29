@@ -7,6 +7,8 @@ kind: Gateway
 metadata:
   name: monad-indexer-gateway
   namespace: monad-indexer-dev
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
   labels:
     gateway: monad-indexer
     environment: dev
