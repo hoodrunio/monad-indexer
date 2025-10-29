@@ -109,11 +109,14 @@ backend:
     # History mode
     history:
       fetchInternalTransactions: true
+      txsStatsDaysToCompileAtInit: ""  # Optional: Stats compilation period
+      coinBalanceHistoryDays: ""       # Optional: Balance history retention
 
     # Contract verification
     contract:
       allowedSolcVersions: "all"
       allowedVyperVersions: "all"
+      decodeNotAContractCalls: ""      # Optional: Decode non-contract calls
 
     # NFT features
     nft:
@@ -123,10 +126,13 @@ backend:
     logging:
       consoleFormat: "json"
       consoleLevel: "info"
+      disableFileLogging: true           # Optional: Disable file logging
+      heartBeatTimeout: ""             # Optional: Heartbeat timeout
 
     # reCAPTCHA (disabled)
     recaptcha:
       enabled: false
+      disabled: ""                     # Optional: Explicitly disable reCAPTCHA
 
     # Advanced features
     advanced:
