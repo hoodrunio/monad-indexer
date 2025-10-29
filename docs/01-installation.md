@@ -44,8 +44,8 @@ On your bare metal server(s):
 
 ```bash
 # Clone repository
-git clone https://github.com/hoodrunio/monad-indexer-gitops
-cd monad-indexer-gitops
+git clone https://github.com/hoodrunio/monad-indexer
+cd monad-indexer
 
 # Run K3s + Cilium installation
 sudo ./infrastructure/k3s-install.sh
