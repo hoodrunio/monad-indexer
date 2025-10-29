@@ -39,7 +39,8 @@ echo "Verifying installation:"
 kubectl get pods -n cert-manager
 
 # Apply ClusterIssuers
-CLUSTERISSUER_FILE="infrastructure/common/cert-manager-clusterissuer.yaml"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CLUSTERISSUER_FILE="${SCRIPT_DIR}/common/cert-manager-clusterissuer.yaml"
 if [ -f "$CLUSTERISSUER_FILE" ]; then
     echo ""
     echo "📝 Applying ClusterIssuers..."

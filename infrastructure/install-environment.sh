@@ -96,7 +96,22 @@ fi
 GATEWAY_IP=$(kubectl get gateway/${GATEWAY_NAME} -n ${NAMESPACE} -o jsonpath='{.status.addresses[0].value}')
 echo "✅ Gateway ready with IP: ${GATEWAY_IP}"
 
-# 4. Apply TLS Certificates
+# 4. Verify ClusterIssuer exists
+echo ""
+echo "🔍 Checking for ClusterIssuer (letsencrypt-prod)..."
+if ! kubectl get clusterissuer letsencrypt-prod &>/dev/null; then
+  echo "❌ ClusterIssuer 'letsencrypt-prod' not found!"
+  echo ""
+  echo "Please run cert-manager installation first:"
+  echo "  ./infrastructure/cert-manager-install.sh"
+  echo ""
+  echo "Or manually apply ClusterIssuers:"
+  echo "  kubectl apply -f infrastructure/common/cert-manager-clusterissuer.yaml"
+  exit 1
+fi
+echo "✅ ClusterIssuer 'letsencrypt-prod' found"
+
+# 5. Apply TLS Certificates
 echo ""
 echo "📦 Creating TLS Certificates..."
 kubectl apply -f "$ENV_DIR/certificates.yaml"
@@ -122,7 +137,7 @@ for domain_config in "${DOMAINS[@]}"; do
     }
 done
 
-# 5. Apply full Gateway with HTTPS listeners
+# 6. Apply full Gateway with HTTPS listeners
 echo ""
 echo "📦 Upgrading Gateway to HTTPS..."
 kubectl apply -f "$ENV_DIR/gateway.yaml"
@@ -130,7 +145,7 @@ kubectl apply -f "$ENV_DIR/gateway.yaml"
 # Wait for Gateway to reconfigure
 sleep 5
 
-# 6. Apply HTTPRoutes
+# 7. Apply HTTPRoutes
 echo ""
 echo "📦 Creating HTTPRoutes..."
 kubectl apply -f "$ENV_DIR/httproutes.yaml"
