@@ -89,7 +89,7 @@ kubectl get pods -n argocd
 ### Dev Environment
 - **ArgoCD**: https://cd.hoodscan.io
 - **Monad Indexer**: https://monad-tn1-indexer.hoodscan.io
-- **Public IP**: 65.21.183.30
+- **Public IP**: 95.216.177.23
 
 **Admin Şifresi (ArgoCD):**
 ```bash

@@ -18,7 +18,7 @@ kubectl get pods -n cert-manager
 
 # 4. DNS A record is configured
 dig monad-tn1-indexer.hoodscan.io +short
-# Should return: 65.21.183.30
+# Should return: 95.216.177.23
 ```
 
 ## Deployment Steps
@@ -146,8 +146,8 @@ kubectl get namespace monad-indexer-dev
 kubectl get gateway -n monad-indexer-dev
 # Expected:
 # NAME                      CLASS    ADDRESS         PROGRAMMED   AGE
-# monad-indexer-http-gateway   cilium   65.21.183.30   True         1m
-# monad-indexer-gateway        cilium   65.21.183.30   True         1m
+# monad-indexer-http-gateway   cilium   95.216.177.23   True         1m
+# monad-indexer-gateway        cilium   95.216.177.23   True         1m
 
 # 4. Check Gateway status details
 kubectl describe gateway monad-indexer-gateway -n monad-indexer-dev
@@ -260,7 +260,7 @@ Test end-to-end connectivity.
 # 1. Check Gateway external IP
 kubectl get gateway monad-indexer-gateway -n monad-indexer-dev \
   -o jsonpath='{.status.addresses[0].value}'
-# Expected: 65.21.183.30
+# Expected: 95.216.177.23
 
 # 2. Test HTTP (should redirect to HTTPS)
 curl -I http://monad-tn1-indexer.hoodscan.io
@@ -288,7 +288,7 @@ echo | openssl s_client -connect monad-tn1-indexer.hoodscan.io:443 \
 - **HTTP connection refused**:
   ```bash
   # Check if port 80 is accessible
-  nc -zv 65.21.183.30 80
+  nc -zv 95.216.177.23 80
 
   # Check Gateway listeners
   kubectl describe gateway monad-indexer-gateway -n monad-indexer-dev
@@ -334,7 +334,7 @@ echo ""
 
 echo "2. Checking Gateway..."
 kubectl get gateway monad-indexer-gateway -n monad-indexer-dev -o jsonpath='{.status.conditions[?(@.type=="Programmed")].status}' | grep -q "True" && echo "✓ Gateway programmed" || echo "✗ Gateway NOT programmed"
-kubectl get gateway monad-indexer-gateway -n monad-indexer-dev -o jsonpath='{.status.addresses[0].value}' | grep -q "65.21.183.30" && echo "✓ Gateway has correct IP" || echo "✗ Gateway IP incorrect"
+kubectl get gateway monad-indexer-gateway -n monad-indexer-dev -o jsonpath='{.status.addresses[0].value}' | grep -q "95.216.177.23" && echo "✓ Gateway has correct IP" || echo "✗ Gateway IP incorrect"
 echo ""
 
 echo "3. Checking Certificate..."
@@ -460,7 +460,7 @@ kubectl delete gatewayclass cilium
 7. Verify connectivity (1 min)
 
 **Success criteria**:
-- ✓ Gateway gets IP: 65.21.183.30
+- ✓ Gateway gets IP: 95.216.177.23
 - ✓ Certificate issued by Let's Encrypt
 - ✓ HTTPRoute attached to Gateway
 - ✓ HTTPS returns 200 OK

@@ -174,7 +174,7 @@ cilium   io.cilium/gateway-controller   True       10s
 
 Her environment'ın kendi:
 - **Domain'leri** (cd.hoodscan.io, monad-tn1-indexer.hoodscan.io vs.)
-- **Public IP'si** (65.21.183.30, 88.99.11.22 vs.)
+- **Public IP'si** (95.216.177.23, 88.99.11.22 vs.)
 - **Gateway'i** (listener'lar, TLS sertifikaları)
 - **HTTPRoute'ları** (routing kuralları)
 
@@ -186,7 +186,7 @@ Her environment'ın kendi:
 
 Bu script otomatik olarak:
 1. ✅ Namespace oluşturur (`monad-indexer-dev`)
-2. ✅ LoadBalancer IP Pool oluşturur (65.21.183.30)
+2. ✅ LoadBalancer IP Pool oluşturur (95.216.177.23)
 3. ✅ Gateway'i HTTP-only başlatır (cert-manager için)
 4. ✅ TLS sertifikalarını oluşturur
 5. ✅ Sertifikalar hazır olana kadar bekler
@@ -212,11 +212,11 @@ kubectl get httproute -A
 ```
 # Gateway
 NAME                    CLASS    ADDRESS          PROGRAMMED   AGE
-monad-indexer-gateway   cilium   65.21.183.30     True         2m
+monad-indexer-gateway   cilium   95.216.177.23     True         2m
 
 # LoadBalancer
 NAME                                   TYPE           EXTERNAL-IP
-cilium-gateway-monad-indexer-gateway   LoadBalancer   65.21.183.30
+cilium-gateway-monad-indexer-gateway   LoadBalancer   95.216.177.23
 
 # Certificates (tümü READY=True olmalı)
 NAMESPACE           NAME                 READY
@@ -230,8 +230,8 @@ Environment kurulduktan sonra, DNS kayıtlarını oluşturun:
 
 ```bash
 # Dev environment için
-cd.hoodscan.io                    A    65.21.183.30
-monad-tn1-indexer.hoodscan.io     A    65.21.183.30
+cd.hoodscan.io                    A    95.216.177.23
+monad-tn1-indexer.hoodscan.io     A    95.216.177.23
 ```
 
 ---
@@ -262,7 +262,7 @@ infrastructure/
 ├── environments/
 │   ├── dev/
 │   │   ├── config.env           # Environment config
-│   │   ├── lb-ippool.yaml       # IP: 65.21.183.30
+│   │   ├── lb-ippool.yaml       # IP: 95.216.177.23
 │   │   ├── gateway.yaml         # cd.hoodscan.io, monad-tn1-indexer.hoodscan.io
 │   │   ├── certificates.yaml    # TLS sertifikalar
 │   │   └── httproutes.yaml      # Routing kuralları

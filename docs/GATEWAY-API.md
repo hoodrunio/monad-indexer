@@ -29,7 +29,7 @@ Memory                150MB           60MB              60% less
 ## Architecture
 
 ```
-Internet (65.21.183.30)
+Internet (95.216.177.23)
          ↓
     Gateway (LoadBalancer Service)
          ↓
@@ -63,7 +63,7 @@ spec:
 **Managed by**: ArgoCD app `gateway-api-infrastructure`
 
 ### 2. Gateway
-LoadBalancer service listening on public IP (65.21.183.30) for HTTP/HTTPS traffic.
+LoadBalancer service listening on public IP (95.216.177.23) for HTTP/HTTPS traffic.
 
 ```yaml
 apiVersion: gateway.networking.k8s.io/v1
@@ -144,7 +144,7 @@ metadata:
   name: monad-indexer-public-pool
 spec:
   blocks:
-    - cidr: "65.21.183.30/32"
+    - cidr: "95.216.177.23/32"
   serviceSelector:
     matchLabels:
       gateway: monad-indexer
@@ -160,7 +160,7 @@ spec:
 
 1. **Cilium CNI installed** with Gateway API enabled
 2. **cert-manager installed** for TLS certificate management
-3. **DNS A record** pointing to public IP (65.21.183.30)
+3. **DNS A record** pointing to public IP (95.216.177.23)
 
 ### Deployment Order
 
@@ -213,7 +213,7 @@ kubectl get gatewayclass
 # Check Gateway
 kubectl get gateway -n monad-indexer-dev
 # NAME                      CLASS    ADDRESS         PROGRAMMED   AGE
-# monad-indexer-gateway    cilium   65.21.183.30    True         5m
+# monad-indexer-gateway    cilium   95.216.177.23    True         5m
 
 # Check Gateway details
 kubectl describe gateway monad-indexer-gateway -n monad-indexer-dev
@@ -364,7 +364,7 @@ kubectl logs -n kube-system ds/cilium-agent --tail=100 -f | grep -i gateway
 ```bash
 # Check LoadBalancer IP pool
 kubectl get ciliumloadbalancerippool
-# Should show: monad-indexer-public-pool with 65.21.183.30/32
+# Should show: monad-indexer-public-pool with 95.216.177.23/32
 
 # Check L2 announcement policy
 kubectl get ciliuml2announcementpolicy

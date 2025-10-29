@@ -1106,13 +1106,13 @@ Cilium requires the Kubernetes API server IP when `kubeProxyReplacement` is enab
 
 ```
 AWS Secrets Manager (blockscout secret)
-  ├── Prodk8sServiceHost: "65.21.183.30"
+  ├── Prodk8sServiceHost: "95.216.177.23"
   └── Prodk8sServicePort: "6443"
            ↓
 External Secrets Operator
            ↓
 Kubernetes Secret (cilium-api-server-config)
-  ├── k8sServiceHost: "65.21.183.30"
+  ├── k8sServiceHost: "95.216.177.23"
   └── k8sServicePort: "6443"
            ↓
 Cilium Helm Chart (k8sServiceHostRef)
