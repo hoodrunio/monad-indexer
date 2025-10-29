@@ -100,8 +100,8 @@ monad-indexer/
 
 ```bash
 # Clone repository
-git clone https://github.com/hoodrunio/monad-indexer-gitops
-cd monad-indexer-gitops
+git clone https://github.com/hoodrunio/monad-indexer
+cd monad-indexer
 
 # Install K3s
 ./infrastructure/k3s-install.sh

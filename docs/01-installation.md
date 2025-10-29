@@ -248,8 +248,8 @@ kubectl get ciliumloadbalancerippool
 1. **Fork and customize the repository**:
 
 ```bash
-git clone https://github.com/hoodrunio/monad-indexer-gitops
-cd monad-indexer-gitops
+git clone https://github.com/hoodrunio/monad-indexer
+cd monad-indexer
 ```
 
 2. **Update configuration**:
