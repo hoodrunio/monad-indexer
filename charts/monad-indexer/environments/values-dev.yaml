@@ -37,6 +37,9 @@ microservices:
     replicaCount: 1
     image:
       tag: "main"  # Use main tag - latest/v1.1.1 have "can not start server" bug
+    config:
+      metrics:
+        enabled: false  # Disable metrics to avoid startup issues
   visualizer:
     enabled: false
   stats:
