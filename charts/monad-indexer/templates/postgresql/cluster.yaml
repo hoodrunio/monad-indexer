@@ -120,17 +120,10 @@ spec:
       # ============================================================
       # PG_PARTMAN EXTENSION (for partition-based retention)
       # ============================================================
-      {{- if .Values.postgresql.partman.enabled }}
-      # Load pg_partman background worker for automatic partition management
-      # CRITICAL: Requires PostgreSQL restart (CloudNativePG handles rolling restart)
-      shared_preload_libraries: "pg_partman_bgw"
-
-      # pg_partman background worker configuration
-      pg_partman_bgw.dbname: {{ .Values.postgresql.auth.database | quote }}
-      pg_partman_bgw.interval: {{ .Values.postgresql.partman.bgwInterval | quote }}
-      pg_partman_bgw.role: {{ .Values.postgresql.auth.username | quote }}
-      pg_partman_bgw.analyze: "on"  # Auto-analyze new partitions for query planner
-      {{- end }}
+      # NOTE: shared_preload_libraries is a fixed parameter in CloudNativePG
+      # and cannot be modified. pg_partman background worker disabled.
+      # Use manual maintenance instead: SELECT partman.run_maintenance_proc();
+      # See: https://github.com/cloudnative-pg/postgres-containers/issues/115
 
     {{- if .Values.postgresql.config.additionalParameters }}
     {{- range $key, $value := .Values.postgresql.config.additionalParameters }}
