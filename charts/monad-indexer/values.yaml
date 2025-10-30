@@ -79,7 +79,7 @@ backend:
     # Microservices integration
     microservices:
       verifier:
-        type: "eth_bytecode_db"
+        type: "sc_verifier"
 
     # Redis configuration
     redis:
