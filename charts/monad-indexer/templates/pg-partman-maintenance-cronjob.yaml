@@ -79,15 +79,14 @@ spec:
 
               # Run maintenance with commits between partition sets
               echo "Running pg_partman maintenance..."
-              psql -v ON_ERROR_STOP=1 -c "
-                -- Run maintenance for all partition sets
-                -- p_wait: 1 second between partition sets to reduce load
-                -- p_analyze: false (too slow for all tables, run manually when needed)
-                SELECT partman.run_maintenance_proc(
-                  p_wait := {{ .Values.postgresql.partman.maintenance.waitBetweenSets | default 1 }},
-                  p_analyze := {{ .Values.postgresql.partman.maintenance.analyze | default false }}
-                );
-              "
+              # Use psql without -c (which wraps in implicit transaction)
+              # pg_partman functions use COMMIT internally, needs autocommit mode
+              psql <<SQL
+              SELECT partman.run_maintenance_proc(
+                p_wait := {{ .Values.postgresql.partman.maintenance.waitBetweenSets | default 1 }},
+                p_analyze := {{ ternary "true" "false" .Values.postgresql.partman.maintenance.analyze }}
+              );
+SQL
 
               echo ""
               echo "✓ Maintenance completed successfully"
