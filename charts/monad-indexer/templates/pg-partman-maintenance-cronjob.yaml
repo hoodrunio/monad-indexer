@@ -42,22 +42,14 @@ spec:
             image: {{ .Values.postgresql.image.registry }}/{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}
             imagePullPolicy: IfNotPresent
             env:
+            # Use local Unix socket for postgres superuser (no password needed)
+            # CloudNativePG pg_hba.conf: "local all all peer" allows password-less auth
             - name: PGHOST
-              value: {{ include "monad-indexer.fullname" . }}-postgresql-rw
-            - name: PGPORT
-              value: "5432"
+              value: /controller/run
             - name: PGDATABASE
               value: {{ .Values.postgresql.auth.database | quote }}
             - name: PGUSER
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.postgresql.auth.existingSecret | default (printf "%s-postgresql-app" (include "monad-indexer.fullname" .)) }}
-                  key: username
-            - name: PGPASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.postgresql.auth.existingSecret | default (printf "%s-postgresql-app" (include "monad-indexer.fullname" .)) }}
-                  key: password
+              value: postgres
             command:
             - /bin/bash
             - -c
