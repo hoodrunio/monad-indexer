@@ -1,0 +1,317 @@
+{{- if and .Values.retention.enabled .Values.monitoring.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-retention-alerts
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: monitoring
+spec:
+  groups:
+  - name: data-retention
+    interval: 60s
+    rules:
+    # Alert if retention job fails
+    - alert: DataRetentionJobFailed
+      expr: |
+        kube_job_status_failed{job_name=~"{{ include "monad-indexer.fullname" . }}-retention.*"} > 0
+      for: 5m
+      labels:
+        severity: warning
+        component: data-retention
+      annotations:
+        summary: "Data retention job failed in {{ .Release.Namespace }}"
+        description: |
+          The data retention CronJob has failed.
+          Job: {{`{{ $labels.job_name }}`}}
+          Namespace: {{ .Release.Namespace }}
+          Check logs: kubectl logs -n {{ .Release.Namespace }} job/{{`{{ $labels.job_name }}`}}
+
+    # Alert if retention job hasn't run successfully in 48 hours
+    - alert: DataRetentionJobMissing
+      expr: |
+        (time() - kube_job_status_completion_time{job_name=~"{{ include "monad-indexer.fullname" . }}-retention.*"}) > 172800
+      for: 1h
+      labels:
+        severity: warning
+        component: data-retention
+      annotations:
+        summary: "Data retention job hasn't completed in 48 hours"
+        description: |
+          The data retention job hasn't completed successfully in the last 48 hours.
+          This may indicate the CronJob is not running or is failing.
+          Namespace: {{ .Release.Namespace }}
+          Check CronJob: kubectl get cronjob -n {{ .Release.Namespace }} {{ include "monad-indexer.fullname" . }}-retention
+
+    # Alert if retention job takes too long (>6 hours)
+    - alert: DataRetentionJobSlow
+      expr: |
+        (time() - kube_job_status_start_time{job_name=~"{{ include "monad-indexer.fullname" . }}-retention.*"}) > 21600
+          and
+        kube_job_status_active{job_name=~"{{ include "monad-indexer.fullname" . }}-retention.*"} > 0
+      for: 30m
+      labels:
+        severity: info
+        component: data-retention
+      annotations:
+        summary: "Data retention job running for over 6 hours"
+        description: |
+          The data retention job has been running for more than 6 hours.
+          This may indicate a large amount of data to delete or a performance issue.
+          Job: {{`{{ $labels.job_name }}`}}
+          Namespace: {{ .Release.Namespace }}
+
+    # Alert if oldest block data exceeds retention period significantly
+    - alert: OldDataAccumulating
+      expr: |
+        (time() - pg_stat_user_tables_last_vacuum{datname="blockscout",schemaname="public",relname="blocks"}) > {{ mul .Values.retention.retentionDays 86400 1.5 }}
+      for: 6h
+      labels:
+        severity: warning
+        component: data-retention
+      annotations:
+        summary: "Old data accumulating beyond retention period"
+        description: |
+          Blockchain data older than {{ .Values.retention.retentionDays }} days is accumulating.
+          This may indicate the retention job is not working properly.
+          Expected retention: {{ .Values.retention.retentionDays }} days
+          Namespace: {{ .Release.Namespace }}
+          Check retention job logs and database queries.
+
+  - name: database-health
+    interval: 60s
+    rules:
+    # Monitor database size growth rate
+    - alert: DatabaseGrowthRateHigh
+      expr: |
+        rate(pg_database_size_bytes{datname="blockscout"}[24h]) > {{ mul 1073741824 100 }}
+      for: 2h
+      labels:
+        severity: info
+        component: database
+      annotations:
+        summary: "Database growing faster than expected (>100GB/day)"
+        description: |
+          The blockscout database is growing at a rate exceeding 100GB per day.
+          Current rate: {{`{{ $value | humanize }}`}} bytes/second
+          This may require adjusting retention settings or investigating indexer behavior.
+          Namespace: {{ .Release.Namespace }}
+
+    # Alert if database is approaching storage limit (>80% full)
+    - alert: DatabaseStorageHigh
+      expr: |
+        (pg_database_size_bytes{datname="blockscout"} /
+         (kubelet_volume_stats_capacity_bytes{persistentvolumeclaim=~"{{ include "monad-indexer.fullname" . }}-postgresql.*"})) > 0.8
+      for: 30m
+      labels:
+        severity: warning
+        component: database
+      annotations:
+        summary: "Database storage usage above 80%"
+        description: |
+          The blockscout database storage is over 80% full.
+          Current: {{`{{ $value | humanizePercentage }}`}}
+          PVC: {{`{{ $labels.persistentvolumeclaim }}`}}
+          Consider:
+          1. Running retention job manually
+          2. Reducing retention period
+          3. Increasing PVC size
+          Namespace: {{ .Release.Namespace }}
+
+    # Alert if VACUUM hasn't run recently (indicates retention job might be failing)
+    - alert: DatabaseVacuumDelayed
+      expr: |
+        (time() - pg_stat_user_tables_last_autovacuum{datname="blockscout",schemaname="public",relname=~"blocks|transactions|logs"}) > 86400
+      for: 6h
+      labels:
+        severity: info
+        component: database
+      annotations:
+        summary: "Database vacuum hasn't run in 24 hours on critical table"
+        description: |
+          The {{`{{ $labels.relname }}`}} table hasn't been vacuumed in over 24 hours.
+          This may indicate:
+          1. Retention job is not running VACUUM
+          2. Autovacuum is falling behind
+          3. Performance issues
+          Table: {{`{{ $labels.relname }}`}}
+          Namespace: {{ .Release.Namespace }}
+          Consider running manual VACUUM ANALYZE.
+
+---
+{{- if .Values.postgresql.monitoring.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-retention-queries
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: monitoring
+    cnpg.io/reload: "true"  # CloudNativePG will reload queries when ConfigMap changes
+data:
+  queries.yaml: |
+    # Custom queries for data retention monitoring
+    # These queries are executed by CloudNativePG's monitoring integration
+
+    # Age of oldest block in database
+    data_age_oldest_block:
+      query: |
+        SELECT
+          COALESCE(EXTRACT(EPOCH FROM (NOW() - MIN(inserted_at))), 0) as age_seconds,
+          COUNT(*) as total_blocks
+        FROM blocks
+      metrics:
+        - age_seconds:
+            usage: "GAUGE"
+            description: "Age of oldest block in database (seconds)"
+        - total_blocks:
+            usage: "GAUGE"
+            description: "Total number of blocks in database"
+
+    # Age of oldest transaction
+    data_age_oldest_transaction:
+      query: |
+        SELECT
+          COALESCE(EXTRACT(EPOCH FROM (NOW() - MIN(inserted_at))), 0) as age_seconds,
+          COUNT(*) as total_transactions
+        FROM transactions
+      metrics:
+        - age_seconds:
+            usage: "GAUGE"
+            description: "Age of oldest transaction in database (seconds)"
+        - total_transactions:
+            usage: "GAUGE"
+            description: "Total number of transactions in database"
+
+    # Age of oldest log entry
+    data_age_oldest_log:
+      query: |
+        SELECT
+          COALESCE(EXTRACT(EPOCH FROM (NOW() - MIN(inserted_at))), 0) as age_seconds,
+          COUNT(*) as total_logs
+        FROM logs
+      metrics:
+        - age_seconds:
+            usage: "GAUGE"
+            description: "Age of oldest log entry in database (seconds)"
+        - total_logs:
+            usage: "GAUGE"
+            description: "Total number of log entries in database"
+
+    # Table sizes
+    table_sizes:
+      query: |
+        SELECT
+          schemaname,
+          tablename,
+          pg_total_relation_size(schemaname||'.'||tablename) as size_bytes,
+          pg_relation_size(schemaname||'.'||tablename) as table_size_bytes,
+          pg_total_relation_size(schemaname||'.'||tablename) - pg_relation_size(schemaname||'.'||tablename) as indexes_size_bytes
+        FROM pg_tables
+        WHERE schemaname = 'public'
+          AND tablename IN ('blocks', 'transactions', 'logs', 'token_transfers', 'internal_transactions')
+      metrics:
+        - schemaname:
+            usage: "LABEL"
+            description: "Schema name"
+        - tablename:
+            usage: "LABEL"
+            description: "Table name"
+        - size_bytes:
+            usage: "GAUGE"
+            description: "Total size of table including indexes (bytes)"
+        - table_size_bytes:
+            usage: "GAUGE"
+            description: "Size of table data only (bytes)"
+        - indexes_size_bytes:
+            usage: "GAUGE"
+            description: "Size of indexes (bytes)"
+
+    # Dead tuples (indicates need for VACUUM)
+    dead_tuples:
+      query: |
+        SELECT
+          schemaname,
+          relname as tablename,
+          n_dead_tup as dead_tuples,
+          n_live_tup as live_tuples,
+          CASE
+            WHEN n_live_tup > 0
+            THEN (n_dead_tup::float / n_live_tup::float)
+            ELSE 0
+          END as dead_tuple_ratio
+        FROM pg_stat_user_tables
+        WHERE schemaname = 'public'
+          AND relname IN ('blocks', 'transactions', 'logs', 'token_transfers', 'internal_transactions')
+      metrics:
+        - schemaname:
+            usage: "LABEL"
+            description: "Schema name"
+        - tablename:
+            usage: "LABEL"
+            description: "Table name"
+        - dead_tuples:
+            usage: "GAUGE"
+            description: "Number of dead tuples"
+        - live_tuples:
+            usage: "GAUGE"
+            description: "Number of live tuples"
+        - dead_tuple_ratio:
+            usage: "GAUGE"
+            description: "Ratio of dead tuples to live tuples"
+
+    # VACUUM/ANALYZE statistics
+    vacuum_stats:
+      query: |
+        SELECT
+          schemaname,
+          relname as tablename,
+          COALESCE(EXTRACT(EPOCH FROM (NOW() - last_vacuum)), 0) as seconds_since_last_vacuum,
+          COALESCE(EXTRACT(EPOCH FROM (NOW() - last_autovacuum)), 0) as seconds_since_last_autovacuum,
+          COALESCE(EXTRACT(EPOCH FROM (NOW() - last_analyze)), 0) as seconds_since_last_analyze,
+          COALESCE(EXTRACT(EPOCH FROM (NOW() - last_autoanalyze)), 0) as seconds_since_last_autoanalyze
+        FROM pg_stat_user_tables
+        WHERE schemaname = 'public'
+          AND relname IN ('blocks', 'transactions', 'logs', 'token_transfers', 'internal_transactions')
+      metrics:
+        - schemaname:
+            usage: "LABEL"
+            description: "Schema name"
+        - tablename:
+            usage: "LABEL"
+            description: "Table name"
+        - seconds_since_last_vacuum:
+            usage: "GAUGE"
+            description: "Seconds since last manual vacuum"
+        - seconds_since_last_autovacuum:
+            usage: "GAUGE"
+            description: "Seconds since last autovacuum"
+        - seconds_since_last_analyze:
+            usage: "GAUGE"
+            description: "Seconds since last manual analyze"
+        - seconds_since_last_autoanalyze:
+            usage: "GAUGE"
+            description: "Seconds since last autoanalyze"
+
+    # Block height and indexing progress
+    indexing_progress:
+      query: |
+        SELECT
+          MAX(number) as latest_block_number,
+          COUNT(*) as total_blocks,
+          COALESCE(EXTRACT(EPOCH FROM (NOW() - MAX(inserted_at))), 0) as seconds_since_latest_block
+        FROM blocks
+      metrics:
+        - latest_block_number:
+            usage: "GAUGE"
+            description: "Latest block number in database"
+        - total_blocks:
+            usage: "GAUGE"
+            description: "Total blocks in database"
+        - seconds_since_latest_block:
+            usage: "GAUGE"
+            description: "Seconds since latest block was inserted"
+{{- end }}
+{{- end }}

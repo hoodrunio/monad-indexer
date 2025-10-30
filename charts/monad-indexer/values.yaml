@@ -789,6 +789,55 @@ gateway:
     burst: 2000
 
 # ============================================================
+# DATA RETENTION (Automated cleanup of old blockchain data)
+# ============================================================
+retention:
+  # Enable/disable retention CronJob (disable in production initially, test in dev/staging)
+  enabled: false
+
+  # Cron schedule (daily at 2 AM by default)
+  schedule: "0 2 * * *"
+
+  # Retention period in days
+  # Start conservative (90 days) and gradually reduce to 30 days
+  retentionDays: 90
+
+  # Batch size for DELETE operations
+  # Smaller batches = less table locking but slower overall
+  batchSize: 10000
+
+  # Dry run mode (logs what would be deleted without actually deleting)
+  # IMPORTANT: Always test with dryRun: true first!
+  dryRun: false
+
+  # Job history retention
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+
+  # Job timeout (10 hours for large deletes)
+  jobTimeoutSeconds: 36000
+
+  # Container image for retention job
+  image:
+    repository: postgres
+    tag: "17"
+    pullPolicy: IfNotPresent
+
+  # Resources for retention job
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "256Mi"
+    limits:
+      memory: "512Mi"
+
+  # Node selector (optional - run on specific nodes)
+  nodeSelector: {}
+
+  # Tolerations (optional)
+  tolerations: []
+
+# ============================================================
 # EXTERNAL SECRETS (AWS Secrets Manager Integration)
 # ============================================================
 externalSecrets:

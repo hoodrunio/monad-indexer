@@ -165,6 +165,19 @@ gateway:
   #   attempts: 3
   #   backoff: 1s
 
+# Data retention - enabled in dev for testing
+retention:
+  enabled: true  # Enable in dev to test
+  schedule: "0 3 * * *"  # 3 AM daily (offset from prod)
+  retentionDays: 90  # Start conservative
+  dryRun: true  # DRY RUN mode for testing - no actual deletion
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      memory: "256Mi"
+
 # External Secrets configuration for dev environment
 externalSecrets:
   enabled: true
