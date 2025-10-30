@@ -42,14 +42,21 @@ spec:
             image: {{ .Values.postgresql.image.registry }}/{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}
             imagePullPolicy: IfNotPresent
             env:
-            # Use local Unix socket for postgres superuser (no password needed)
-            # CloudNativePG pg_hba.conf: "local all all peer" allows password-less auth
+            # Use CloudNativePG superuser secret for network connection
+            # enableSuperuserAccess: true in cluster spec creates this secret automatically
             - name: PGHOST
-              value: /controller/run
+              value: {{ include "monad-indexer.fullname" . }}-postgresql-rw
+            - name: PGPORT
+              value: "5432"
             - name: PGDATABASE
               value: {{ .Values.postgresql.auth.database | quote }}
             - name: PGUSER
               value: postgres
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "monad-indexer.fullname" . }}-postgresql-superuser
+                  key: password
             command:
             - /bin/bash
             - -c

@@ -11,6 +11,10 @@ spec:
 
   imageName: {{ .Values.postgresql.image.registry }}/{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}
 
+  # Enable superuser access for maintenance tasks (pg_partman CronJob)
+  # Creates <cluster-name>-superuser secret automatically
+  enableSuperuserAccess: true
+
   # Bootstrap configuration
   bootstrap:
     initdb:
