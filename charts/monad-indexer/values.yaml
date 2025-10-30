@@ -63,6 +63,7 @@ backend:
       v1ReadMethodsDisabled: false
       v1WriteMethodsDisabled: false
       v2Enabled: true
+      corsAllowedOrigin: ""  # Empty by default for security, override per environment
 
     # Frontend configuration (if webapp is enabled)
     frontend:

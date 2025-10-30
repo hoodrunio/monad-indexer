@@ -26,6 +26,10 @@ backend:
   env:
     LOG_LEVEL: "info"
 
+  config:
+    api:
+      corsAllowedOrigin: "https://testnet.monad.hoodscan.io,https://monad.hoodscan.io"
+
 # Microservices - enabled with moderate resources
 microservices:
   smart-contract-verifier:

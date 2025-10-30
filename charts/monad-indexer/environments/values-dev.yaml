@@ -25,6 +25,10 @@ backend:
     INDEXER_DISABLE_INTERNAL_TRANSACTIONS_FETCHER: "false"  # Disable to avoid RPC rate limits
     LOG_LEVEL: "debug"
 
+  config:
+    api:
+      corsAllowedOrigin: "*"
+
 # Disable microservices in dev (optional)
 microservices:
   smart-contract-verifier:

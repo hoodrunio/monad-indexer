@@ -42,6 +42,10 @@ backend:
     INDEXER_MEMORY_LIMIT: "5"
     LOG_LEVEL: "warn"
 
+  config:
+    api:
+      corsAllowedOrigin: "https://monad.hoodscan.io"
+
   # Topology spread for multi-zone
   topologySpreadConstraints:
     - maxSkew: 1

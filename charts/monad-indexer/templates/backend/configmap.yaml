@@ -40,6 +40,9 @@ data:
   API_V1_READ_METHODS_DISABLED: {{ .Values.backend.config.api.v1ReadMethodsDisabled | quote }}
   API_V1_WRITE_METHODS_DISABLED: {{ .Values.backend.config.api.v1WriteMethodsDisabled | quote }}
   API_V2_ENABLED: {{ .Values.backend.config.api.v2Enabled | quote }}
+  {{- if .Values.backend.config.api.corsAllowedOrigin }}
+  API_V2_CORS_ALLOWED_ORIGIN: {{ .Values.backend.config.api.corsAllowedOrigin | quote }}
+  {{- end }}
 
   # ============================================
   # FRONTEND CONFIGURATION
