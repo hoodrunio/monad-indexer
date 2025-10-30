@@ -76,8 +76,8 @@ postgresql:
   # Custom image with pg_partman extension
   image:
     registry: ghcr.io
-    repository: tensor5/cloudnative-pg
-    tag: "17.2-8"
+    repository: hoodrunio/postgresql-partman
+    tag: "17"
 
   auth:
     # ExternalSecret will create this secret from AWS Secrets Manager
