@@ -48,8 +48,12 @@ backend:
       variant: "geth"
       transport: "http"
       httpUrl: "https://testnet-rpc.monad.xyz"
+      fallbackHttpUrl: ""  # Fallback HTTP endpoint (set per environment)
       traceUrl: ""  # Defaults to httpUrl if empty
+      fallbackTraceUrl: ""  # Fallback trace endpoint (set per environment)
       wsUrl: "wss://testnet-rpc.monad.xyz"
+      ethCallUrl: ""  # Optional dedicated eth_call endpoint
+      fallbackEthCallUrl: ""  # Fallback eth_call endpoint (set per environment)
       disableArchiveBalances: false
 
     # Chain configuration

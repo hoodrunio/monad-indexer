@@ -43,6 +43,16 @@ backend:
     LOG_LEVEL: "warn"
 
   config:
+    # RPC endpoints with fallback
+    rpc:
+      httpUrl: "https://testnet-rpc.monad.xyz"
+      fallbackHttpUrl: "https://lb.drpc.live/monad-testnet/Ag9VzqLbl0KSsk-eqggyUSEMjYZNtZoR8L4M_hXb38UN"
+      traceUrl: "https://testnet-rpc.monad.xyz"
+      fallbackTraceUrl: "https://lb.drpc.live/monad-testnet/Ag9VzqLbl0KSsk-eqggyUSEMjYZNtZoR8L4M_hXb38UN"
+      wsUrl: "wss://testnet-rpc.monad.xyz"
+      ethCallUrl: "https://testnet-rpc.monad.xyz"
+      fallbackEthCallUrl: "https://lb.drpc.live/monad-testnet/Ag9VzqLbl0KSsk-eqggyUSEMjYZNtZoR8L4M_hXb38UN"
+
     api:
       corsAllowedOrigin: "https://monad.hoodscan.io"
 

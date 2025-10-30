@@ -22,7 +22,19 @@ data:
   ETHEREUM_JSONRPC_VARIANT: {{ .Values.backend.config.rpc.variant | quote }}
   ETHEREUM_JSONRPC_TRANSPORT: {{ .Values.backend.config.rpc.transport | quote }}
   ETHEREUM_JSONRPC_HTTP_URL: {{ .Values.backend.config.rpc.httpUrl | quote }}
+  {{- if .Values.backend.config.rpc.fallbackHttpUrl }}
+  ETHEREUM_JSONRPC_FALLBACK_HTTP_URL: {{ .Values.backend.config.rpc.fallbackHttpUrl | quote }}
+  {{- end }}
   ETHEREUM_JSONRPC_TRACE_URL: {{ .Values.backend.config.rpc.traceUrl | default .Values.backend.config.rpc.httpUrl | quote }}
+  {{- if .Values.backend.config.rpc.fallbackTraceUrl }}
+  ETHEREUM_JSONRPC_FALLBACK_TRACE_URL: {{ .Values.backend.config.rpc.fallbackTraceUrl | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.rpc.ethCallUrl }}
+  ETHEREUM_JSONRPC_ETH_CALL_URL: {{ .Values.backend.config.rpc.ethCallUrl | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.rpc.fallbackEthCallUrl }}
+  ETHEREUM_JSONRPC_FALLBACK_ETH_CALL_URL: {{ .Values.backend.config.rpc.fallbackEthCallUrl | quote }}
+  {{- end }}
   ETHEREUM_JSONRPC_WS_URL: {{ .Values.backend.config.rpc.wsUrl | quote }}
   ETHEREUM_JSONRPC_DISABLE_ARCHIVE_BALANCES: {{ .Values.backend.config.rpc.disableArchiveBalances | quote }}
 
