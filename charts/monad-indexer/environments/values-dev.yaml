@@ -73,6 +73,12 @@ microservices:
 postgresql:
   replicaCount: 1
 
+  # Custom image with pg_partman extension
+  image:
+    registry: ghcr.io
+    repository: tensor5/cloudnative-pg
+    tag: "17.2-8"
+
   auth:
     # ExternalSecret will create this secret from AWS Secrets Manager
     existingSecret: "monad-indexer-dev-postgresql-app"
