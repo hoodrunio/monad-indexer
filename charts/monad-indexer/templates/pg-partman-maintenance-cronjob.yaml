@@ -98,7 +98,7 @@ spec:
               echo "================================================================"
               echo "DEFAULT PARTITION CHECK"
               echo "================================================================"
-              psql -c 'SELECT parent_table, partman.check_default(parent_table) as default_partition_rows FROM partman.part_config ORDER BY parent_table;'
+              psql -c 'SELECT * FROM partman.check_default();'
 
               echo ""
               echo "================================================================"
