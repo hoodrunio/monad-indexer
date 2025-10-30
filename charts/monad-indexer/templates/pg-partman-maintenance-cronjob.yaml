@@ -79,10 +79,11 @@ spec:
 
               # Run maintenance with commits between partition sets
               echo "Running pg_partman maintenance..."
-              # Use psql without -c (which wraps in implicit transaction)
-              # pg_partman functions use COMMIT internally, needs autocommit mode
+              # pg_partman uses PROCEDURE (not function), requires CALL
+              # Enable autocommit to allow procedure's internal commits
               psql <<SQL
-              SELECT partman.run_maintenance_proc(
+              \set AUTOCOMMIT on
+              CALL partman.run_maintenance_proc(
                 p_wait := {{ .Values.postgresql.partman.maintenance.waitBetweenSets | default 1 }},
                 p_analyze := {{ ternary "true" "false" .Values.postgresql.partman.maintenance.analyze }}
               );
