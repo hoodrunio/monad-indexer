@@ -36,7 +36,7 @@ microservices:
     enabled: true
     replicaCount: 1
     image:
-      tag: "v1.1.1"  # Use stable release instead of latest
+      tag: "main"  # Use main tag - latest/v1.1.1 have "can not start server" bug
   visualizer:
     enabled: false
   stats:
