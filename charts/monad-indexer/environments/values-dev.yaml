@@ -33,7 +33,8 @@ microservices:
     autoscaling:
       enabled: false
   sig-provider:
-    enabled: false
+    enabled: true
+    replicaCount: 1
   visualizer:
     enabled: false
   stats:
