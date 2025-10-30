@@ -38,6 +38,10 @@ microservices:
     image:
       tag: "main"  # Use main tag - latest/v1.1.1 have "can not start server" bug
     config:
+      server:
+        http:
+          cors:
+            enabled: false  # Disable CORS - wildcard (*) not supported in :main tag
       metrics:
         enabled: false  # Disable metrics to avoid startup issues
   visualizer:
