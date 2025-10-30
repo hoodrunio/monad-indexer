@@ -36,7 +36,7 @@ microservices:
     enabled: true
     replicaCount: 1
     image:
-      tag: "main"  # Use main tag - latest/v1.1.1 have "can not start server" bug
+      tag: "latest"
     config:
       server:
         http:
