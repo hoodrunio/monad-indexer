@@ -533,6 +533,56 @@ postgresql:
     logDisconnections: "on"
     additionalParameters: {}
 
+  # pg_partman configuration for partition-based data retention
+  # More efficient than DELETE-based retention (99.9% faster)
+  partman:
+    enabled: false  # Enable after testing in dev/staging
+
+    # Retention period (partitions older than this are automatically dropped)
+    retentionDays: 30
+
+    # How many days ahead to pre-create partitions
+    # Prevents "no partition found" errors for future data
+    premakeDays: 7
+
+    # Partition interval (daily partitions recommended for blockchain data)
+    partitionInterval: "1 day"
+
+    # Background worker interval in seconds (how often to run maintenance)
+    # 3600 = 1 hour (checks for partitions to create/drop)
+    bgwInterval: 3600
+
+    # Tables to partition (must have inserted_at column)
+    tables:
+      - blocks
+      - transactions
+      - logs
+      - token_transfers
+      - internal_transactions
+
+    # Data migration job configuration (one-time)
+    migration:
+      enabled: false  # Enable to run migration job
+      batchSize: 50000  # Rows per batch
+      batchInterval: 10  # Seconds between batches
+      timeoutSeconds: 86400  # 24 hours
+      resources:
+        requests:
+          cpu: "1000m"
+          memory: "2Gi"
+        limits:
+          memory: "4Gi"
+      nodeSelector: {}
+      tolerations: []
+
+  # Init database with pg_partman extension
+  initdb:
+    postInitSQL:
+      - CREATE SCHEMA IF NOT EXISTS partman;
+      - CREATE EXTENSION IF NOT EXISTS pg_partman SCHEMA partman;
+      - GRANT ALL ON SCHEMA partman TO blockscout;
+      - GRANT ALL ON ALL TABLES IN SCHEMA partman TO blockscout;
+
   # Primary instance
   primary:
     persistence:
@@ -787,55 +837,7 @@ gateway:
     enabled: false
     requestsPerSecond: 1000
     burst: 2000
-
-# ============================================================
-# DATA RETENTION (Automated cleanup of old blockchain data)
-# ============================================================
-retention:
-  # Enable/disable retention CronJob (disable in production initially, test in dev/staging)
-  enabled: false
-
-  # Cron schedule (daily at 2 AM by default)
-  schedule: "0 2 * * *"
-
-  # Retention period in days
-  # Start conservative (90 days) and gradually reduce to 30 days
-  retentionDays: 90
-
-  # Batch size for DELETE operations
-  # Smaller batches = less table locking but slower overall
-  batchSize: 10000
-
-  # Dry run mode (logs what would be deleted without actually deleting)
-  # IMPORTANT: Always test with dryRun: true first!
-  dryRun: false
-
-  # Job history retention
-  successfulJobsHistoryLimit: 3
-  failedJobsHistoryLimit: 5
-
-  # Job timeout (10 hours for large deletes)
-  jobTimeoutSeconds: 36000
-
-  # Container image for retention job
-  image:
-    repository: postgres
-    tag: "17"
-    pullPolicy: IfNotPresent
-
-  # Resources for retention job
-  resources:
-    requests:
-      cpu: "500m"
-      memory: "256Mi"
-    limits:
-      memory: "512Mi"
-
-  # Node selector (optional - run on specific nodes)
-  nodeSelector: {}
-
-  # Tolerations (optional)
-  tolerations: []
+    
 
 # ============================================================
 # EXTERNAL SECRETS (AWS Secrets Manager Integration)
