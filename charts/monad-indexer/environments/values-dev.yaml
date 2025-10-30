@@ -94,7 +94,12 @@ postgresql:
     enabled: true  # Enable in dev to test partition-based retention
     retentionDays: 90  # Conservative for testing
     premakeDays: 3  # Smaller buffer for dev
-    bgwInterval: 1800  # Run every 30 minutes in dev
+    # Maintenance CronJob (replaces background worker)
+    maintenance:
+      enabled: true  # Enable in dev for testing
+      schedule: "*/30 * * * *"  # Every 30 minutes
+      waitBetweenSets: 1
+      analyze: false
 
   primary:
     persistence:

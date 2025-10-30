@@ -11,6 +11,42 @@ Quick reference for implementing pg_partman partition-based data retention in mo
 
 ---
 
+## Fresh Deployment Workflow
+
+For NEW deployments (fresh PostgreSQL cluster):
+
+### What's Automatic:
+✅ **Extension creation** - Happens automatically via `postInitSQL` on first cluster start
+✅ **Maintenance CronJob** - Automatically enabled when `postgresql.partman.enabled: true`
+
+### What's Manual:
+📖 **Partition setup** - Run once after cluster is ready (see [Week 1: Extension Setup](#week-1-extension-setup) below)
+
+### Quick Start for Fresh Deployment:
+
+```bash
+# 1. Deploy with pg_partman enabled
+helm install monad-indexer-dev charts/monad-indexer \
+  -n monad-indexer-dev \
+  -f charts/monad-indexer/environments/values-dev.yaml
+
+# 2. Wait for cluster to be ready (~2-5 min)
+kubectl wait --for=condition=Ready cluster/monad-indexer-dev-postgresql -n monad-indexer-dev --timeout=300s
+
+# 3. Run partition setup (ONE TIME ONLY)
+kubectl exec -i monad-indexer-dev-postgresql-1 -n monad-indexer-dev -- \
+  psql -U postgres -d blockscout < scripts/pg_partman_setup.sql
+
+# 4. Done! Maintenance CronJob is already running
+kubectl get cronjobs -n monad-indexer-dev | grep partman
+```
+
+**That's it!** The script is idempotent - safe to run multiple times.
+
+**Important**: CloudNativePG does NOT support pg_partman background worker (`shared_preload_libraries` is fixed). Maintenance runs via Kubernetes CronJob instead.
+
+---
+
 ## Week 1: Extension Setup
 
 ### 1. Enable pg_partman in values-dev.yaml
@@ -40,22 +76,36 @@ CloudNativePG automatically performs zero-downtime rolling restart to load `pg_p
 kubectl exec -it monad-indexer-dev-postgresql-1 -n monad-indexer-dev -- psql -U postgres -d blockscout
 
 -- Check extension
-SELECT * FROM pg_extension WHERE extname = 'pg_partman';
+SELECT extname, extversion FROM pg_extension WHERE extname = 'pg_partman';
+-- Expected: pg_partman | 5.3.1
 
--- Check background worker
-SELECT * FROM pg_stat_activity WHERE backend_type = 'pg_partman_bgw';
+-- Check available functions
+SELECT proname FROM pg_proc
+WHERE proname IN ('create_parent', 'partition_data_proc', 'run_maintenance_proc')
+ORDER BY proname;
+-- Expected: create_parent, partition_data_proc, run_maintenance_proc
 ```
+
+**Note**: Background worker (`pg_partman_bgw`) is NOT available in CloudNativePG. Maintenance runs via CronJob.
 
 ### 4. Create partitions
 
 ```bash
-kubectl cp scripts/pg_partman_setup.sql monad-indexer-dev-postgresql-1:/tmp/pg_partman_setup.sql -n monad-indexer-dev
-
-kubectl exec -it monad-indexer-dev-postgresql-1 -n monad-indexer-dev -- \
-  psql -U postgres -d blockscout -f /tmp/pg_partman_setup.sql
+# Run setup script via stdin (read-only filesystem)
+kubectl exec -i monad-indexer-dev-postgresql-1 -n monad-indexer-dev -- \
+  psql -U postgres -d blockscout < scripts/pg_partman_setup.sql
 ```
 
-This creates `*_partitioned` tables and registers them with pg_partman. Duration: 5-10 minutes.
+This creates `*_partitioned` tables and registers them with pg_partman.
+
+**What it does**:
+- Sets timezone to UTC
+- Creates partitioned versions of 5 tables
+- Registers with pg_partman (90-day retention)
+- Creates 7 days of future partitions
+- Runs ANALYZE for constraint exclusion
+
+Duration: 5-10 minutes.
 
 ---
 
@@ -150,23 +200,59 @@ kubectl rollout restart deployment/monad-indexer-dev-backend -n monad-indexer-de
 
 This clears Ecto's connection pool and schema cache.
 
-### 4. Monitor
+### 4. Enable Maintenance CronJob
+
+```yaml
+# values-dev.yaml
+postgresql:
+  partman:
+    maintenance:
+      enabled: true  # Enable CronJob
+      schedule: "0 * * * *"  # Hourly
+```
+
+```bash
+# Deploy
+helm upgrade monad-indexer-dev charts/monad-indexer \
+  -n monad-indexer-dev \
+  -f charts/monad-indexer/environments/values-dev.yaml
+```
+
+### 5. Monitor
 
 ```bash
 # Check indexer logs
 kubectl logs -f deployment/monad-indexer-dev-backend -n monad-indexer-dev
 
-# Check Prometheus alerts
-kubectl get prometheusrules -n monad-indexer-dev
+# Check maintenance CronJob
+kubectl get cronjob monad-indexer-dev-pg-partman-maintenance -n monad-indexer-dev
+kubectl get jobs -n monad-indexer-dev | grep partman-maintenance | head -5
 
-# Verify partition maintenance
+# Check maintenance logs
+kubectl logs -l app.kubernetes.io/component=pg-partman-maintenance -n monad-indexer-dev --tail=50
+
+# Verify partition status
 kubectl exec -it monad-indexer-dev-postgresql-1 -n monad-indexer-dev -- psql -U postgres -d blockscout -c "
-SELECT parent_table, partition_interval, retention
+SELECT
+  parent_table,
+  partition_interval,
+  retention,
+  maintenance_last_run,
+  (SELECT COUNT(*) FROM pg_inherits WHERE inhparent = pc.parent_table::regclass) as partition_count
+FROM partman.part_config pc;
+"
+
+# Check default partitions (should be 0 or low)
+kubectl exec -it monad-indexer-dev-postgresql-1 -n monad-indexer-dev -- psql -U postgres -d blockscout -c "
+SELECT parent_table, partman.check_default(parent_table) as default_rows
 FROM partman.part_config;
 "
+
+# Check Prometheus alerts
+kubectl get prometheusrules -n monad-indexer-dev | grep partman
 ```
 
-### 5. Drop old tables after 7 days
+### 6. Drop old tables after 7 days
 
 ```sql
 -- After confirming everything works for a week
@@ -276,13 +362,22 @@ SELECT partman.create_partition('public.blocks_partitioned', p_parent_table := '
 SELECT partman.run_maintenance_proc();
 ```
 
-### Background worker not running
+### Maintenance CronJob not running
 ```bash
-# Check logs
-kubectl logs monad-indexer-dev-postgresql-1 -n monad-indexer-dev | grep partman
+# Check CronJob status
+kubectl get cronjob monad-indexer-dev-pg-partman-maintenance -n monad-indexer-dev
 
-# Verify config
-kubectl exec -it monad-indexer-dev-postgresql-1 -n monad-indexer-dev -- psql -U postgres -c "SHOW shared_preload_libraries;"
+# Check recent jobs
+kubectl get jobs -n monad-indexer-dev | grep partman-maintenance | head -5
+
+# Check job logs
+kubectl logs -l app.kubernetes.io/component=pg-partman-maintenance -n monad-indexer-dev --tail=100
+
+# Manual maintenance (if CronJob stuck)
+kubectl exec -it monad-indexer-dev-postgresql-1 -n monad-indexer-dev -- psql -U postgres -d blockscout -c "
+SET timezone = 'UTC';
+CALL partman.run_maintenance_proc(p_wait := 1);
+"
 ```
 
 ### Migration job stuck

@@ -269,35 +269,62 @@ data:
             usage: "GAUGE"
             description: "Number of partitions"
 
-    # Partition maintenance status
-    partman_last_run:
-      query: |
-        SELECT
-          COALESCE(EXTRACT(EPOCH FROM (NOW() - MAX(last_run))), 0) as seconds_since_last_run
-        FROM partman.part_config_sub
-      metrics:
-        - seconds_since_last_run:
-            usage: "GAUGE"
-            description: "Seconds since pg_partman last maintenance run"
-
-    # Check for missing partitions (should always be 0)
-    partman_missing_partitions:
+    # Partition maintenance last run
+    partman_maintenance_last_run:
       query: |
         SELECT
           parent_table,
-          premake - COUNT(DISTINCT partition_tablename) as missing_partitions
-        FROM partman.part_config pc
-        LEFT JOIN partman.show_partitions(pc.parent_table) sp ON TRUE
-        WHERE sp.partition_tablename IS NOT NULL
-          AND sp.partition_tablename > to_char(NOW(), 'YYYY_MM_DD')
-        GROUP BY parent_table, premake
+          COALESCE(EXTRACT(EPOCH FROM (NOW() - maintenance_last_run)), 0) as seconds_since_maintenance
+        FROM partman.part_config
       metrics:
         - parent_table:
             usage: "LABEL"
             description: "Parent partitioned table"
-        - missing_partitions:
+        - seconds_since_maintenance:
             usage: "GAUGE"
-            description: "Number of missing future partitions (should be 0)"
+            description: "Seconds since last maintenance run for this partition set"
+
+    # Default partition data check (should be 0 or low)
+    partman_default_partition_rows:
+      query: |
+        SELECT
+          parent_table,
+          partman.check_default(parent_table) as default_rows
+        FROM partman.part_config
+      metrics:
+        - parent_table:
+            usage: "LABEL"
+            description: "Parent partitioned table"
+        - default_rows:
+            usage: "GAUGE"
+            description: "Number of rows in default partition (should be 0 or low)"
+
+    # Partition configuration status
+    partman_config_status:
+      query: |
+        SELECT
+          parent_table,
+          CASE WHEN automatic_maintenance = 'on' THEN 1 ELSE 0 END as automatic_maintenance,
+          premake,
+          EXTRACT(EPOCH FROM retention::interval) as retention_seconds,
+          CASE WHEN infinite_time_partitions THEN 1 ELSE 0 END as infinite_time_partitions
+        FROM partman.part_config
+      metrics:
+        - parent_table:
+            usage: "LABEL"
+            description: "Parent partitioned table"
+        - automatic_maintenance:
+            usage: "GAUGE"
+            description: "Automatic maintenance enabled (1) or disabled (0)"
+        - premake:
+            usage: "GAUGE"
+            description: "Number of partitions to premake"
+        - retention_seconds:
+            usage: "GAUGE"
+            description: "Retention period in seconds"
+        - infinite_time_partitions:
+            usage: "GAUGE"
+            description: "Infinite time partitions enabled (1) or disabled (0)"
     {{- end }}
 {{- end }}
 {{- end }}
@@ -318,35 +345,36 @@ spec:
   - name: pg-partman
     interval: 60s
     rules:
-    # Alert if pg_partman background worker hasn't run
-    - alert: PartmanBackgroundWorkerNotRunning
+    # Alert if pg_partman maintenance hasn't run (CronJob-based)
+    - alert: PartmanMaintenanceNotRunning
       expr: |
-        pg_partman_last_run_seconds_since_last_run > 7200
+        max(pg_partman_maintenance_last_run_seconds_since_maintenance) > 7200
       for: 30m
       labels:
         severity: warning
         component: pg-partman
       annotations:
-        summary: "pg_partman background worker hasn't run in 2 hours"
+        summary: "pg_partman maintenance hasn't run in 2 hours"
         description: |
-          The pg_partman background worker hasn't run maintenance in over 2 hours.
+          pg_partman maintenance hasn't run in over 2 hours.
           This may cause missing future partitions or failure to drop old partitions.
-          Check CloudNativePG logs and pg_stat_activity for pg_partman_bgw process.
+          Check: kubectl get cronjob {{`{{ include "monad-indexer.fullname" . }}`}}-pg-partman-maintenance -n {{`{{ .Release.Namespace }}`}}
 
-    # Alert if partitions are missing
-    - alert: PartmanMissingPartitions
+    # Alert if default partition has too much data
+    - alert: PartmanDefaultPartitionDataAccumulating
       expr: |
-        pg_partman_missing_partitions > 0
-      for: 15m
+        pg_partman_default_partition_rows_default_rows > 10000
+      for: 1h
       labels:
-        severity: critical
+        severity: warning
         component: pg-partman
       annotations:
-        summary: "pg_partman is missing future partitions"
+        summary: "Default partition accumulating data"
         description: |
-          Table {{`{{ $labels.parent_table }}`}} is missing {{`{{ $value }}`}} future partitions.
-          This will cause INSERT failures when data reaches dates without partitions.
-          Run: SELECT partman.run_maintenance_proc();
+          Table {{`{{ $labels.parent_table }}`}} has {{`{{ $value }}`}} rows in default partition.
+          This indicates data outside partition boundaries or maintenance issues.
+          Check: SELECT * FROM partman.check_default('{{`{{ $labels.parent_table }}`}}');
+          Migrate: CALL partman.partition_data_proc(p_parent_table := '{{`{{ $labels.parent_table }}`}}');
 
     # Alert if partition count is unexpectedly low
     - alert: PartmanLowPartitionCount
