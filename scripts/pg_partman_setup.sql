@@ -265,16 +265,28 @@ CREATE INDEX IF NOT EXISTS internal_transactions_partitioned_inserted_at_idx ON 
 
 \echo 'Registering blocks_partitioned with pg_partman...'
 
-SELECT partman.create_parent(
-    p_parent_table := 'public.blocks_partitioned',
-    p_control := 'inserted_at',
-    p_interval := '1 day',
-    p_type := 'range',  -- RANGE partition (pg_partman 5.x)
-    p_premake := 7,  -- Create 7 days of partitions ahead
-    p_start_partition := date_trunc('day', NOW())::text,  -- Start from today
-    p_default_table := true,  -- Create default partition for out-of-range data
-    p_control_not_null := true  -- Enforce NOT NULL on inserted_at
-);
+-- Check if already registered (idempotent)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM partman.part_config
+        WHERE parent_table = 'public.blocks_partitioned'
+    ) THEN
+        PERFORM partman.create_parent(
+            p_parent_table := 'public.blocks_partitioned',
+            p_control := 'inserted_at',
+            p_interval := '1 day',
+            p_type := 'range',  -- RANGE partition (pg_partman 5.x)
+            p_premake := 7,  -- Create 7 days of partitions ahead
+            p_start_partition := date_trunc('day', NOW())::text,  -- Start from today
+            p_default_table := true,  -- Create default partition for out-of-range data
+            p_control_not_null := true  -- Enforce NOT NULL on inserted_at
+        );
+        RAISE NOTICE 'Created pg_partman config for blocks_partitioned';
+    ELSE
+        RAISE NOTICE 'blocks_partitioned already registered with pg_partman, skipping';
+    END IF;
+END $$;
 
 -- Configure retention (30 days)
 UPDATE partman.part_config
@@ -294,16 +306,24 @@ ANALYZE blocks_partitioned;
 
 \echo 'Registering transactions_partitioned with pg_partman...'
 
-SELECT partman.create_parent(
-    p_parent_table := 'public.transactions_partitioned',
-    p_control := 'inserted_at',
-    p_interval := '1 day',
-    p_type := 'range',
-    p_premake := 7,
-    p_start_partition := date_trunc('day', NOW())::text,
-    p_default_table := true,
-    p_control_not_null := true
-);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM partman.part_config WHERE parent_table = 'public.transactions_partitioned') THEN
+        PERFORM partman.create_parent(
+            p_parent_table := 'public.transactions_partitioned',
+            p_control := 'inserted_at',
+            p_interval := '1 day',
+            p_type := 'range',
+            p_premake := 7,
+            p_start_partition := date_trunc('day', NOW())::text,
+            p_default_table := true,
+            p_control_not_null := true
+        );
+        RAISE NOTICE 'Created pg_partman config for transactions_partitioned';
+    ELSE
+        RAISE NOTICE 'transactions_partitioned already registered, skipping';
+    END IF;
+END $$;
 
 UPDATE partman.part_config
 SET retention = '90 days',
@@ -321,17 +341,22 @@ ANALYZE transactions_partitioned;
 
 \echo 'Registering logs_partitioned with pg_partman...'
 
-SELECT partman.create_parent(
-    p_parent_table := 'public.logs_partitioned',
-    p_control := 'inserted_at',
-    p_interval := '1 day',
-    p_type := 'range',
-    p_premake := 7,
-    p_start_partition := (
-        SELECT COALESCE(MIN(inserted_at), NOW())::text
-        FROM logs
-    )
-);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM partman.part_config WHERE parent_table = 'public.logs_partitioned') THEN
+        PERFORM partman.create_parent(
+            p_parent_table := 'public.logs_partitioned',
+            p_control := 'inserted_at',
+            p_interval := '1 day',
+            p_type := 'range',
+            p_premake := 7,
+            p_start_partition := date_trunc('day', NOW())::text
+        );
+        RAISE NOTICE 'Created pg_partman config for logs_partitioned';
+    ELSE
+        RAISE NOTICE 'logs_partitioned already registered, skipping';
+    END IF;
+END $$;
 
 UPDATE partman.part_config
 SET retention = '90 days',
@@ -349,17 +374,22 @@ ANALYZE logs_partitioned;
 
 \echo 'Registering token_transfers_partitioned with pg_partman...'
 
-SELECT partman.create_parent(
-    p_parent_table := 'public.token_transfers_partitioned',
-    p_control := 'inserted_at',
-    p_interval := '1 day',
-    p_type := 'range',
-    p_premake := 7,
-    p_start_partition := (
-        SELECT COALESCE(MIN(inserted_at), NOW())::text
-        FROM token_transfers
-    )
-);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM partman.part_config WHERE parent_table = 'public.token_transfers_partitioned') THEN
+        PERFORM partman.create_parent(
+            p_parent_table := 'public.token_transfers_partitioned',
+            p_control := 'inserted_at',
+            p_interval := '1 day',
+            p_type := 'range',
+            p_premake := 7,
+            p_start_partition := date_trunc('day', NOW())::text
+        );
+        RAISE NOTICE 'Created pg_partman config for token_transfers_partitioned';
+    ELSE
+        RAISE NOTICE 'token_transfers_partitioned already registered, skipping';
+    END IF;
+END $$;
 
 UPDATE partman.part_config
 SET retention = '90 days',
@@ -377,17 +407,22 @@ ANALYZE token_transfers_partitioned;
 
 \echo 'Registering internal_transactions_partitioned with pg_partman...'
 
-SELECT partman.create_parent(
-    p_parent_table := 'public.internal_transactions_partitioned',
-    p_control := 'inserted_at',
-    p_interval := '1 day',
-    p_type := 'range',
-    p_premake := 7,
-    p_start_partition := (
-        SELECT COALESCE(MIN(inserted_at), NOW())::text
-        FROM internal_transactions
-    )
-);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM partman.part_config WHERE parent_table = 'public.internal_transactions_partitioned') THEN
+        PERFORM partman.create_parent(
+            p_parent_table := 'public.internal_transactions_partitioned',
+            p_control := 'inserted_at',
+            p_interval := '1 day',
+            p_type := 'range',
+            p_premake := 7,
+            p_start_partition := date_trunc('day', NOW())::text
+        );
+        RAISE NOTICE 'Created pg_partman config for internal_transactions_partitioned';
+    ELSE
+        RAISE NOTICE 'internal_transactions_partitioned already registered, skipping';
+    END IF;
+END $$;
 
 UPDATE partman.part_config
 SET retention = '90 days',

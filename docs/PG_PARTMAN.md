@@ -9,6 +9,40 @@ Quick reference for implementing pg_partman partition-based data retention in mo
 
 **Timeline**: 3 weeks (1 week setup, 1 week migration, 1 week monitoring)
 
+---
+
+## Fresh Deployment Workflow
+
+For NEW deployments (fresh PostgreSQL cluster):
+
+### What's Automatic:
+✅ **Extension creation** - Happens automatically via `postInitSQL` on first cluster start
+✅ **Maintenance CronJob** - Automatically enabled when `postgresql.partman.enabled: true`
+
+### What's Manual:
+📖 **Partition setup** - Run once after cluster is ready (see [Week 1: Extension Setup](#week-1-extension-setup) below)
+
+### Quick Start for Fresh Deployment:
+
+```bash
+# 1. Deploy with pg_partman enabled
+helm install monad-indexer-dev charts/monad-indexer \
+  -n monad-indexer-dev \
+  -f charts/monad-indexer/environments/values-dev.yaml
+
+# 2. Wait for cluster to be ready (~2-5 min)
+kubectl wait --for=condition=Ready cluster/monad-indexer-dev-postgresql -n monad-indexer-dev --timeout=300s
+
+# 3. Run partition setup (ONE TIME ONLY)
+kubectl exec -i monad-indexer-dev-postgresql-1 -n monad-indexer-dev -- \
+  psql -U postgres -d blockscout < scripts/pg_partman_setup.sql
+
+# 4. Done! Maintenance CronJob is already running
+kubectl get cronjobs -n monad-indexer-dev | grep partman
+```
+
+**That's it!** The script is idempotent - safe to run multiple times.
+
 **Important**: CloudNativePG does NOT support pg_partman background worker (`shared_preload_libraries` is fixed). Maintenance runs via Kubernetes CronJob instead.
 
 ---

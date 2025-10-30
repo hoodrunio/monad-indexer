@@ -577,8 +577,8 @@ postgresql:
 
     # Maintenance CronJob configuration
     # NOTE: Background worker (pg_partman_bgw) not available in CloudNativePG
+    # CronJob is automatically enabled when partman.enabled=true
     maintenance:
-      enabled: false  # Enable after partition setup complete
       schedule: "0 * * * *"  # Hourly (every hour at :00)
       waitBetweenSets: 1  # Seconds to wait between partition sets
       analyze: false  # Run ANALYZE (expensive, set true only if needed)

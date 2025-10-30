@@ -1,4 +1,4 @@
-{{- if and .Values.postgresql.partman.enabled .Values.postgresql.partman.maintenance.enabled }}
+{{- if .Values.postgresql.partman.enabled }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
