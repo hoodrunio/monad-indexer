@@ -30,6 +30,12 @@ microservices:
   smart-contract-verifier:
     enabled: true
     replicaCount: 1
+    config:
+      server:
+        http:
+          cors:
+            enabled: true
+            allowedOrigin: "*"
     autoscaling:
       enabled: false
   sig-provider:

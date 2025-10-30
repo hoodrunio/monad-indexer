@@ -18,7 +18,9 @@ data:
   # CORS CONFIGURATION
   # ============================================
   SIG_PROVIDER__SERVER__HTTP__CORS__ENABLED: {{ $sigProvider.config.server.http.cors.enabled | quote }}
+  {{- if $sigProvider.config.server.http.cors.enabled }}
   SIG_PROVIDER__SERVER__HTTP__CORS__ALLOWED_ORIGIN: {{ $sigProvider.config.server.http.cors.allowedOrigin | quote }}
+  {{- end }}
 
   # ============================================
   # LOGGING

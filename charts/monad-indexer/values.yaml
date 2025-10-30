@@ -320,8 +320,8 @@ microservices:
           enabled: true
           maxBodySize: 2097152
           cors:
-            enabled: true
-            allowedOrigin: "*"
+            enabled: false  # Disabled by default, override per environment
+            allowedOrigin: ""
         grpc:
           enabled: false
       logging:

@@ -31,6 +31,12 @@ microservices:
   smart-contract-verifier:
     enabled: true
     replicaCount: 2
+    config:
+      server:
+        http:
+          cors:
+            enabled: true
+            allowedOrigin: "https://testnet.monad.hoodscan.io,https://monad.hoodscan.io"
     autoscaling:
       enabled: true
       minReplicas: 2
