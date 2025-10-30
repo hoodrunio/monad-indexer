@@ -388,7 +388,7 @@ microservices:
         http:
           enabled: true
           cors:
-            enabled: true
+            enabled: false  # Disabled by default for security
             allowedOrigin: "*"
         grpc:
           enabled: false
