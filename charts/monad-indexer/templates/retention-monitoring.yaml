@@ -303,7 +303,7 @@ data:
 {{- end }}
 
 ---
-{{- if .Values.postgresql.partman.enabled }}
+{{- if and .Values.postgresql.partman.enabled .Values.monitoring.enabled }}
 # PG_PARTMAN ALERTS
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
