@@ -83,6 +83,13 @@ postgresql:
     maintenanceWorkMem: "128MB"
     maxConnections: "100"
 
+  # pg_partman enabled in dev for testing
+  partman:
+    enabled: true  # Enable in dev to test partition-based retention
+    retentionDays: 90  # Conservative for testing
+    premakeDays: 3  # Smaller buffer for dev
+    bgwInterval: 1800  # Run every 30 minutes in dev
+
   primary:
     persistence:
       size: 100Gi
@@ -164,20 +171,7 @@ gateway:
   # retries:  # RequestRetry filter not supported in current Gateway API version
   #   attempts: 3
   #   backoff: 1s
-
-# Data retention - enabled in dev for testing
-retention:
-  enabled: true  # Enable in dev to test
-  schedule: "0 3 * * *"  # 3 AM daily (offset from prod)
-  retentionDays: 90  # Start conservative
-  dryRun: true  # DRY RUN mode for testing - no actual deletion
-  resources:
-    requests:
-      cpu: "100m"
-      memory: "128Mi"
-    limits:
-      memory: "256Mi"
-
+  
 # External Secrets configuration for dev environment
 externalSecrets:
   enabled: true
