@@ -5,19 +5,24 @@
 -- for efficient time-based data retention.
 --
 -- PREREQUISITES:
--- 1. pg_partman extension installed (via Cluster manifest)
--- 2. Background worker running (check pg_stat_activity)
--- 3. Full database backup completed
+-- 1. pg_partman extension installed (via custom PostgreSQL image)
+-- 2. Full database backup completed
+-- 3. Maintenance CronJob configured (background worker not available)
 --
 -- EXECUTION:
--- kubectl exec -it monad-indexer-dev-postgresql-1 -n monad-indexer-dev -- \
---   psql -U postgres -d blockscout -f /tmp/pg_partman_setup.sql
+-- kubectl exec -i monad-indexer-dev-postgresql-1 -n monad-indexer-dev -- \
+--   psql -U postgres -d blockscout < scripts/pg_partman_setup.sql
 --
--- DURATION: 2-4 hours (partition creation + initial setup)
+-- DURATION: 5-10 minutes (partition creation only, no data migration)
 -- ===================================================================
 
 \set ON_ERROR_STOP on
 \timing on
+
+-- Set timezone to UTC for consistency (pg_partman best practice)
+SET timezone = 'UTC';
+
+\echo 'Timezone set to UTC'
 
 -- Verify pg_partman is installed
 DO $$
@@ -264,12 +269,11 @@ SELECT partman.create_parent(
     p_parent_table := 'public.blocks_partitioned',
     p_control := 'inserted_at',
     p_interval := '1 day',
-    p_type := 'range',  -- RANGE partition (default for pg_partman 5.x)
+    p_type := 'range',  -- RANGE partition (pg_partman 5.x)
     p_premake := 7,  -- Create 7 days of partitions ahead
-    p_start_partition := (
-        SELECT COALESCE(MIN(inserted_at), NOW())::text
-        FROM blocks
-    )
+    p_start_partition := date_trunc('day', NOW())::text,  -- Start from today
+    p_default_table := true,  -- Create default partition for out-of-range data
+    p_control_not_null := true  -- Enforce NOT NULL on inserted_at
 );
 
 -- Configure retention (30 days)
@@ -280,6 +284,9 @@ SET retention = '90 days',  -- Conservative start (will reduce to 30 later)
     infinite_time_partitions = true,
     optimize_constraint = 30
 WHERE parent_table = 'public.blocks_partitioned';
+
+-- Run ANALYZE for constraint exclusion optimization
+ANALYZE blocks_partitioned;
 
 -- -------------------------------------------------------------------
 -- 4.2 TRANSACTIONS
@@ -293,10 +300,9 @@ SELECT partman.create_parent(
     p_interval := '1 day',
     p_type := 'range',
     p_premake := 7,
-    p_start_partition := (
-        SELECT COALESCE(MIN(inserted_at), NOW())::text
-        FROM transactions
-    )
+    p_start_partition := date_trunc('day', NOW())::text,
+    p_default_table := true,
+    p_control_not_null := true
 );
 
 UPDATE partman.part_config
@@ -306,6 +312,8 @@ SET retention = '90 days',
     infinite_time_partitions = true,
     optimize_constraint = 30
 WHERE parent_table = 'public.transactions_partitioned';
+
+ANALYZE transactions_partitioned;
 
 -- -------------------------------------------------------------------
 -- 4.3 LOGS
@@ -333,6 +341,8 @@ SET retention = '90 days',
     optimize_constraint = 30
 WHERE parent_table = 'public.logs_partitioned';
 
+ANALYZE logs_partitioned;
+
 -- -------------------------------------------------------------------
 -- 4.4 TOKEN_TRANSFERS
 -- -------------------------------------------------------------------
@@ -359,6 +369,8 @@ SET retention = '90 days',
     optimize_constraint = 30
 WHERE parent_table = 'public.token_transfers_partitioned';
 
+ANALYZE token_transfers_partitioned;
+
 -- -------------------------------------------------------------------
 -- 4.5 INTERNAL_TRANSACTIONS
 -- -------------------------------------------------------------------
@@ -384,6 +396,8 @@ SET retention = '90 days',
     infinite_time_partitions = true,
     optimize_constraint = 30
 WHERE parent_table = 'public.internal_transactions_partitioned';
+
+ANALYZE internal_transactions_partitioned;
 
 -- ===================================================================
 -- STEP 5: VERIFY SETUP
