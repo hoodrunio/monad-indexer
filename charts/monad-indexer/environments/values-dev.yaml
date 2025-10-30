@@ -35,6 +35,8 @@ microservices:
   sig-provider:
     enabled: true
     replicaCount: 1
+    image:
+      tag: "v1.1.1"  # Use stable release instead of latest
   visualizer:
     enabled: false
   stats:
