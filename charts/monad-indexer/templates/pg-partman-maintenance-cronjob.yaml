@@ -80,14 +80,8 @@ spec:
               # Run maintenance with commits between partition sets
               echo "Running pg_partman maintenance..."
               # pg_partman uses PROCEDURE (not function), requires CALL
-              # Enable autocommit to allow procedure's internal commits
-              psql <<SQL
-              \set AUTOCOMMIT on
-              CALL partman.run_maintenance_proc(
-                p_wait := {{ .Values.postgresql.partman.maintenance.waitBetweenSets | default 1 }},
-                p_analyze := {{ ternary "true" "false" .Values.postgresql.partman.maintenance.analyze }}
-              );
-SQL
+              # Note: Using positional parameters (not named) as pg_partman 5.x supports both
+              PGOPT="-c session_characteristics='autocommit = on'" psql -c "CALL partman.run_maintenance_proc({{ .Values.postgresql.partman.maintenance.waitBetweenSets | default 1 }}, {{ ternary "true" "false" .Values.postgresql.partman.maintenance.analyze }});"
 
               echo ""
               echo "✓ Maintenance completed successfully"
@@ -97,30 +91,14 @@ SQL
               echo "================================================================"
               echo "PARTITION STATISTICS"
               echo "================================================================"
-              psql <<STATS
-                SELECT
-                  parent_table,
-                  partition_interval,
-                  premake,
-                  retention,
-                  (SELECT COUNT(*) FROM pg_inherits WHERE inhparent = pc.parent_table::regclass) as partition_count,
-                  maintenance_last_run
-                FROM partman.part_config pc
-                ORDER BY parent_table;
-STATS
+              psql -c 'SELECT parent_table, partition_interval, premake, retention, (SELECT COUNT(*) FROM pg_inherits WHERE inhparent = pc.parent_table::regclass) as partition_count, maintenance_last_run FROM partman.part_config pc ORDER BY parent_table;'
 
               # Check default partitions for unexpected data
               echo ""
               echo "================================================================"
               echo "DEFAULT PARTITION CHECK"
               echo "================================================================"
-              psql <<DEFCHECK
-                SELECT
-                  parent_table,
-                  partman.check_default(parent_table) as default_partition_rows
-                FROM partman.part_config
-                ORDER BY parent_table;
-DEFCHECK
+              psql -c 'SELECT parent_table, partman.check_default(parent_table) as default_partition_rows FROM partman.part_config ORDER BY parent_table;'
 
               echo ""
               echo "================================================================"
