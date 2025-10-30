@@ -263,8 +263,8 @@ CREATE INDEX IF NOT EXISTS internal_transactions_partitioned_inserted_at_idx ON 
 SELECT partman.create_parent(
     p_parent_table := 'public.blocks_partitioned',
     p_control := 'inserted_at',
-    p_type := 'native',
     p_interval := '1 day',
+    p_type := 'range',  -- RANGE partition (default for pg_partman 5.x)
     p_premake := 7,  -- Create 7 days of partitions ahead
     p_start_partition := (
         SELECT COALESCE(MIN(inserted_at), NOW())::text
@@ -278,7 +278,6 @@ SET retention = '90 days',  -- Conservative start (will reduce to 30 later)
     retention_keep_table = false,  -- Drop partitions completely
     retention_keep_index = false,
     infinite_time_partitions = true,
-    optimize_trigger = 4,
     optimize_constraint = 30
 WHERE parent_table = 'public.blocks_partitioned';
 
@@ -291,8 +290,8 @@ WHERE parent_table = 'public.blocks_partitioned';
 SELECT partman.create_parent(
     p_parent_table := 'public.transactions_partitioned',
     p_control := 'inserted_at',
-    p_type := 'native',
     p_interval := '1 day',
+    p_type := 'range',
     p_premake := 7,
     p_start_partition := (
         SELECT COALESCE(MIN(inserted_at), NOW())::text
@@ -305,7 +304,6 @@ SET retention = '90 days',
     retention_keep_table = false,
     retention_keep_index = false,
     infinite_time_partitions = true,
-    optimize_trigger = 4,
     optimize_constraint = 30
 WHERE parent_table = 'public.transactions_partitioned';
 
@@ -318,8 +316,8 @@ WHERE parent_table = 'public.transactions_partitioned';
 SELECT partman.create_parent(
     p_parent_table := 'public.logs_partitioned',
     p_control := 'inserted_at',
-    p_type := 'native',
     p_interval := '1 day',
+    p_type := 'range',
     p_premake := 7,
     p_start_partition := (
         SELECT COALESCE(MIN(inserted_at), NOW())::text
@@ -332,7 +330,6 @@ SET retention = '90 days',
     retention_keep_table = false,
     retention_keep_index = false,
     infinite_time_partitions = true,
-    optimize_trigger = 4,
     optimize_constraint = 30
 WHERE parent_table = 'public.logs_partitioned';
 
@@ -345,8 +342,8 @@ WHERE parent_table = 'public.logs_partitioned';
 SELECT partman.create_parent(
     p_parent_table := 'public.token_transfers_partitioned',
     p_control := 'inserted_at',
-    p_type := 'native',
     p_interval := '1 day',
+    p_type := 'range',
     p_premake := 7,
     p_start_partition := (
         SELECT COALESCE(MIN(inserted_at), NOW())::text
@@ -359,7 +356,6 @@ SET retention = '90 days',
     retention_keep_table = false,
     retention_keep_index = false,
     infinite_time_partitions = true,
-    optimize_trigger = 4,
     optimize_constraint = 30
 WHERE parent_table = 'public.token_transfers_partitioned';
 
@@ -372,8 +368,8 @@ WHERE parent_table = 'public.token_transfers_partitioned';
 SELECT partman.create_parent(
     p_parent_table := 'public.internal_transactions_partitioned',
     p_control := 'inserted_at',
-    p_type := 'native',
     p_interval := '1 day',
+    p_type := 'range',
     p_premake := 7,
     p_start_partition := (
         SELECT COALESCE(MIN(inserted_at), NOW())::text
@@ -386,7 +382,6 @@ SET retention = '90 days',
     retention_keep_table = false,
     retention_keep_index = false,
     infinite_time_partitions = true,
-    optimize_trigger = 4,
     optimize_constraint = 30
 WHERE parent_table = 'public.internal_transactions_partitioned';
 
