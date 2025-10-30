@@ -97,7 +97,7 @@ SQL
               echo "================================================================"
               echo "PARTITION STATISTICS"
               echo "================================================================"
-              psql -c "
+              psql <<STATS
                 SELECT
                   parent_table,
                   partition_interval,
@@ -107,20 +107,20 @@ SQL
                   maintenance_last_run
                 FROM partman.part_config pc
                 ORDER BY parent_table;
-              "
+STATS
 
               # Check default partitions for unexpected data
               echo ""
               echo "================================================================"
               echo "DEFAULT PARTITION CHECK"
               echo "================================================================"
-              psql -c "
+              psql <<DEFCHECK
                 SELECT
                   parent_table,
                   partman.check_default(parent_table) as default_partition_rows
                 FROM partman.part_config
                 ORDER BY parent_table;
-              "
+DEFCHECK
 
               echo ""
               echo "================================================================"
