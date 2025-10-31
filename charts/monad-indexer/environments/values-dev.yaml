@@ -28,13 +28,13 @@ backend:
   config:
     # RPC endpoints with fallback
     rpc:
-      httpUrl: "https://testnet-rpc.monad.xyz"
-      fallbackHttpUrl: "https://lb.drpc.live/monad-testnet/Ag9VzqLbl0KSsk-eqggyUSEMjYZNtZoR8L4M_hXb38UN"
-      traceUrl: "https://testnet-rpc.monad.xyz"
-      fallbackTraceUrl: "https://lb.drpc.live/monad-testnet/Ag9VzqLbl0KSsk-eqggyUSEMjYZNtZoR8L4M_hXb38UN"
+      httpUrl: "https://lb.drpc.live/monad-testnet/Ag9VzqLbl0KSsk-eqggyUSEMjYZNtZoR8L4M_hXb38UN"
+      fallbackHttpUrl: "https://testnet-rpc.monad.xyz"
+      traceUrl: "https://lb.drpc.live/monad-testnet/Ag9VzqLbl0KSsk-eqggyUSEMjYZNtZoR8L4M_hXb38UN"
+      fallbackTraceUrl: "https://testnet-rpc.monad.xyz"
       wsUrl: "wss://testnet-rpc.monad.xyz"
-      ethCallUrl: "https://testnet-rpc.monad.xyz"
-      fallbackEthCallUrl: "https://lb.drpc.live/monad-testnet/Ag9VzqLbl0KSsk-eqggyUSEMjYZNtZoR8L4M_hXb38UN"
+      ethCallUrl: "https://lb.drpc.live/monad-testnet/Ag9VzqLbl0KSsk-eqggyUSEMjYZNtZoR8L4M_hXb38UN"
+      fallbackEthCallUrl: "https://testnet-rpc.monad.xyz"
 
     api:
       corsAllowedOrigin: "*"
