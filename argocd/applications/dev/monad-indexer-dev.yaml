@@ -37,7 +37,7 @@ spec:
 
   source:
     repoURL: https://github.com/hoodrunio/monad-indexer
-    targetRevision: main  # Always latest
+    targetRevision: dev  # Dev branch for development environment
     path: charts/monad-indexer
     helm:
       valueFiles:
