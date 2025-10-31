@@ -12,8 +12,11 @@ logs/
 services/logs/
 services/dets/
 blockscout
-
-
+node_modules/
+test-contracts/package-lock.json
+.gitignore
+cache
+artifacts
 # Helm
 Chart.lock
 *.tgz
