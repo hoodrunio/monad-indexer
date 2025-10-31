@@ -68,8 +68,6 @@ helm upgrade monad-indexer-dev charts/monad-indexer \
   -f charts/monad-indexer/environments/values-dev.yaml
 ```
 
-CloudNativePG automatically performs zero-downtime rolling restart to load `pg_partman_bgw`.
-
 ### 3. Verify extension
 
 ```bash
