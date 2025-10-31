@@ -143,6 +143,10 @@ backend:
     advanced:
       cacheAddressWithBalancesUpdateInterval: "30"
       cacheBlockCountPeriod: "7200"
+      # Sourcify integration
+      sourcifyIntegrationEnabled: true
+      sourcifyServerUrl: "https://sourcify.dev/server"
+      sourcifyRepoUrl: "https://repo.sourcify.dev/contracts/"
 
   # Secret configuration
   secret:
