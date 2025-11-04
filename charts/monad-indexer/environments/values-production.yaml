@@ -36,7 +36,7 @@ backend:
 
   podDisruptionBudget:
     enabled: true
-    minAvailable: 3
+    minAvailable: 1  # Adjusted for single-node cluster
 
   env:
     INDEXER_MEMORY_LIMIT: "5"
@@ -56,11 +56,11 @@ backend:
     api:
       corsAllowedOrigin: "https://monad.hoodscan.io"
 
-  # Topology spread for multi-zone
+  # Topology spread for multi-zone (adjusted for single-node)
   topologySpreadConstraints:
     - maxSkew: 1
       topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: DoNotSchedule
+      whenUnsatisfiable: ScheduleAnyway  # Changed from DoNotSchedule for single-node
       labelSelector:
         matchLabels:
           app.kubernetes.io/component: backend
@@ -172,24 +172,33 @@ postgresql:
     maxClientConn: 5000
     defaultPoolSize: 100
 
-  # Multi-zone distribution
+  # Multi-zone distribution (adjusted for single-node)
   affinity:
     podAntiAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        - labelSelector:
-            matchLabels:
-              cnpg.io/cluster: monad-indexer-postgresql
-          topologyKey: topology.kubernetes.io/zone
+      preferredDuringSchedulingIgnoredDuringExecution:  # Changed from required for single-node
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                cnpg.io/cluster: monad-indexer-postgresql
+            topologyKey: topology.kubernetes.io/zone
 
 # Redis - production HA
 redis:
   image:
     tag: "latest"  # Bitnami only supports latest tag now
-  replica:
-    replicaCount: 2
+  # Override sentinel and metrics images to use latest tags
   sentinel:
     enabled: true
     quorum: 2
+    image:
+      tag: "latest"
+  metrics:
+    enabled: true
+    image:
+      tag: "latest"
+  replica:
+    replicaCount: 2
   master:
     persistence:
       size: 100Gi
