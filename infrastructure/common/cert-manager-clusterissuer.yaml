@@ -33,9 +33,9 @@ spec:
             sectionName: http
             port: 80
             group: gateway.networking.k8s.io
-          # Production environment (future)
+          # Production environment
           - name: monad-indexer-http-gateway
-            namespace: monad-indexer-prod
+            namespace: monad-indexer-production
             kind: Gateway
             sectionName: http
             port: 80
@@ -75,9 +75,9 @@ spec:
             sectionName: http
             port: 80
             group: gateway.networking.k8s.io
-          # Production environment (future)
+          # Production environment
           - name: monad-indexer-http-gateway
-            namespace: monad-indexer-prod
+            namespace: monad-indexer-production
             kind: Gateway
             sectionName: http
             port: 80

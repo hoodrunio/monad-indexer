@@ -56,6 +56,13 @@ echo ""
 echo "📦 Creating namespace: ${NAMESPACE}"
 kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
 
+# 1.5. Apply storage class for production
+if [ "${ENVIRONMENT}" = "production" ]; then
+  echo ""
+  echo "📦 Applying fast-ssd StorageClass for production..."
+  kubectl apply -f "${SCRIPT_DIR}/common/fast-ssd-storageclass.yaml"
+fi
+
 # 2. Apply LoadBalancer IP Pool
 echo ""
 echo "📦 Creating LoadBalancer IP Pool..."

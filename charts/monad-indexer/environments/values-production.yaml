@@ -150,6 +150,15 @@ postgresql:
     barmanObjectStore:
       destinationPath: "s3://monad-indexer-backups/postgresql"
 
+  # Partition management with pg_partman
+  partman:
+    enabled: true
+    retentionDays: 30  # Keep 1 month of data
+    premakeDays: 7  # Pre-create partitions for next 7 days
+    maintenance:
+      enabled: true
+      schedule: "0 2 * * *"  # Daily at 2 AM UTC
+
   pooler:
     enabled: true
     replicaCount: 3
@@ -221,13 +230,13 @@ gateway:
   annotations:
     prometheus.io/scrape: "true"
   hosts:
-    - host: indexer.monad.example.com  # Update with your production domain
+    - host: monad-tn1-indexer.hoodscan.io
       paths:
         - path: /
           pathType: PathPrefix
   tls:
     enabled: true
-    secretName: indexer-prod-tls
+    secretName: monad-indexer-tls
     clusterIssuer: letsencrypt-prod
   timeout: 300s
   # retries:  # RequestRetry filter not supported in current Gateway API version
@@ -249,4 +258,4 @@ statsPostgresql:
 externalSecrets:
   enabled: true
   aws:
-    secretName: "blockscout-production"  # Separate secret for production
+    secretName: "blockscout"  # Shared secret for all environments
