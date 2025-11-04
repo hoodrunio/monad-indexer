@@ -208,7 +208,7 @@ redis:
 
 # Monitoring - full stack
 monitoring:
-  enabled: true
+  enabled: false
   prometheus:
     enabled: true
     servicemonitor:
