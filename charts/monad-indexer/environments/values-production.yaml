@@ -111,6 +111,9 @@ microservices:
   stats:
     enabled: true
     replicaCount: 1
+    config:
+      database:
+        runMigrations: true  # Enable migrations on startup
     resources:
       requests:
         cpu: "100m"  # Reduced for single-node cluster
