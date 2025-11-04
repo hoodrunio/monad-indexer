@@ -99,6 +99,8 @@ postgresql:
 
 # Redis - HA setup
 redis:
+  image:
+    tag: "latest"  # Bitnami only supports latest tag now
   replica:
     replicaCount: 2
   sentinel:
