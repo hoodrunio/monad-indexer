@@ -1,0 +1,46 @@
+# TLS Certificates for Production Environment
+# Cert-manager will use HTTP-01 challenges via Gateway HTTP listener
+
+---
+# Certificate for ArgoCD (cd.hoodscan.io)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: argocd-tls
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+    cert-manager.io/issue-temporary-certificate: "true"
+    acme.cert-manager.io/http01-edit-in-place: "true"
+spec:
+  secretName: argocd-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - cd.hoodscan.io
+  usages:
+    - digital signature
+    - key encipherment
+
+---
+# Certificate for Monad Indexer Backend (monad-tn1-indexer.hoodscan.io)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: monad-indexer-tls
+  namespace: monad-indexer-production
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+    cert-manager.io/issue-temporary-certificate: "true"
+    acme.cert-manager.io/http01-edit-in-place: "true"
+spec:
+  secretName: monad-indexer-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - monad-tn1-indexer.hoodscan.io
+  usages:
+    - digital signature
+    - key encipherment

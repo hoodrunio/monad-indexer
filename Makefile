@@ -222,7 +222,7 @@ deploy-staging: ## Deploy to staging environment via ArgoCD
 	@$(MAKE) argocd-sync ENV=staging NAMESPACE=monad-indexer-staging
 
 deploy-prod: ## Deploy to production environment via ArgoCD
-	@$(MAKE) argocd-sync ENV=production NAMESPACE=monad-indexer-prod
+	@$(MAKE) argocd-sync ENV=production NAMESPACE=monad-indexer-production
 
 # Status and logs
 status: ## Check deployment status

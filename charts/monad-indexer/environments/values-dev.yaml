@@ -120,8 +120,8 @@ postgresql:
     # Works in production multi-node clusters (tested and verified)
 
   monitoring:
-    enabled: false
-    enablePodMonitor: false
+    enabled: true
+    enablePodMonitor: true
 
   # Disable pod anti-affinity for single-node dev cluster
   affinity:
@@ -145,13 +145,18 @@ redis:
       limits:
         memory: "1Gi"
   metrics:
-    enabled: false
+    enabled: true
     serviceMonitor:
-      enabled: false
+      enabled: true
 
-# Monitoring - disabled in dev
+# Monitoring - enabled for dev
 monitoring:
-  enabled: false
+  enabled: true
+  prometheus:
+    enabled: true
+    servicemonitor:
+      enabled: true
+      interval: 30s
 
 # Network policies - disabled for easier debugging
 networkPolicies:
