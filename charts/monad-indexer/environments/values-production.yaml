@@ -178,16 +178,9 @@ postgresql:
     affinity:
       podAntiAffinity: {}
 
-  # Multi-zone distribution (adjusted for single-node)
+  # Disable pod anti-affinity for single-node cluster
   affinity:
-    podAntiAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:  # Changed from required for single-node
-        - weight: 100
-          podAffinityTerm:
-            labelSelector:
-              matchLabels:
-                cnpg.io/cluster: monad-indexer-postgresql
-            topologyKey: topology.kubernetes.io/zone
+    enablePodAntiAffinity: false  # Must be false for single-node clusters
 
 # Redis - production HA
 redis:
@@ -203,8 +196,6 @@ redis:
     enabled: true
     image:
       tag: "latest"
-  replica:
-    replicaCount: 2
   master:
     persistence:
       size: 100Gi
@@ -215,13 +206,18 @@ redis:
         memory: "1Gi"  # Reduced for single-node cluster
       limits:
         memory: "4Gi"
+    # Disable anti-affinity for single-node cluster
+    affinity: {}
   replica:
+    replicaCount: 1
     resources:
       requests:
         cpu: "100m"  # Reduced for single-node cluster
         memory: "512Mi"  # Reduced for single-node cluster
       limits:
         memory: "2Gi"
+    # Disable anti-affinity for single-node cluster
+    affinity: {}
 
 # Monitoring - full stack
 monitoring:
