@@ -45,12 +45,12 @@ backend:
   config:
     # RPC endpoints with fallback
     rpc:
-      httpUrl: "https://testnet-rpc.monad.xyz"
+      httpUrl: "https://monad-rpc.hoodscan.io"
       fallbackHttpUrl: "https://lb.drpc.live/monad-testnet/Ag9VzqLbl0KSsk-eqggyUSEMjYZNtZoR8L4M_hXb38UN"
-      traceUrl: "https://testnet-rpc.monad.xyz"
+      traceUrl: "https://monad-rpc.hoodscan.io"
       fallbackTraceUrl: "https://lb.drpc.live/monad-testnet/Ag9VzqLbl0KSsk-eqggyUSEMjYZNtZoR8L4M_hXb38UN"
-      wsUrl: "wss://testnet-rpc.monad.xyz"
-      ethCallUrl: "https://testnet-rpc.monad.xyz"
+      wsUrl: "wss://monad-rpc.hoodscan.io"
+      ethCallUrl: "https://monad-rpc.hoodscan.io"
       fallbackEthCallUrl: "https://lb.drpc.live/monad-testnet/Ag9VzqLbl0KSsk-eqggyUSEMjYZNtZoR8L4M_hXb38UN"
 
     api:
@@ -122,6 +122,13 @@ microservices:
 postgresql:
   replicaCount: 1
 
+  # Custom image with pg_partman extension
+  image:
+    registry: ghcr.io
+    repository: hoodrunio/postgresql-partman
+    tag: "17"
+
+
   auth:
     # ExternalSecret will create this secret from AWS Secrets Manager
     existingSecret: "monad-indexer-production-postgresql-app"
@@ -135,14 +142,14 @@ postgresql:
 
   primary:
     persistence:
-      size: 1Ti
+      size: 100Gi
       storageClass: "fast-ssd"  # Use high-performance storage
     resources:
       requests:
         cpu: "4000m"
-        memory: "16Gi"
+        memory: "8Gi"
       limits:
-        memory: "32Gi"
+        memory: "16Gi"
 
   backup:
     enabled: true
@@ -188,16 +195,16 @@ redis:
     resources:
       requests:
         cpu: "1000m"
-        memory: "4Gi"
+        memory: "2Gi"
       limits:
-        memory: "8Gi"
+        memory: "4Gi"
   replica:
     resources:
       requests:
         cpu: "500m"
         memory: "2Gi"
       limits:
-        memory: "4Gi"
+        memory: "2Gi"
 
 # Monitoring - full stack
 monitoring:
