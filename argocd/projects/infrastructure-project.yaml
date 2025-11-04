@@ -21,6 +21,8 @@ spec:
   destinations:
     - namespace: 'kube-system'
       server: https://kubernetes.default.svc
+    - namespace: 'cilium-secrets'
+      server: https://kubernetes.default.svc
     - namespace: 'monitoring'
       server: https://kubernetes.default.svc
     - namespace: 'cnpg-system'

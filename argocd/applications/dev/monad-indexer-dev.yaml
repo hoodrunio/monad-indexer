@@ -1,0 +1,49 @@
+# Development Environment Application
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monad-indexer-dev
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-deployed.slack: dev-deployments
+    notifications.argoproj.io/subscribe.on-sync-failed.slack: dev-deployments
+    notifications.argoproj.io/subscribe.on-health-degraded.slack: dev-deployments
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: monad-indexer
+
+  # External Secrets Operator creates Kubernetes Secrets from AWS Secrets Manager
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true  # Auto-heal in dev
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  # Ignore Secret data changes (managed by External Secrets Operator)
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      jsonPointers:
+        - /data
+
+  source:
+    repoURL: https://github.com/hoodrunio/monad-indexer
+    targetRevision: dev  # Dev branch for development environment
+    path: charts/monad-indexer
+    helm:
+      valueFiles:
+        - values.yaml
+        - environments/values-dev.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monad-indexer-dev

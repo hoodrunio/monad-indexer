@@ -11,6 +11,10 @@ spec:
 
   imageName: {{ .Values.postgresql.image.registry }}/{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}
 
+  # Enable superuser access for maintenance tasks (pg_partman CronJob)
+  # Creates <cluster-name>-superuser secret automatically
+  enableSuperuserAccess: true
+
   # Bootstrap configuration
   bootstrap:
     initdb:
@@ -116,6 +120,14 @@ spec:
       # ============================================================
       max_locks_per_transaction: "256"
       temp_buffers: "128MB"
+
+      # ============================================================
+      # PG_PARTMAN EXTENSION (for partition-based retention)
+      # ============================================================
+      # NOTE: CloudNativePG doesn't allow shared_preload_libraries customization.
+      # Background worker (pg_partman_bgw) is NOT available.
+      # Use manual maintenance instead: SELECT partman.run_maintenance();
+      # Schedule via Kubernetes CronJob if needed.
 
     {{- if .Values.postgresql.config.additionalParameters }}
     {{- range $key, $value := .Values.postgresql.config.additionalParameters }}

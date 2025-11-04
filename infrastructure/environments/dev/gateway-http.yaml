@@ -1,0 +1,29 @@
+# HTTP-only Gateway dedicated to ACME HTTP-01 challenges
+# Shares the same public IP as the main Gateway (95.216.177.23)
+
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: monad-indexer-http-gateway
+  namespace: monad-indexer-dev
+  annotations:
+    argocd.argoproj.io/sync-wave: "-0.5"
+    io.cilium.lb/ipam-sharing-key: monad-indexer-public
+    lbipam.cilium.io/sharing-key: monad-indexer-public
+  labels:
+    gateway: monad-indexer
+    environment: dev
+spec:
+  gatewayClassName: cilium
+
+  addresses:
+    - type: IPAddress
+      value: "95.216.177.23"
+
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: All  # Required for cert-manager HTTPRoutes

@@ -1,4 +1,4 @@
-.PHONY: help setup-sealed-secrets seal-secrets deploy install-kubeseal check-kubeseal verify-secrets clean
+.PHONY: help setup-external-secrets verify-secrets deploy clean
 
 # Configuration
 NAMESPACE ?= monad-indexer-dev
@@ -7,197 +7,283 @@ CHART_PATH ?= charts/monad-indexer
 VALUES_FILE ?= values.yaml
 ENV ?= dev
 ENV_VALUES_FILE ?= $(CHART_PATH)/environments/values-$(ENV).yaml
+AWS_REGION ?= eu-north-1
+AWS_SECRET_NAME ?= blockscout
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
 	@echo ''
 	@echo 'Available targets:'
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-check-kubeseal: ## Check if kubeseal is installed
-	@command -v kubeseal >/dev/null 2>&1 || { echo "Error: kubeseal is not installed. Run 'make install-kubeseal' first."; exit 1; }
-	@command -v kubectl >/dev/null 2>&1 || { echo "Error: kubectl is not installed."; exit 1; }
-	@echo "✓ Prerequisites OK"
+# Operators setup
+setup-cert-manager: ## Install cert-manager for automatic TLS certificate management
+	@echo "Installing cert-manager..."
+	@./infrastructure/cert-manager-install.sh
+	@echo "✓ cert-manager installed"
 
-install-kubeseal: ## Install kubeseal CLI tool (macOS only)
-	@echo "Installing kubeseal..."
-	@if [[ "$$(uname)" == "Darwin" ]]; then \
-		brew install kubeseal; \
+verify-cert-manager: ## Verify cert-manager is running
+	@echo "Checking cert-manager status..."
+	@kubectl get pods -n cert-manager
+	@echo ""
+	@echo "Checking ClusterIssuers..."
+	@kubectl get clusterissuer 2>/dev/null || echo "No ClusterIssuers found"
+
+setup-external-secrets: ## Install External Secrets Operator in the cluster
+	@echo "Installing External Secrets Operator..."
+	@./infrastructure/external-secrets-operator-install.sh
+	@echo "✓ External Secrets Operator installed"
+
+verify-external-secrets: ## Verify External Secrets Operator is running
+	@echo "Checking External Secrets Operator status..."
+	@kubectl get pods -n external-secrets-system
+	@echo ""
+	@echo "Checking SecretStore in namespace: $(NAMESPACE)"
+	@kubectl get secretstore -n $(NAMESPACE) 2>/dev/null || echo "No SecretStore found in $(NAMESPACE)"
+	@echo ""
+	@echo "Checking ExternalSecrets in namespace: $(NAMESPACE)"
+	@kubectl get externalsecret -n $(NAMESPACE) 2>/dev/null || echo "No ExternalSecrets found in $(NAMESPACE)"
+
+# AWS Secrets Management
+create-aws-secret: ## Create AWS Secrets Manager secret (interactive)
+	@echo "Creating AWS Secrets Manager secret: $(AWS_SECRET_NAME)"
+	@echo "Generating random credentials..."
+	@SECRET_KEY_BASE=$$(openssl rand -base64 64 | tr -d '\n'); \
+	POSTGRES_PASSWORD=$$(openssl rand -base64 32 | tr -d '+/=\n'); \
+	STATS_PASSWORD=$$(openssl rand -base64 32 | tr -d '+/=\n'); \
+	echo ""; \
+	echo "Generated credentials:"; \
+	echo "  SECRET_KEY_BASE: $$SECRET_KEY_BASE"; \
+	echo "  POSTGRES_PASSWORD: $$POSTGRES_PASSWORD"; \
+	echo "  STATS_PASSWORD: $$STATS_PASSWORD"; \
+	echo ""; \
+	read -p "Create secret in AWS Secrets Manager? (y/N) " -n 1 -r; \
+	echo ""; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		aws secretsmanager create-secret \
+			--name "$(AWS_SECRET_NAME)" \
+			--description "Credentials for Blockscout/Monad Indexer ($(ENV) environment)" \
+			--secret-string "{\"SECRET_KEY_BASE\":\"$$SECRET_KEY_BASE\",\"POSTGRES_PASSWORD\":\"$$POSTGRES_PASSWORD\",\"STATS_PASSWORD\":\"$$STATS_PASSWORD\"}" \
+			--region $(AWS_REGION); \
+		echo "✓ AWS secret created: $(AWS_SECRET_NAME)"; \
 	else \
-		echo "Please install kubeseal manually: https://github.com/bitnami-labs/sealed-secrets#installation"; \
+		echo "Aborted"; \
+	fi
+
+update-aws-secret: ## Update existing AWS Secrets Manager secret (interactive)
+	@echo "Updating AWS Secrets Manager secret: $(AWS_SECRET_NAME)"
+	@echo "Current secret contents:"
+	@aws secretsmanager get-secret-value --secret-id "$(AWS_SECRET_NAME)" --region $(AWS_REGION) --query SecretString --output text | jq .
+	@echo ""
+	@read -p "Rotate POSTGRES_PASSWORD? (y/N) " -n 1 -r; \
+	echo ""; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		CURRENT=$$(aws secretsmanager get-secret-value --secret-id $(AWS_SECRET_NAME) --region $(AWS_REGION) --query SecretString --output text); \
+		NEW_PASSWORD=$$(openssl rand -base64 32 | tr -d '+/=\n'); \
+		aws secretsmanager update-secret \
+			--secret-id "$(AWS_SECRET_NAME)" \
+			--secret-string "$$(echo $$CURRENT | jq --arg pwd "$$NEW_PASSWORD" '.POSTGRES_PASSWORD = $$pwd')" \
+			--region $(AWS_REGION); \
+		echo "✓ POSTGRES_PASSWORD rotated"; \
+	fi
+
+view-aws-secret: ## View AWS Secrets Manager secret contents
+	@echo "Secret: $(AWS_SECRET_NAME) (region: $(AWS_REGION))"
+	@aws secretsmanager get-secret-value --secret-id "$(AWS_SECRET_NAME)" --region $(AWS_REGION) --query SecretString --output text | jq .
+
+# Kubernetes AWS credentials
+create-k8s-aws-credentials: ## Create Kubernetes secret with AWS credentials
+	@echo "Creating AWS credentials secret in namespace: $(NAMESPACE)"
+	@if [ -z "$$AWS_ACCESS_KEY_ID" ] || [ -z "$$AWS_SECRET_ACCESS_KEY" ]; then \
+		echo "Error: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set"; \
+		echo "Usage: AWS_ACCESS_KEY_ID=xxx AWS_SECRET_ACCESS_KEY=yyy make create-k8s-aws-credentials"; \
 		exit 1; \
 	fi
+	@kubectl create namespace $(NAMESPACE) --dry-run=client -o yaml | kubectl apply -f -
+	@kubectl create secret generic aws-credentials \
+		--from-literal=access-key-id=$$AWS_ACCESS_KEY_ID \
+		--from-literal=secret-access-key=$$AWS_SECRET_ACCESS_KEY \
+		-n $(NAMESPACE) \
+		--dry-run=client -o yaml | kubectl apply -f -
+	@echo "✓ AWS credentials secret created"
 
-setup-sealed-secrets: ## Install Sealed Secrets controller in Kubernetes cluster
-	@echo "Setting up Sealed Secrets controller..."
-	@helm repo add sealed-secrets https://bitnami-labs.github.io/sealed-secrets 2>/dev/null || true
-	@helm repo update
-	@if helm status sealed-secrets-controller -n kube-system >/dev/null 2>&1; then \
-		echo "✓ Sealed Secrets controller already installed"; \
-	else \
-		echo "Installing Sealed Secrets controller..."; \
-		helm install sealed-secrets-controller sealed-secrets/sealed-secrets \
-			--namespace kube-system \
-			--create-namespace; \
-	fi
-	@echo "Waiting for controller to be ready..."
-	@kubectl wait --for=condition=ready pod \
-		-l app.kubernetes.io/name=sealed-secrets \
-		-n kube-system \
-		--timeout=300s
-	@echo "✓ Sealed Secrets controller ready"
+verify-k8s-aws-credentials: ## Verify Kubernetes AWS credentials secret
+	@echo "Checking aws-credentials secret in namespace: $(NAMESPACE)"
+	@kubectl get secret aws-credentials -n $(NAMESPACE) -o jsonpath='{.data.access-key-id}' | base64 -d | head -c 20 && echo "..."
+	@echo "Secret exists and contains access-key-id"
 
-seal-secrets: check-kubeseal ## Generate and seal all secrets for the application
-	@echo "Generating and sealing secrets..."
-	@NAMESPACE=$(NAMESPACE) ./scripts/seal-secrets.sh
-	@echo "✓ Secrets sealed successfully"
-
-verify-secrets: ## Verify sealed secrets in the cluster
-	@echo "Checking sealed secrets in namespace: $(NAMESPACE)"
-	@kubectl get sealedsecrets -n $(NAMESPACE)
+# Secrets verification
+verify-secrets: ## Verify all secrets (ExternalSecrets and generated K8s secrets)
+	@echo "=== SecretStore Status ==="
+	@kubectl get secretstore -n $(NAMESPACE)
 	@echo ""
-	@echo "Checking decrypted secrets:"
+	@echo "=== ExternalSecrets Status ==="
+	@kubectl get externalsecret -n $(NAMESPACE)
+	@echo ""
+	@echo "=== Generated Kubernetes Secrets ==="
 	@kubectl get secrets -n $(NAMESPACE) | grep monad-indexer || echo "No secrets found"
-
-apply-sealed-secrets: ## Apply existing sealed secrets to cluster (use existing files)
-	@echo "Applying sealed secrets from templates..."
-	@if [ -f "$(CHART_PATH)/templates/backend/sealed-secret.yaml" ]; then \
-		echo "Applying backend sealed secret..."; \
-		kubectl apply -f $(CHART_PATH)/templates/backend/sealed-secret.yaml; \
-	else \
-		echo "⚠️  Backend sealed secret not found. Run 'make seal-secrets' first."; \
-	fi
-	@if [ -f "$(CHART_PATH)/templates/postgresql/sealed-secret.yaml" ]; then \
-		echo "Applying PostgreSQL sealed secret..."; \
-		kubectl apply -f $(CHART_PATH)/templates/postgresql/sealed-secret.yaml; \
-	else \
-		echo "⚠️  PostgreSQL sealed secret not found. Run 'make seal-secrets' first."; \
-	fi
-	@if [ -f "$(CHART_PATH)/templates/stats-postgresql/sealed-secret.yaml" ]; then \
-		echo "Applying Stats PostgreSQL sealed secret..."; \
-		kubectl apply -f $(CHART_PATH)/templates/stats-postgresql/sealed-secret.yaml; \
-	else \
-		echo "⚠️  Stats PostgreSQL sealed secret not found. Run 'make seal-secrets' first."; \
-	fi
-	@echo "✓ Sealed secrets applied"
 	@echo ""
-	@echo "Waiting for secrets to be decrypted..."
-	@sleep 3
-	@kubectl get secrets -n $(NAMESPACE) | grep monad-indexer || echo "Secrets not yet available"
+	@echo "=== Backend Secret Content (first 50 chars) ==="
+	@kubectl get secret monad-indexer-$(ENV)-backend-secret -n $(NAMESPACE) -o jsonpath='{.data.secret-key-base}' 2>/dev/null | base64 -d | head -c 50 && echo "..." || echo "Secret not found"
+	@echo ""
+	@echo "=== PostgreSQL URI ==="
+	@kubectl get secret monad-indexer-$(ENV)-postgresql-app -n $(NAMESPACE) -o jsonpath='{.data.uri}' 2>/dev/null | base64 -d || echo "Secret not found"
 
-list-sealed-secrets: ## List all sealed secret files in the chart
-	@echo "Sealed secret files in chart:"
-	@find $(CHART_PATH)/templates -name "sealed-secret.yaml" -type f 2>/dev/null || echo "No sealed secrets found"
-
-copy-sealed-secrets-to-namespace: ## Copy sealed secrets to a different namespace (usage: make copy-sealed-secrets-to-namespace TARGET_NS=production)
-	@if [ -z "$(TARGET_NS)" ]; then \
-		echo "Error: TARGET_NS not specified"; \
-		echo "Usage: make copy-sealed-secrets-to-namespace TARGET_NS=production"; \
+describe-externalsecret: ## Describe ExternalSecret for debugging (usage: make describe-externalsecret NAME=backend)
+	@if [ -z "$(NAME)" ]; then \
+		echo "Error: NAME not specified"; \
+		echo "Usage: make describe-externalsecret NAME=backend|postgresql|stats-postgresql"; \
 		exit 1; \
 	fi
-	@echo "Copying sealed secrets to namespace: $(TARGET_NS)"
-	@kubectl create namespace $(TARGET_NS) --dry-run=client -o yaml | kubectl apply -f -
-	@if [ -f "$(CHART_PATH)/templates/backend/sealed-secret.yaml" ]; then \
-		cat $(CHART_PATH)/templates/backend/sealed-secret.yaml | \
-		sed 's/namespace: .*/namespace: $(TARGET_NS)/' | \
-		kubectl apply -f -; \
-	fi
-	@if [ -f "$(CHART_PATH)/templates/postgresql/sealed-secret.yaml" ]; then \
-		cat $(CHART_PATH)/templates/postgresql/sealed-secret.yaml | \
-		sed 's/namespace: .*/namespace: $(TARGET_NS)/' | \
-		kubectl apply -f -; \
-	fi
-	@if [ -f "$(CHART_PATH)/templates/stats-postgresql/sealed-secret.yaml" ]; then \
-		cat $(CHART_PATH)/templates/stats-postgresql/sealed-secret.yaml | \
-		sed 's/namespace: .*/namespace: $(TARGET_NS)/' | \
-		kubectl apply -f -; \
-	fi
-	@echo "✓ Sealed secrets copied to $(TARGET_NS)"
+	@kubectl describe externalsecret monad-indexer-$(ENV)-$(NAME) -n $(NAMESPACE)
 
-export-sealed-secrets: ## Export sealed secrets to a backup file
-	@echo "Exporting sealed secrets to sealed-secrets-backup.yaml..."
-	@echo "# Sealed Secrets Backup - $(shell date)" > sealed-secrets-backup.yaml
-	@echo "# Namespace: $(NAMESPACE)" >> sealed-secrets-backup.yaml
-	@echo "---" >> sealed-secrets-backup.yaml
-	@if [ -f "$(CHART_PATH)/templates/backend/sealed-secret.yaml" ]; then \
-		cat $(CHART_PATH)/templates/backend/sealed-secret.yaml >> sealed-secrets-backup.yaml; \
-		echo "---" >> sealed-secrets-backup.yaml; \
+force-refresh-externalsecret: ## Force refresh an ExternalSecret (usage: make force-refresh-externalsecret NAME=backend)
+	@if [ -z "$(NAME)" ]; then \
+		echo "Error: NAME not specified"; \
+		echo "Usage: make force-refresh-externalsecret NAME=backend|postgresql|stats-postgresql"; \
+		exit 1; \
 	fi
-	@if [ -f "$(CHART_PATH)/templates/postgresql/sealed-secret.yaml" ]; then \
-		cat $(CHART_PATH)/templates/postgresql/sealed-secret.yaml >> sealed-secrets-backup.yaml; \
-		echo "---" >> sealed-secrets-backup.yaml; \
-	fi
-	@if [ -f "$(CHART_PATH)/templates/stats-postgresql/sealed-secret.yaml" ]; then \
-		cat $(CHART_PATH)/templates/stats-postgresql/sealed-secret.yaml >> sealed-secrets-backup.yaml; \
-	fi
-	@echo "✓ Sealed secrets exported to sealed-secrets-backup.yaml"
+	@echo "Forcing refresh of ExternalSecret: monad-indexer-$(ENV)-$(NAME)"
+	@kubectl annotate externalsecret monad-indexer-$(ENV)-$(NAME) \
+		force-sync=$$(date +%s) \
+		-n $(NAMESPACE) --overwrite
+	@echo "✓ ExternalSecret annotated for refresh"
+	@sleep 2
+	@kubectl get externalsecret monad-indexer-$(ENV)-$(NAME) -n $(NAMESPACE)
 
-deploy: ## Deploy the Helm chart (uses sealed secrets by default, ENV=dev|staging|production)
-	@echo "Deploying Monad Indexer to $(ENV) environment..."
-	@if [ -f "$(ENV_VALUES_FILE)" ]; then \
-		echo "Using environment file: $(ENV_VALUES_FILE)"; \
-		helm upgrade --install $(HELM_RELEASE) $(CHART_PATH) \
-			--namespace $(NAMESPACE) \
-			--create-namespace \
-			-f $(CHART_PATH)/$(VALUES_FILE) \
-			-f $(ENV_VALUES_FILE); \
-	else \
-		echo "Environment file not found: $(ENV_VALUES_FILE)"; \
-		echo "Deploying with base values only..."; \
-		helm upgrade --install $(HELM_RELEASE) $(CHART_PATH) \
-			--namespace $(NAMESPACE) \
-			--create-namespace \
-			-f $(CHART_PATH)/$(VALUES_FILE); \
-	fi
-	@echo "✓ Deployment complete"
-
-deploy-dev: ## Deploy to dev environment
-	@$(MAKE) deploy ENV=dev NAMESPACE=monad-indexer-dev
-
-deploy-staging: ## Deploy to staging environment
-	@$(MAKE) deploy ENV=staging NAMESPACE=monad-indexer-staging
-
-deploy-prod: ## Deploy to production environment
-	@$(MAKE) deploy ENV=production NAMESPACE=monad-indexer-prod
-
-status: ## Check deployment status
-	@echo "Helm Release Status:"
-	@helm status $(HELM_RELEASE) -n $(NAMESPACE)
+# TLS Certificate management
+verify-certificates: ## Verify TLS certificates status
+	@echo "=== Certificates Status ==="
+	@kubectl get certificate -n $(NAMESPACE)
 	@echo ""
-	@echo "Pod Status:"
-	@kubectl get pods -n $(NAMESPACE) -l app.kubernetes.io/instance=$(HELM_RELEASE)
+	@echo "=== Certificate Requests ==="
+	@kubectl get certificaterequest -n $(NAMESPACE)
+	@echo ""
+	@echo "=== ACME Challenges ==="
+	@kubectl get challenge -n $(NAMESPACE) 2>/dev/null || echo "No active challenges"
+
+describe-certificate: ## Describe certificate for debugging (usage: make describe-certificate NAME=tls-secret-name)
+	@if [ -z "$(NAME)" ]; then \
+		echo "Error: NAME not specified"; \
+		echo "Usage: make describe-certificate NAME=tls-secret-name"; \
+		exit 1; \
+	fi
+	@echo "=== Certificate Details ==="
+	@kubectl describe certificate $(NAME) -n $(NAMESPACE)
+	@echo ""
+	@echo "=== Certificate Secret Contents ==="
+	@kubectl get secret $(NAME) -n $(NAMESPACE) -o jsonpath='{.data.tls\.crt}' 2>/dev/null | base64 -d | openssl x509 -text -noout | grep -A 2 "Subject:\|Issuer:\|Validity" || echo "Certificate not found or not yet issued"
+
+check-certificate-renewal: ## Check when certificates will be renewed
+	@echo "Checking certificate expiry and renewal status..."
+	@kubectl get certificate -n $(NAMESPACE) -o custom-columns=NAME:.metadata.name,READY:.status.conditions[0].status,RENEWAL:.status.renewalTime,NOT-AFTER:.status.notAfter
+
+# ArgoCD operations
+argocd-sync: ## Sync ArgoCD application
+	@echo "Syncing ArgoCD application: monad-indexer-$(ENV)"
+	@argocd app sync monad-indexer-$(ENV)
+
+argocd-status: ## Check ArgoCD application status
+	@argocd app get monad-indexer-$(ENV)
+
+argocd-refresh: ## Refresh ArgoCD application (pull latest from Git)
+	@argocd app get monad-indexer-$(ENV) --refresh
+
+# Deployment
+deploy: ## Deploy via Helm directly (NOT recommended, use ArgoCD instead)
+	@echo "⚠️  WARNING: Direct Helm deployment is not recommended."
+	@echo "⚠️  This will bypass ArgoCD GitOps workflow."
+	@echo ""
+	@read -p "Continue anyway? (y/N) " -n 1 -r; \
+	echo ""; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		echo "Deploying Monad Indexer to $(ENV) environment..."; \
+		if [ -f "$(ENV_VALUES_FILE)" ]; then \
+			helm upgrade --install $(HELM_RELEASE) $(CHART_PATH) \
+				--namespace $(NAMESPACE) \
+				--create-namespace \
+				-f $(CHART_PATH)/$(VALUES_FILE) \
+				-f $(ENV_VALUES_FILE); \
+		else \
+			helm upgrade --install $(HELM_RELEASE) $(CHART_PATH) \
+				--namespace $(NAMESPACE) \
+				--create-namespace \
+				-f $(CHART_PATH)/$(VALUES_FILE); \
+		fi; \
+		echo "✓ Deployment complete"; \
+	else \
+		echo "Aborted. Use ArgoCD instead: make argocd-sync"; \
+	fi
+
+deploy-dev: ## Deploy to dev environment via ArgoCD
+	@$(MAKE) argocd-sync ENV=dev NAMESPACE=monad-indexer-dev
+
+deploy-staging: ## Deploy to staging environment via ArgoCD
+	@$(MAKE) argocd-sync ENV=staging NAMESPACE=monad-indexer-staging
+
+deploy-prod: ## Deploy to production environment via ArgoCD
+	@$(MAKE) argocd-sync ENV=production NAMESPACE=monad-indexer-production
+
+# Status and logs
+status: ## Check deployment status
+	@echo "=== ArgoCD Application Status ==="
+	@argocd app get monad-indexer-$(ENV) 2>/dev/null || echo "ArgoCD application not found"
+	@echo ""
+	@echo "=== Pod Status ==="
+	@kubectl get pods -n $(NAMESPACE) -l app.kubernetes.io/instance=monad-indexer-$(ENV)
+	@echo ""
+	@echo "=== External Secrets Status ==="
+	@kubectl get externalsecret,secretstore -n $(NAMESPACE)
 
 logs: ## Show logs for backend pods
-	@kubectl logs -n $(NAMESPACE) -l app=monad-indexer,component=backend --tail=100 -f
+	@kubectl logs -n $(NAMESPACE) -l app.kubernetes.io/component=backend --tail=100 -f
 
-clean: ## Remove the deployment
-	@echo "Removing Monad Indexer deployment..."
-	helm uninstall $(HELM_RELEASE) -n $(NAMESPACE)
-	@echo "✓ Deployment removed"
+logs-external-secrets: ## Show External Secrets Operator logs
+	@kubectl logs -n external-secrets-system -l app.kubernetes.io/name=external-secrets --tail=100 -f
 
-clean-secrets: ## Remove all sealed secrets (WARNING: destructive)
-	@echo "WARNING: This will remove all sealed secrets from namespace $(NAMESPACE)"
+# Cleanup
+clean: ## Remove the deployment via ArgoCD
+	@echo "⚠️  WARNING: This will delete the ArgoCD application: monad-indexer-$(ENV)"
 	@read -p "Are you sure? (y/N) " -n 1 -r; \
 	echo ""; \
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
-		kubectl delete sealedsecrets --all -n $(NAMESPACE); \
-		echo "✓ Sealed secrets removed"; \
+		argocd app delete monad-indexer-$(ENV) --yes; \
+		echo "✓ ArgoCD application deleted"; \
+	else \
+		echo "Aborted"; \
+	fi
+
+clean-namespace: ## Remove entire namespace (WARNING: destructive)
+	@echo "⚠️  WARNING: This will delete the entire namespace: $(NAMESPACE)"
+	@read -p "Are you sure? (y/N) " -n 1 -r; \
+	echo ""; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		kubectl delete namespace $(NAMESPACE); \
+		echo "✓ Namespace deleted"; \
 	else \
 		echo "Aborted"; \
 	fi
 
 # Development helpers
-dev-setup: setup-sealed-secrets seal-secrets ## Complete development setup
+dev-setup: setup-external-secrets create-k8s-aws-credentials ## Complete development setup
 	@echo "✓ Development environment ready"
 	@echo ""
 	@echo "Next steps:"
-	@echo "  1. Review sealed secrets in $(CHART_PATH)/templates/"
-	@echo "  2. Update $(VALUES_FILE) to use existingSecret"
-	@echo "  3. Run: make deploy"
+	@echo "  1. Create AWS secret: make create-aws-secret ENV=dev"
+	@echo "  2. Deploy via ArgoCD: kubectl apply -f argocd/applications/monad-indexer-dev.yaml"
+	@echo "  3. Sync: make argocd-sync ENV=dev"
+	@echo "  4. Verify: make verify-secrets ENV=dev"
 
-# Backup and restore
-backup-sealing-key: ## Backup the sealed secrets encryption key
-	@echo "Backing up sealed secrets encryption key..."
-	@kubectl get secret -n kube-system sealed-secrets-key -o yaml > sealed-secrets-key-backup-$$(date +%Y%m%d-%H%M%S).yaml
-	@echo "✓ Key backed up to sealed-secrets-key-backup-*.yaml"
-	@echo "⚠️  IMPORTANT: Store this file securely and DO NOT commit to Git!"
+# Documentation
+docs: ## Show External Secrets documentation
+	@cat docs/secrets-management.md
+
+show-env-config: ## Show current environment configuration
+	@echo "Current configuration:"
+	@echo "  Environment: $(ENV)"
+	@echo "  Namespace: $(NAMESPACE)"
+	@echo "  Helm Release: $(HELM_RELEASE)"
+	@echo "  Values File: $(VALUES_FILE)"
+	@echo "  Env Values: $(ENV_VALUES_FILE)"
+	@echo "  AWS Region: $(AWS_REGION)"
+	@echo "  AWS Secret: $(AWS_SECRET_NAME)"

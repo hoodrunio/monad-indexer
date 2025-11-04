@@ -22,7 +22,19 @@ data:
   ETHEREUM_JSONRPC_VARIANT: {{ .Values.backend.config.rpc.variant | quote }}
   ETHEREUM_JSONRPC_TRANSPORT: {{ .Values.backend.config.rpc.transport | quote }}
   ETHEREUM_JSONRPC_HTTP_URL: {{ .Values.backend.config.rpc.httpUrl | quote }}
+  {{- if .Values.backend.config.rpc.fallbackHttpUrl }}
+  ETHEREUM_JSONRPC_FALLBACK_HTTP_URL: {{ .Values.backend.config.rpc.fallbackHttpUrl | quote }}
+  {{- end }}
   ETHEREUM_JSONRPC_TRACE_URL: {{ .Values.backend.config.rpc.traceUrl | default .Values.backend.config.rpc.httpUrl | quote }}
+  {{- if .Values.backend.config.rpc.fallbackTraceUrl }}
+  ETHEREUM_JSONRPC_FALLBACK_TRACE_URL: {{ .Values.backend.config.rpc.fallbackTraceUrl | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.rpc.ethCallUrl }}
+  ETHEREUM_JSONRPC_ETH_CALL_URL: {{ .Values.backend.config.rpc.ethCallUrl | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.rpc.fallbackEthCallUrl }}
+  ETHEREUM_JSONRPC_FALLBACK_ETH_CALL_URL: {{ .Values.backend.config.rpc.fallbackEthCallUrl | quote }}
+  {{- end }}
   ETHEREUM_JSONRPC_WS_URL: {{ .Values.backend.config.rpc.wsUrl | quote }}
   ETHEREUM_JSONRPC_DISABLE_ARCHIVE_BALANCES: {{ .Values.backend.config.rpc.disableArchiveBalances | quote }}
 
@@ -40,6 +52,9 @@ data:
   API_V1_READ_METHODS_DISABLED: {{ .Values.backend.config.api.v1ReadMethodsDisabled | quote }}
   API_V1_WRITE_METHODS_DISABLED: {{ .Values.backend.config.api.v1WriteMethodsDisabled | quote }}
   API_V2_ENABLED: {{ .Values.backend.config.api.v2Enabled | quote }}
+  {{- if .Values.backend.config.api.corsAllowedOrigin }}
+  API_V2_CORS_ALLOWED_ORIGIN: {{ .Values.backend.config.api.corsAllowedOrigin | quote }}
+  {{- end }}
 
   # ============================================
   # FRONTEND CONFIGURATION
@@ -106,13 +121,24 @@ data:
   {{- end }}
   DISABLE_CATCHUP_INDEXER: {{ .Values.backend.config.indexer.disableCatchup | quote }}
 
-  # Indexer performance tuning - optional config
-  # These can be added to values.yaml if needed
+  # Indexer performance tuning - RPC rate limiting mitigation
+  {{- if .Values.backend.config.indexer.performance.catchupBlocksBatchSize }}
+  INDEXER_CATCHUP_BLOCKS_BATCH_SIZE: {{ .Values.backend.config.indexer.performance.catchupBlocksBatchSize | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.indexer.performance.catchupBlocksConcurrency }}
+  INDEXER_CATCHUP_BLOCKS_CONCURRENCY: {{ .Values.backend.config.indexer.performance.catchupBlocksConcurrency | quote }}
+  {{- end }}
   {{- if .Values.backend.config.indexer.performance.receiptsBatchSize }}
   INDEXER_RECEIPTS_BATCH_SIZE: {{ .Values.backend.config.indexer.performance.receiptsBatchSize | quote }}
   {{- end }}
   {{- if .Values.backend.config.indexer.performance.receiptsConcurrency }}
   INDEXER_RECEIPTS_CONCURRENCY: {{ .Values.backend.config.indexer.performance.receiptsConcurrency | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.indexer.performance.internalTxsBatchSize }}
+  INDEXER_INTERNAL_TRANSACTIONS_BATCH_SIZE: {{ .Values.backend.config.indexer.performance.internalTxsBatchSize | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.indexer.performance.internalTxsConcurrency }}
+  INDEXER_INTERNAL_TRANSACTIONS_CONCURRENCY: {{ .Values.backend.config.indexer.performance.internalTxsConcurrency | quote }}
   {{- end }}
   {{- if .Values.backend.config.indexer.performance.coinBalancesBatchSize }}
   INDEXER_COIN_BALANCES_BATCH_SIZE: {{ .Values.backend.config.indexer.performance.coinBalancesBatchSize | quote }}

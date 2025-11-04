@@ -9,15 +9,15 @@ prometheus:
   prometheusSpec:
     # Retention
     retention: 30d
-    retentionSize: "100GB"
+    retentionSize: "10GB"
 
     # Resources
     resources:
       requests:
         cpu: "1000m"
-        memory: "4Gi"
+        memory: "2Gi"
       limits:
-        memory: "8Gi"
+        memory: "4Gi"
 
     # Storage
     storageSpec:
@@ -27,7 +27,7 @@ prometheus:
           accessModes: ["ReadWriteOnce"]
           resources:
             requests:
-              storage: 100Gi
+              storage: 20Gi
 
     # Service Monitor selectors - discover all ServiceMonitors
     serviceMonitorSelectorNilUsesHelmValues: false
@@ -57,7 +57,7 @@ prometheus:
 grafana:
   enabled: true
 
-  adminPassword: "CHANGE_ME"  # Change in production!
+  adminPassword: "8dqC6SjfsQXWSXVFZSS/KVtaKd1H7xFHSLy5DaArj8A="
 
   # Persistence
   persistence:
@@ -165,19 +165,32 @@ alertmanager:
       group_wait: 10s
       group_interval: 10s
       repeat_interval: 12h
-      receiver: 'null'
+      receiver: 'default'
       routes:
         - match:
             alertname: Watchdog
           receiver: 'null'
+        - match:
+            severity: critical
+          receiver: 'default'
+          continue: true
+        - match:
+            severity: warning
+          receiver: 'default'
 
     receivers:
       - name: 'null'
-      # Add your receivers here (Slack, PagerDuty, etc.)
+      - name: 'default'
+        webhook_configs:
+          - url: 'http://localhost:5001/'  # Placeholder - configure with your alerting endpoint
+            send_resolved: true
+      # Configure your production receivers:
       # - name: 'slack'
       #   slack_configs:
       #     - api_url: 'YOUR_SLACK_WEBHOOK_URL'
-      #       channel: '#alerts'
+      #       channel: '#monad-indexer-alerts'
+      #       title: '{{ .GroupLabels.alertname }}'
+      #       text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
 
 # Prometheus Operator configuration
 prometheusOperator:

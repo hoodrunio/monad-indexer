@@ -1,0 +1,28 @@
+# ArgoCD Server Custom Service
+# Separate service for Gateway API routing (Web UI only)
+# Note: Gateway API doesn't support mixed HTTP/gRPC on same hostname (GEP-1016)
+# For CLI access, use NodePort service (argocd-server-nodeport.yaml)
+
+---
+# Service for Web UI via Gateway (HTTP/1.1)
+apiVersion: v1
+kind: Service
+metadata:
+  name: argocd-server-http
+  namespace: argocd
+  labels:
+    app.kubernetes.io/component: server
+    app.kubernetes.io/name: argocd-server
+    app.kubernetes.io/part-of: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 8080
+      # No appProtocol - defaults to HTTP/1.1 for web UI
+  selector:
+    app.kubernetes.io/name: argocd-server
+  type: ClusterIP

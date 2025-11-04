@@ -1,0 +1,55 @@
+# LoadBalancer IP Pool for Production Environment
+# Public IPs: 65.109.80.202 (primary), 65.21.183.30 (legacy)
+
+apiVersion: cilium.io/v2alpha1
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: monad-indexer-production-public-pool
+spec:
+  blocks:
+    - cidr: "65.21.183.30/32"
+    - cidr: "65.109.80.202/32"
+
+  # Match Gateway-owned LoadBalancer services
+  serviceSelector:
+    matchExpressions:
+      - key: io.cilium.gateway/owning-gateway
+        operator: Exists
+
+---
+# Internal IP pool for other LoadBalancer services (if needed)
+apiVersion: cilium.io/v2alpha1
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: monad-indexer-production-internal-pool
+spec:
+  blocks:
+    - cidr: "10.0.0.100/27"
+
+  # Match services that are NOT Gateway-owned
+  serviceSelector:
+    matchExpressions:
+      - key: io.cilium.gateway/owning-gateway
+        operator: DoesNotExist
+
+---
+# L2 Announcement Policy
+apiVersion: cilium.io/v2alpha1
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: monad-indexer-production-l2-policy
+spec:
+  interfaces:
+    - ^eth[0-9]+
+    - ^ens[0-9]+
+    - ^enp[0-9]+s[0-9]+
+
+  loadBalancerIPs: true
+
+  serviceSelector:
+    matchExpressions:
+      - key: io.cilium/lb-ipam
+        operator: Exists
+
+  nodeSelector:
+    matchLabels: {}

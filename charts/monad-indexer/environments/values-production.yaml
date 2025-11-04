@@ -2,7 +2,10 @@
 # Full HA, high resources, all features enabled
 
 backend:
-  replicaCount: 5
+  # ExternalSecret will create this secret from AWS Secrets Manager
+  existingSecret: "monad-indexer-production-backend-secret"
+
+  replicaCount: 1
 
   resources:
     requests:
@@ -39,6 +42,20 @@ backend:
     INDEXER_MEMORY_LIMIT: "5"
     LOG_LEVEL: "warn"
 
+  config:
+    # RPC endpoints with fallback
+    rpc:
+      httpUrl: "https://testnet-rpc.monad.xyz"
+      fallbackHttpUrl: "https://lb.drpc.live/monad-testnet/Ag9VzqLbl0KSsk-eqggyUSEMjYZNtZoR8L4M_hXb38UN"
+      traceUrl: "https://testnet-rpc.monad.xyz"
+      fallbackTraceUrl: "https://lb.drpc.live/monad-testnet/Ag9VzqLbl0KSsk-eqggyUSEMjYZNtZoR8L4M_hXb38UN"
+      wsUrl: "wss://testnet-rpc.monad.xyz"
+      ethCallUrl: "https://testnet-rpc.monad.xyz"
+      fallbackEthCallUrl: "https://lb.drpc.live/monad-testnet/Ag9VzqLbl0KSsk-eqggyUSEMjYZNtZoR8L4M_hXb38UN"
+
+    api:
+      corsAllowedOrigin: "https://monad.hoodscan.io"
+
   # Topology spread for multi-zone
   topologySpreadConstraints:
     - maxSkew: 1
@@ -52,7 +69,13 @@ backend:
 microservices:
   smart-contract-verifier:
     enabled: true
-    replicaCount: 5
+    replicaCount: 1
+    config:
+      server:
+        http:
+          cors:
+            enabled: true
+            allowedOrigin: "https://monad.hoodscan.io"
     autoscaling:
       enabled: true
       minReplicas: 5
@@ -67,7 +90,7 @@ microservices:
 
   sig-provider:
     enabled: true
-    replicaCount: 3
+    replicaCount: 1
     resources:
       requests:
         cpu: "500m"
@@ -77,7 +100,7 @@ microservices:
 
   visualizer:
     enabled: true
-    replicaCount: 2
+    replicaCount: 1
     resources:
       requests:
         cpu: "500m"
@@ -87,7 +110,7 @@ microservices:
 
   stats:
     enabled: true
-    replicaCount: 2
+    replicaCount: 1
     resources:
       requests:
         cpu: "1000m"
@@ -97,7 +120,11 @@ microservices:
 
 # PostgreSQL - production HA
 postgresql:
-  replicaCount: 3
+  replicaCount: 1
+
+  auth:
+    # ExternalSecret will create this secret from AWS Secrets Manager
+    existingSecret: "monad-indexer-production-postgresql-app"
 
   config:
     sharedBuffers: "8GB"
@@ -123,9 +150,18 @@ postgresql:
     barmanObjectStore:
       destinationPath: "s3://monad-indexer-backups/postgresql"
 
+  # Partition management with pg_partman
+  partman:
+    enabled: true
+    retentionDays: 30  # Keep 1 month of data
+    premakeDays: 7  # Pre-create partitions for next 7 days
+    maintenance:
+      enabled: true
+      schedule: "0 2 * * *"  # Daily at 2 AM UTC
+
   pooler:
     enabled: true
-    replicaCount: 3
+    replicaCount: 1
     maxClientConn: 5000
     defaultPoolSize: 100
 
@@ -141,7 +177,7 @@ postgresql:
 # Redis - production HA
 redis:
   replica:
-    replicaCount: 3
+    replicaCount: 2
   sentinel:
     enabled: true
     quorum: 2
@@ -182,20 +218,44 @@ networkPolicies:
   defaultDeny: true
   enableCiliumPolicies: true  # Enhanced Cilium policies for production
 
-# Ingress - production
+# Ingress - DISABLED (using Gateway API)
 ingress:
+  enabled: false
+
+# Gateway API - Cilium native ingress
+gateway:
   enabled: true
-  className: "nginx"
+  name: "monad-indexer-gateway"
+  sectionName: "https-monad-indexer"  # Match the Gateway listener name
   annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
-    nginx.ingress.kubernetes.io/rate-limit: "1000"
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    prometheus.io/scrape: "true"
   hosts:
-    - host: indexer.monad.example.com
+    - host: monad-tn1-indexer.hoodscan.io
       paths:
         - path: /
-          pathType: Prefix
+          pathType: PathPrefix
   tls:
-    - secretName: indexer-prod-tls
-      hosts:
-        - indexer.monad.example.com
+    enabled: true
+    secretName: monad-indexer-tls
+    clusterIssuer: letsencrypt-prod
+  timeout: 300s
+  # retries:  # RequestRetry filter not supported in current Gateway API version
+  #   attempts: 3
+  #   backoff: 2s
+  # Production rate limiting
+  rateLimit:
+    enabled: true
+    requestsPerSecond: 1000
+    burst: 2000
+
+# Stats PostgreSQL (if enabled)
+statsPostgresql:
+  auth:
+    # ExternalSecret will create this secret from AWS Secrets Manager
+    existingSecret: "monad-indexer-production-stats-postgresql-app"
+
+# External Secrets configuration for production environment
+externalSecrets:
+  enabled: true
+  aws:
+    secretName: "blockscout"  # Shared secret for all environments

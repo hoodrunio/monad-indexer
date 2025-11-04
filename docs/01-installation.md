@@ -8,6 +8,9 @@ Complete step-by-step guide for installing the Monad blockchain indexer infrastr
 2. [Infrastructure Setup](#infrastructure-setup)
 3. [ArgoCD Installation](#argocd-installation)
 4. [Operators Installation](#operators-installation)
+   - [CloudNativePG Operator](#install-cloudnativepg-operator)
+   - [External Secrets Operator](#install-external-secrets-operator)
+   - [Gateway API (Cilium Native Ingress)](#configure-gateway-api-cilium-native-ingress)
 5. [Helm Chart Deployment](#helm-chart-deployment)
 6. [Verification](#verification)
 7. [Next Steps](#next-steps)
@@ -41,8 +44,8 @@ On your bare metal server(s):
 
 ```bash
 # Clone repository
-git clone https://github.com/hoodrunio/monad-indexer-gitops
-cd monad-indexer-gitops
+git clone https://github.com/hoodrunio/monad-indexer
+cd monad-indexer
 
 # Run K3s + Cilium installation
 sudo ./infrastructure/k3s-install.sh
@@ -144,6 +147,106 @@ chmod +x /usr/local/bin/argocd
 argocd login localhost:8080
 ```
 
+### Configure Repository Credentials
+
+ArgoCD needs credentials to access the private GitHub repository:
+
+**1. Create a GitHub Personal Access Token (PAT)**:
+
+- Go to GitHub Settings > Developer settings > Personal access tokens > Tokens (classic)
+- Click "Generate new token (classic)"
+- Give it a name like "ArgoCD Monad Indexer"
+- Select scopes:
+  - `repo` (Full control of private repositories)
+- Generate and copy the token
+
+**2. Configure repository credentials**:
+
+```bash
+# Edit the repository credentials file
+vi argocd/repository-credentials.yaml
+
+# Replace <GITHUB_PAT_TOKEN> with your actual token
+# The file should look like:
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: monad-indexer-repo
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repository
+stringData:
+  type: git
+  url: https://github.com/hoodrunio/monad-indexer
+  password: ghp_YOUR_ACTUAL_TOKEN_HERE
+  username: not-used
+
+# Apply the credentials
+kubectl apply -f argocd/repository-credentials.yaml
+```
+
+**3. Verify the repository is connected**:
+
+```bash
+# Via ArgoCD CLI
+argocd repo list
+
+# You should see your repository URL listed
+# Or via ArgoCD UI: Settings > Repositories
+```
+
+Alternatively, you can add the repository via the CLI directly:
+
+```bash
+argocd repo add https://github.com/hoodrunio/monad-indexer \
+  --username your-github-username \
+  --password your-github-pat-token
+```
+
+### Create ArgoCD Projects
+
+ArgoCD Projects provide multi-tenancy, access control, and organization for your applications.
+
+**What are ArgoCD Projects?**
+- Logical grouping of applications
+- Define which repositories and clusters applications can use
+- Implement RBAC (Role-Based Access Control)
+- Set resource whitelists/blacklists
+
+**1. Create the monad-indexer project**:
+
+```bash
+# Apply the project configuration
+kubectl apply -f argocd/projects/monad-indexer-project.yaml
+
+# This creates a project that allows:
+# - Access to your GitHub repository
+# - Deployment to monad-* namespaces
+# - RBAC roles for read-only, developer, and admin access
+```
+
+**2. Create the infrastructure project** (if deploying Gateway/Monitoring):
+
+```bash
+kubectl apply -f argocd/projects/infrastructure-project.yaml
+```
+
+**3. Verify projects are created**:
+
+```bash
+# Via CLI
+argocd proj list
+
+# Expected output:
+# NAME            DESCRIPTION
+# default         Default project
+# monad-indexer   Monad Blockchain Indexer Project
+# infrastructure  Infrastructure Components
+
+# Or via UI: Settings > Projects
+```
+
 ## Operators Installation
 
 ### Install CloudNativePG Operator
@@ -164,6 +267,25 @@ This operator manages PostgreSQL clusters with:
 kubectl get pods -n cnpg-system
 ```
 
+### Install cert-manager
+
+```bash
+./infrastructure/cert-manager-install.sh
+```
+
+This operator automates TLS certificate management with:
+- Automatic certificate issuance from Let's Encrypt
+- Automatic certificate renewal (every 90 days)
+- HTTP-01 and DNS-01 challenge support
+- Integration with Ingress resources
+
+**Verify**:
+
+```bash
+kubectl get pods -n cert-manager
+kubectl get clusterissuer
+```
+
 ### Install External Secrets Operator
 
 ```bash
@@ -178,45 +300,46 @@ This operator synchronizes secrets from external stores (AWS Secrets Manager, Va
 kubectl get pods -n external-secrets-system
 ```
 
-### Configure Secret Store
+### Configure AWS Secrets
 
-Create a SecretStore for your secrets backend:
+For detailed secrets management, see [secrets-management.md](secrets-management.md).
 
-**AWS Secrets Manager Example**:
-
-```yaml
-# Create service account with IRSA
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: external-secrets-sa
-  namespace: monad-indexer-prod
-  annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/external-secrets-role
-
----
-# Create SecretStore
-apiVersion: external-secrets.io/v1beta1
-kind: SecretStore
-metadata:
-  name: aws-secrets-manager
-  namespace: monad-indexer-prod
-spec:
-  provider:
-    aws:
-      service: SecretsManager
-      region: us-east-1
-      auth:
-        jwt:
-          serviceAccountRef:
-            name: external-secrets-sa
-```
-
-**Apply**:
+**Quick setup**:
 
 ```bash
-kubectl apply -f secret-store.yaml
+# 1. Create AWS secret with credentials
+make create-aws-secret ENV=prod
+
+# 2. Create AWS credentials in Kubernetes
+make create-aws-credentials-secret ENV=prod
+
+# 3. Verify SecretStore is ready (created by Helm chart)
+make verify-secrets ENV=prod
 ```
+
+The Helm chart automatically creates:
+- **SecretStore**: Connects to AWS Secrets Manager
+- **ExternalSecrets**: Syncs credentials to Kubernetes Secrets
+- **Kubernetes Secrets**: Auto-generated with correct formats
+
+### Configure Gateway API (Cilium Native Ingress)
+
+Gateway API is already enabled in Cilium. No separate ingress controller needed!
+
+**Verify Gateway API is ready**:
+
+```bash
+# Check Gateway API CRDs
+kubectl get crd | grep gateway
+
+# Check GatewayClass
+kubectl get gatewayclass
+
+# Check LoadBalancer IP pool
+kubectl get ciliumloadbalancerippool
+```
+
+**For detailed Gateway API setup, see [GATEWAY-API.md](GATEWAY-API.md).**
 
 ## Helm Chart Deployment
 
@@ -225,8 +348,8 @@ kubectl apply -f secret-store.yaml
 1. **Fork and customize the repository**:
 
 ```bash
-git clone https://github.com/hoodrunio/monad-indexer-gitops
-cd monad-indexer-gitops
+git clone https://github.com/hoodrunio/monad-indexer
+cd monad-indexer
 ```
 
 2. **Update configuration**:
@@ -260,16 +383,60 @@ git commit -m "Configure Monad indexer"
 git push
 ```
 
-4. **Deploy root application**:
+4. **Deploy applications** (Environment-specific deployment):
 
-```bash
-kubectl apply -f argocd/bootstrap/root-app.yaml
+We use an **App-of-Apps pattern** where a root application manages child applications.
+
+**Understanding the Structure**:
+```
+argocd/
+  bootstrap/
+    root-app-dev.yaml        # Deploys only dev environment
+    root-app-staging.yaml    # Deploys only staging environment
+    root-app-production.yaml # Deploys only production environment
+  applications/
+    dev/
+      monad-indexer-dev.yaml
+    staging/
+      monad-indexer-staging.yaml
+    production/
+      monad-indexer-production.yaml
 ```
 
-This will automatically deploy all environments:
-- `monad-indexer-dev` (auto-sync enabled)
-- `monad-indexer-staging` (auto-sync enabled)
-- `monad-indexer-production` (manual sync required)
+**For Development Environment**:
+
+```bash
+# Deploy only the dev environment
+kubectl apply -f argocd/bootstrap/root-app-dev.yaml
+
+# This will automatically deploy:
+# - monad-indexer-dev application (auto-sync enabled, targets 'main' branch)
+```
+
+**For Staging Environment** (when ready):
+
+```bash
+# Deploy staging environment
+kubectl apply -f argocd/bootstrap/root-app-staging.yaml
+
+# This will automatically deploy:
+# - monad-indexer-staging application (auto-sync enabled, targets 'staging' branch)
+```
+
+**For Production Environment** (when ready):
+
+```bash
+# Deploy production environment
+kubectl apply -f argocd/bootstrap/root-app-production.yaml
+
+# This will deploy:
+# - monad-indexer-production application (MANUAL sync required, targets 'stable' branch)
+```
+
+**Branch Strategy**:
+- **Dev**: Always deploys from `main` branch (latest changes)
+- **Staging**: Deploys from `staging` branch (pre-production testing)
+- **Production**: Deploys from `stable` branch (stable releases only)
 
 5. **Sync production application**:
 
@@ -341,6 +508,15 @@ monad-indexer-postgresql   5m     3           3       Cluster in healthy state  
 
 ### Check Database Connectivity
 
+**Option 1: Via Gateway (if configured)**
+
+```bash
+# Test API via Gateway
+curl https://indexer.monad.example.com/api/v2/stats | jq
+```
+
+**Option 2: Via Port Forward**
+
 ```bash
 # Port forward to backend
 kubectl port-forward svc/monad-indexer-backend 4000:4000 -n monad-indexer-prod
@@ -402,20 +578,34 @@ See [03-monitoring.md](03-monitoring.md) for:
 - Importing dashboards
 - Configuring alerts
 
-### 3. Configure Ingress (Optional)
+### 3. Configure Gateway with TLS
 
-To expose the API externally:
+Gateway API is already configured with automatic HTTPS via cert-manager.
 
+**To expose your domain**:
+
+1. Update DNS A record to point to your cluster IP
+2. Update domain in `values-production.yaml`:
 ```yaml
-# Update values-production.yaml
-ingress:
+gateway:
   enabled: true
   hosts:
     - host: indexer.monad.example.com
-      paths:
-        - path: /
-          pathType: Prefix
 ```
+
+3. Deploy Gateway resources:
+```bash
+argocd app sync gateway-api-production
+```
+
+**Verify certificate**:
+
+```bash
+kubectl get certificate -n monad-indexer-prod
+kubectl get gateway -n monad-indexer-prod
+```
+
+**For detailed Gateway setup, see [GATEWAY-API-DEPLOYMENT.md](GATEWAY-API-DEPLOYMENT.md).**
 
 ### 4. Test Failover
 
@@ -472,6 +662,7 @@ You now have:
 ✅ K3s Kubernetes cluster running
 ✅ ArgoCD for GitOps deployments
 ✅ CloudNativePG operator for PostgreSQL management
+✅ cert-manager for automatic TLS certificate management
 ✅ External Secrets Operator for secrets management
 ✅ Monad indexer deployed with full HA
 ✅ Monitoring and alerting configured

@@ -15,7 +15,7 @@ spec:
 
   source:
     repoURL: https://github.com/hoodrunio/monad-indexer
-    targetRevision: main
+    targetRevision: dev
     path: argocd/applications
 
   destination:

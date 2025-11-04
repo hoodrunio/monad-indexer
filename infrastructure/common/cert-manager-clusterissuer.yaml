@@ -1,0 +1,84 @@
+---
+# Let's Encrypt Staging (for testing)
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    # Staging server for testing (rate limits are higher)
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: infra@hoodrun.io
+    privateKeySecretRef:
+      name: letsencrypt-staging
+    solvers:
+    # Gateway API HTTP-01 solver (uses dedicated HTTP Gateway on port 80)
+    # Each environment has its own HTTP Gateway - specify dev + future envs
+    - http01:
+        gatewayHTTPRoute:
+          labels:
+            acme.cert-manager.io/http01-solver: "true"
+          parentRefs:
+          # Dev environment
+          - name: monad-indexer-http-gateway
+            namespace: monad-indexer-dev
+            kind: Gateway
+            sectionName: http
+            port: 80
+            group: gateway.networking.k8s.io
+          # Staging environment (future)
+          - name: monad-indexer-http-gateway
+            namespace: monad-indexer-staging
+            kind: Gateway
+            sectionName: http
+            port: 80
+            group: gateway.networking.k8s.io
+          # Production environment
+          - name: monad-indexer-http-gateway
+            namespace: monad-indexer-production
+            kind: Gateway
+            sectionName: http
+            port: 80
+            group: gateway.networking.k8s.io
+
+---
+# Let's Encrypt Production
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    # Production server (rate limited: 50 certificates per registered domain per week)
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: infra@hoodrun.io
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    solvers:
+    # Gateway API HTTP-01 solver (uses dedicated HTTP Gateway on port 80)
+    # Each environment has its own HTTP Gateway - specify dev + future envs
+    - http01:
+        gatewayHTTPRoute:
+          labels:
+            acme.cert-manager.io/http01-solver: "true"
+          parentRefs:
+          - name: monad-indexer-http-gateway
+            namespace: monad-indexer-dev
+            kind: Gateway
+            sectionName: http
+            port: 80
+            group: gateway.networking.k8s.io
+          # Staging environment (future)
+          - name: monad-indexer-http-gateway
+            namespace: monad-indexer-staging
+            kind: Gateway
+            sectionName: http
+            port: 80
+            group: gateway.networking.k8s.io
+          # Production environment
+          - name: monad-indexer-http-gateway
+            namespace: monad-indexer-production
+            kind: Gateway
+            sectionName: http
+            port: 80
+            group: gateway.networking.k8s.io

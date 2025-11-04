@@ -1,0 +1,50 @@
+# Gateway for Development Environment
+# Public IP: 95.216.177.23
+# Domains: cd.hoodscan.io, monad-tn1-indexer.hoodscan.io
+
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: monad-indexer-gateway
+  namespace: monad-indexer-dev
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    io.cilium.lb/ipam-sharing-key: monad-indexer-public
+    lbipam.cilium.io/sharing-key: monad-indexer-public
+  labels:
+    gateway: monad-indexer
+    environment: dev
+spec:
+  gatewayClassName: cilium
+
+  addresses:
+    - type: IPAddress
+      value: "95.216.177.23"
+
+  listeners:
+    # HTTPS listener for ArgoCD (cd.hoodscan.io)
+    - name: https-argocd
+      protocol: HTTPS
+      port: 443
+      hostname: cd.hoodscan.io
+      allowedRoutes:
+        namespaces:
+          from: All  # ArgoCD is in different namespace
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: argocd-tls
+            namespace: argocd
+
+    # HTTPS listener for Monad Indexer (monad-tn1-indexer.hoodscan.io)
+    - name: https-monad-indexer
+      protocol: HTTPS
+      port: 443
+      hostname: monad-tn1-indexer.hoodscan.io
+      allowedRoutes:
+        namespaces:
+          from: Same  # App is in same namespace
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: monad-indexer-tls

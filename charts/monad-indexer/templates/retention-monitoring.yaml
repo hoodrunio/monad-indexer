@@ -1,0 +1,393 @@
+{{- if .Values.monitoring.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-retention-alerts
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: monitoring
+spec:
+  groups:
+  - name: data-retention
+    interval: 60s
+    rules:
+    # ========================================
+    # DATABASE HEALTH ALERTS
+    # ========================================
+    # Monitor database size growth rate
+    - alert: DatabaseGrowthRateHigh
+      expr: |
+        rate(pg_database_size_bytes{datname="blockscout"}[24h]) > {{ mul 1073741824 100 }}
+      for: 2h
+      labels:
+        severity: info
+        component: database
+      annotations:
+        summary: "Database growing faster than expected (>100GB/day)"
+        description: |
+          The blockscout database is growing at a rate exceeding 100GB per day.
+          Current rate: {{`{{ $value | humanize }}`}} bytes/second
+          This may require adjusting retention settings or investigating indexer behavior.
+          Namespace: {{ .Release.Namespace }}
+
+    # Alert if database is approaching storage limit (>80% full)
+    - alert: DatabaseStorageHigh
+      expr: |
+        (pg_database_size_bytes{datname="blockscout"} /
+         (kubelet_volume_stats_capacity_bytes{persistentvolumeclaim=~"{{ include "monad-indexer.fullname" . }}-postgresql.*"})) > 0.8
+      for: 30m
+      labels:
+        severity: warning
+        component: database
+      annotations:
+        summary: "Database storage usage above 80%"
+        description: |
+          The blockscout database storage is over 80% full.
+          Current: {{`{{ $value | humanizePercentage }}`}}
+          PVC: {{`{{ $labels.persistentvolumeclaim }}`}}
+          Consider:
+          1. Running retention job manually
+          2. Reducing retention period
+          3. Increasing PVC size
+          Namespace: {{ .Release.Namespace }}
+
+    # Alert if VACUUM hasn't run recently (indicates retention job might be failing)
+    - alert: DatabaseVacuumDelayed
+      expr: |
+        (time() - pg_stat_user_tables_last_autovacuum{datname="blockscout",schemaname="public",relname=~"blocks|transactions|logs"}) > 86400
+      for: 6h
+      labels:
+        severity: info
+        component: database
+      annotations:
+        summary: "Database vacuum hasn't run in 24 hours on critical table"
+        description: |
+          The {{`{{ $labels.relname }}`}} table hasn't been vacuumed in over 24 hours.
+          This may indicate:
+          1. Retention job is not running VACUUM
+          2. Autovacuum is falling behind
+          3. Performance issues
+          Table: {{`{{ $labels.relname }}`}}
+          Namespace: {{ .Release.Namespace }}
+          Consider running manual VACUUM ANALYZE.
+
+---
+{{- if .Values.postgresql.monitoring.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-retention-queries
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: monitoring
+    cnpg.io/reload: "true"  # CloudNativePG will reload queries when ConfigMap changes
+data:
+  queries.yaml: |
+    # Custom queries for data retention monitoring
+    # These queries are executed by CloudNativePG's monitoring integration
+
+    # Age of oldest block in database
+    data_age_oldest_block:
+      query: |
+        SELECT
+          COALESCE(EXTRACT(EPOCH FROM (NOW() - MIN(inserted_at))), 0) as age_seconds,
+          COUNT(*) as total_blocks
+        FROM blocks
+      metrics:
+        - age_seconds:
+            usage: "GAUGE"
+            description: "Age of oldest block in database (seconds)"
+        - total_blocks:
+            usage: "GAUGE"
+            description: "Total number of blocks in database"
+
+    # Age of oldest transaction
+    data_age_oldest_transaction:
+      query: |
+        SELECT
+          COALESCE(EXTRACT(EPOCH FROM (NOW() - MIN(inserted_at))), 0) as age_seconds,
+          COUNT(*) as total_transactions
+        FROM transactions
+      metrics:
+        - age_seconds:
+            usage: "GAUGE"
+            description: "Age of oldest transaction in database (seconds)"
+        - total_transactions:
+            usage: "GAUGE"
+            description: "Total number of transactions in database"
+
+    # Age of oldest log entry
+    data_age_oldest_log:
+      query: |
+        SELECT
+          COALESCE(EXTRACT(EPOCH FROM (NOW() - MIN(inserted_at))), 0) as age_seconds,
+          COUNT(*) as total_logs
+        FROM logs
+      metrics:
+        - age_seconds:
+            usage: "GAUGE"
+            description: "Age of oldest log entry in database (seconds)"
+        - total_logs:
+            usage: "GAUGE"
+            description: "Total number of log entries in database"
+
+    # Table sizes
+    table_sizes:
+      query: |
+        SELECT
+          schemaname,
+          tablename,
+          pg_total_relation_size(schemaname||'.'||tablename) as size_bytes,
+          pg_relation_size(schemaname||'.'||tablename) as table_size_bytes,
+          pg_total_relation_size(schemaname||'.'||tablename) - pg_relation_size(schemaname||'.'||tablename) as indexes_size_bytes
+        FROM pg_tables
+        WHERE schemaname = 'public'
+          AND tablename IN ('blocks', 'transactions', 'logs', 'token_transfers', 'internal_transactions')
+      metrics:
+        - schemaname:
+            usage: "LABEL"
+            description: "Schema name"
+        - tablename:
+            usage: "LABEL"
+            description: "Table name"
+        - size_bytes:
+            usage: "GAUGE"
+            description: "Total size of table including indexes (bytes)"
+        - table_size_bytes:
+            usage: "GAUGE"
+            description: "Size of table data only (bytes)"
+        - indexes_size_bytes:
+            usage: "GAUGE"
+            description: "Size of indexes (bytes)"
+
+    # Dead tuples (indicates need for VACUUM)
+    dead_tuples:
+      query: |
+        SELECT
+          schemaname,
+          relname as tablename,
+          n_dead_tup as dead_tuples,
+          n_live_tup as live_tuples,
+          CASE
+            WHEN n_live_tup > 0
+            THEN (n_dead_tup::float / n_live_tup::float)
+            ELSE 0
+          END as dead_tuple_ratio
+        FROM pg_stat_user_tables
+        WHERE schemaname = 'public'
+          AND relname IN ('blocks', 'transactions', 'logs', 'token_transfers', 'internal_transactions')
+      metrics:
+        - schemaname:
+            usage: "LABEL"
+            description: "Schema name"
+        - tablename:
+            usage: "LABEL"
+            description: "Table name"
+        - dead_tuples:
+            usage: "GAUGE"
+            description: "Number of dead tuples"
+        - live_tuples:
+            usage: "GAUGE"
+            description: "Number of live tuples"
+        - dead_tuple_ratio:
+            usage: "GAUGE"
+            description: "Ratio of dead tuples to live tuples"
+
+    # VACUUM/ANALYZE statistics
+    vacuum_stats:
+      query: |
+        SELECT
+          schemaname,
+          relname as tablename,
+          COALESCE(EXTRACT(EPOCH FROM (NOW() - last_vacuum)), 0) as seconds_since_last_vacuum,
+          COALESCE(EXTRACT(EPOCH FROM (NOW() - last_autovacuum)), 0) as seconds_since_last_autovacuum,
+          COALESCE(EXTRACT(EPOCH FROM (NOW() - last_analyze)), 0) as seconds_since_last_analyze,
+          COALESCE(EXTRACT(EPOCH FROM (NOW() - last_autoanalyze)), 0) as seconds_since_last_autoanalyze
+        FROM pg_stat_user_tables
+        WHERE schemaname = 'public'
+          AND relname IN ('blocks', 'transactions', 'logs', 'token_transfers', 'internal_transactions')
+      metrics:
+        - schemaname:
+            usage: "LABEL"
+            description: "Schema name"
+        - tablename:
+            usage: "LABEL"
+            description: "Table name"
+        - seconds_since_last_vacuum:
+            usage: "GAUGE"
+            description: "Seconds since last manual vacuum"
+        - seconds_since_last_autovacuum:
+            usage: "GAUGE"
+            description: "Seconds since last autovacuum"
+        - seconds_since_last_analyze:
+            usage: "GAUGE"
+            description: "Seconds since last manual analyze"
+        - seconds_since_last_autoanalyze:
+            usage: "GAUGE"
+            description: "Seconds since last autoanalyze"
+
+    # Block height and indexing progress
+    indexing_progress:
+      query: |
+        SELECT
+          MAX(number) as latest_block_number,
+          COUNT(*) as total_blocks,
+          COALESCE(EXTRACT(EPOCH FROM (NOW() - MAX(inserted_at))), 0) as seconds_since_latest_block
+        FROM blocks
+      metrics:
+        - latest_block_number:
+            usage: "GAUGE"
+            description: "Latest block number in database"
+        - total_blocks:
+            usage: "GAUGE"
+            description: "Total blocks in database"
+        - seconds_since_latest_block:
+            usage: "GAUGE"
+            description: "Seconds since latest block was inserted"
+
+    {{- if .Values.postgresql.partman.enabled }}
+    # ========================================
+    # PG_PARTMAN SPECIFIC MONITORING
+    # ========================================
+
+    # Partition counts per table
+    partman_partition_count:
+      query: |
+        SELECT
+          pc.parent_table,
+          COUNT(i.inhrelid) as partition_count
+        FROM partman.part_config pc
+        LEFT JOIN pg_inherits i ON i.inhparent = pc.parent_table::regclass
+        GROUP BY pc.parent_table
+      metrics:
+        - parent_table:
+            usage: "LABEL"
+            description: "Parent partitioned table"
+        - partition_count:
+            usage: "GAUGE"
+            description: "Number of partitions"
+
+    # Partition maintenance last run
+    partman_maintenance_last_run:
+      query: |
+        SELECT
+          parent_table,
+          COALESCE(EXTRACT(EPOCH FROM (NOW() - maintenance_last_run)), 0) as seconds_since_maintenance
+        FROM partman.part_config
+      metrics:
+        - parent_table:
+            usage: "LABEL"
+            description: "Parent partitioned table"
+        - seconds_since_maintenance:
+            usage: "GAUGE"
+            description: "Seconds since last maintenance run for this partition set"
+
+    # Default partition data check (should be 0 or low)
+    partman_default_partition_rows:
+      query: |
+        SELECT
+          parent_table,
+          partman.check_default(parent_table) as default_rows
+        FROM partman.part_config
+      metrics:
+        - parent_table:
+            usage: "LABEL"
+            description: "Parent partitioned table"
+        - default_rows:
+            usage: "GAUGE"
+            description: "Number of rows in default partition (should be 0 or low)"
+
+    # Partition configuration status
+    partman_config_status:
+      query: |
+        SELECT
+          parent_table,
+          CASE WHEN automatic_maintenance = 'on' THEN 1 ELSE 0 END as automatic_maintenance,
+          premake,
+          EXTRACT(EPOCH FROM retention::interval) as retention_seconds,
+          CASE WHEN infinite_time_partitions THEN 1 ELSE 0 END as infinite_time_partitions
+        FROM partman.part_config
+      metrics:
+        - parent_table:
+            usage: "LABEL"
+            description: "Parent partitioned table"
+        - automatic_maintenance:
+            usage: "GAUGE"
+            description: "Automatic maintenance enabled (1) or disabled (0)"
+        - premake:
+            usage: "GAUGE"
+            description: "Number of partitions to premake"
+        - retention_seconds:
+            usage: "GAUGE"
+            description: "Retention period in seconds"
+        - infinite_time_partitions:
+            usage: "GAUGE"
+            description: "Infinite time partitions enabled (1) or disabled (0)"
+    {{- end }}
+{{- end }}
+{{- end }}
+
+---
+{{- if and .Values.postgresql.partman.enabled .Values.monitoring.enabled }}
+# PG_PARTMAN ALERTS
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-partman-alerts
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: monitoring
+spec:
+  groups:
+  - name: pg-partman
+    interval: 60s
+    rules:
+    # Alert if pg_partman maintenance hasn't run (CronJob-based)
+    - alert: PartmanMaintenanceNotRunning
+      expr: |
+        max(pg_partman_maintenance_last_run_seconds_since_maintenance) > 7200
+      for: 30m
+      labels:
+        severity: warning
+        component: pg-partman
+      annotations:
+        summary: "pg_partman maintenance hasn't run in 2 hours"
+        description: |
+          pg_partman maintenance hasn't run in over 2 hours.
+          This may cause missing future partitions or failure to drop old partitions.
+          Check: kubectl get cronjob {{`{{ include "monad-indexer.fullname" . }}`}}-pg-partman-maintenance -n {{`{{ .Release.Namespace }}`}}
+
+    # Alert if default partition has too much data
+    - alert: PartmanDefaultPartitionDataAccumulating
+      expr: |
+        pg_partman_default_partition_rows_default_rows > 10000
+      for: 1h
+      labels:
+        severity: warning
+        component: pg-partman
+      annotations:
+        summary: "Default partition accumulating data"
+        description: |
+          Table {{`{{ $labels.parent_table }}`}} has {{`{{ $value }}`}} rows in default partition.
+          This indicates data outside partition boundaries or maintenance issues.
+          Check: SELECT * FROM partman.check_default('{{`{{ $labels.parent_table }}`}}');
+          Migrate: CALL partman.partition_data_proc(p_parent_table := '{{`{{ $labels.parent_table }}`}}');
+
+    # Alert if partition count is unexpectedly low
+    - alert: PartmanLowPartitionCount
+      expr: |
+        pg_partman_partition_count < 30
+      for: 1h
+      labels:
+        severity: warning
+        component: pg-partman
+      annotations:
+        summary: "Unusually low partition count"
+        description: |
+          Table {{`{{ $labels.parent_table }}`}} has only {{`{{ $value }}`}} partitions.
+          Expected: ~30 days retention + 7 days premake = ~37 partitions.
+          May indicate retention is too aggressive or partitions aren't being created.
+{{- end }}

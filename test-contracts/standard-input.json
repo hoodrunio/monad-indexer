@@ -1,0 +1,29 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "contracts/SimpleStorage.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.20;\n\n/**\n * @title SimpleStorage\n * @dev Store & retrieve value in a variable\n * @notice This is a test contract for Monad testnet deployment\n */\ncontract SimpleStorage {\n    uint256 private storedData;\n    address public owner;\n\n    event ValueChanged(uint256 newValue, address changedBy);\n\n    constructor(uint256 initialValue) {\n        storedData = initialValue;\n        owner = msg.sender;\n    }\n\n    /**\n     * @dev Store value in variable\n     * @param newValue value to store\n     */\n    function set(uint256 newValue) public {\n        storedData = newValue;\n        emit ValueChanged(newValue, msg.sender);\n    }\n\n    /**\n     * @dev Return value\n     * @return value of 'storedData'\n     */\n    function get() public view returns (uint256) {\n        return storedData;\n    }\n\n    /**\n     * @dev Increment the stored value by 1\n     */\n    function increment() public {\n        storedData += 1;\n        emit ValueChanged(storedData, msg.sender);\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "optimizer": {
+      "enabled": true,
+      "runs": 200
+    },
+    "evmVersion": "paris",
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode",
+          "evm.methodIdentifiers",
+          "metadata"
+        ],
+        "": [
+          "ast"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "monad-test-contracts",
+  "version": "1.0.0",
+  "description": "Test contracts for Monad testnet deployment",
+  "scripts": {
+    "compile": "hardhat compile",
+    "deploy": "hardhat run scripts/deploy.js --network monad"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "hardhat": "^2.19.0",
+    "dotenv": "^16.4.7"
+  }
+}

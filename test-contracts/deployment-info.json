@@ -1,0 +1,11 @@
+{
+  "network": "monad-testnet",
+  "contractName": "SimpleStorage",
+  "contractAddress": "0x8e682A50431E8442E1257A6295Ea7bB0902D8705",
+  "deployer": "0x625DD7F0065B611320453268b414826D72D9e998",
+  "constructorArgs": [
+    42
+  ],
+  "timestamp": "2025-10-30T22:26:37.905Z",
+  "transactionHash": "0xfd90da0245d077b21d9105fed06dd1942daa20ad07c91232dfa2d8bf09c3397d"
+}

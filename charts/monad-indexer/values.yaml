@@ -48,8 +48,12 @@ backend:
       variant: "geth"
       transport: "http"
       httpUrl: "https://testnet-rpc.monad.xyz"
+      fallbackHttpUrl: ""  # Fallback HTTP endpoint (set per environment)
       traceUrl: ""  # Defaults to httpUrl if empty
+      fallbackTraceUrl: ""  # Fallback trace endpoint (set per environment)
       wsUrl: "wss://testnet-rpc.monad.xyz"
+      ethCallUrl: ""  # Optional dedicated eth_call endpoint
+      fallbackEthCallUrl: ""  # Fallback eth_call endpoint (set per environment)
       disableArchiveBalances: false
 
     # Chain configuration
@@ -63,6 +67,7 @@ backend:
       v1ReadMethodsDisabled: false
       v1WriteMethodsDisabled: false
       v2Enabled: true
+      corsAllowedOrigin: ""  # Empty by default for security, override per environment
 
     # Frontend configuration (if webapp is enabled)
     frontend:
@@ -78,7 +83,7 @@ backend:
     # Microservices integration
     microservices:
       verifier:
-        type: "eth_bytecode_db"
+        type: "sc_verifier"
 
     # Redis configuration
     redis:
@@ -109,11 +114,14 @@ backend:
     # History mode
     history:
       fetchInternalTransactions: true
+      txsStatsDaysToCompileAtInit: ""  # Optional: Stats compilation period
+      coinBalanceHistoryDays: ""       # Optional: Balance history retention
 
     # Contract verification
     contract:
       allowedSolcVersions: "all"
       allowedVyperVersions: "all"
+      decodeNotAContractCalls: ""      # Optional: Decode non-contract calls
 
     # NFT features
     nft:
@@ -123,24 +131,31 @@ backend:
     logging:
       consoleFormat: "json"
       consoleLevel: "info"
+      disableFileLogging: true           # Optional: Disable file logging
+      heartBeatTimeout: ""             # Optional: Heartbeat timeout
 
     # reCAPTCHA (disabled)
     recaptcha:
       enabled: false
+      disabled: ""                     # Optional: Explicitly disable reCAPTCHA
 
     # Advanced features
     advanced:
       cacheAddressWithBalancesUpdateInterval: "30"
       cacheBlockCountPeriod: "7200"
+      # Sourcify integration
+      sourcifyIntegrationEnabled: true
+      sourcifyServerUrl: "https://sourcify.dev/server"
+      sourcifyRepoUrl: "https://repo.sourcify.dev/contracts/"
 
   # Secret configuration
   secret:
     annotations: {}
     secretKeyBase: ""  # Will use placeholder if empty
 
-  # Existing secret for sensitive data (use sealed secrets in production)
+  # Existing secret for sensitive data (managed by External Secrets Operator in production)
   # If set, the chart will not create a secret and will use this instead
-  # Generate with: make seal-secrets
+  # See: docs/secrets-management.md
   existingSecret: "monad-indexer-backend-secret"
 
   # Extra environment variables (for values not in config structure)
@@ -182,7 +197,7 @@ backend:
   startupProbe:
     enabled: true
     httpGet:
-      path: /api/v2/stats
+      path: /api/health/liveness
       port: http
     initialDelaySeconds: 0
     periodSeconds: 10
@@ -193,9 +208,9 @@ backend:
   livenessProbe:
     enabled: true
     httpGet:
-      path: /api/v2/stats
+      path: /api/health/liveness
       port: http
-    initialDelaySeconds: 120
+    initialDelaySeconds: 60
     periodSeconds: 30
     timeoutSeconds: 10
     failureThreshold: 5
@@ -204,9 +219,9 @@ backend:
   readinessProbe:
     enabled: true
     httpGet:
-      path: /api/v2/stats
+      path: /api/health/readiness
       port: http
-    initialDelaySeconds: 30
+    initialDelaySeconds: 15
     periodSeconds: 10
     timeoutSeconds: 5
     failureThreshold: 3
@@ -314,8 +329,8 @@ microservices:
           enabled: true
           maxBodySize: 2097152
           cors:
-            enabled: true
-            allowedOrigin: "*"
+            enabled: false  # Disabled by default, override per environment
+            allowedOrigin: ""
         grpc:
           enabled: false
       logging:
@@ -382,7 +397,7 @@ microservices:
         http:
           enabled: true
           cors:
-            enabled: true
+            enabled: false  # Disabled by default for security
             allowedOrigin: "*"
         grpc:
           enabled: false
@@ -496,8 +511,8 @@ postgresql:
   auth:
     database: blockscout
     username: blockscout
-    password: ""  # Leave empty when using sealed secrets
-    # Use sealed secret by default (generate with: make seal-secrets)
+    password: ""  # Leave empty when using External Secrets
+    # Managed by External Secrets Operator (see docs/secrets-management.md)
     existingSecret: "monad-indexer-postgresql-app"
 
   # PostgreSQL configuration (optimized for 5k TPS)
@@ -521,6 +536,73 @@ postgresql:
     logConnections: "on"
     logDisconnections: "on"
     additionalParameters: {}
+
+  # pg_partman configuration for partition-based data retention
+  # More efficient than DELETE-based retention (99.9% faster)
+  partman:
+    enabled: false  # Enable after testing in dev/staging
+
+    # Retention period (partitions older than this are automatically dropped)
+    retentionDays: 30
+
+    # How many days ahead to pre-create partitions
+    # Prevents "no partition found" errors for future data
+    premakeDays: 7
+
+    # Partition interval (daily partitions recommended for blockchain data)
+    partitionInterval: "1 day"
+
+    # Background worker interval in seconds (how often to run maintenance)
+    # 3600 = 1 hour (checks for partitions to create/drop)
+    bgwInterval: 3600
+
+    # Tables to partition (must have inserted_at column)
+    tables:
+      - blocks
+      - transactions
+      - logs
+      - token_transfers
+      - internal_transactions
+
+    # Data migration job configuration (one-time)
+    migration:
+      enabled: false  # Enable to run migration job
+      batchSize: 50000  # Rows per batch
+      batchInterval: 10  # Seconds between batches
+      timeoutSeconds: 86400  # 24 hours
+      resources:
+        requests:
+          cpu: "1000m"
+          memory: "2Gi"
+        limits:
+          memory: "4Gi"
+      nodeSelector: {}
+      tolerations: []
+
+    # Maintenance CronJob configuration
+    # NOTE: Background worker (pg_partman_bgw) not available in CloudNativePG
+    # CronJob is automatically enabled when partman.enabled=true
+    maintenance:
+      schedule: "0 * * * *"  # Hourly (every hour at :00)
+      waitBetweenSets: 1  # Seconds to wait between partition sets
+      analyze: false  # Run ANALYZE (expensive, set true only if needed)
+      timeoutSeconds: 3600  # 1 hour timeout
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "128Mi"
+        limits:
+          memory: "256Mi"
+      nodeSelector: {}
+      tolerations: []
+
+  # Init database with pg_partman extension
+  initdb:
+    postInitSQL:
+      - CREATE SCHEMA IF NOT EXISTS partman;
+      - CREATE EXTENSION IF NOT EXISTS pg_partman SCHEMA partman;
+      - GRANT ALL ON SCHEMA partman TO blockscout;
+      - GRANT ALL ON ALL TABLES IN SCHEMA partman TO blockscout;
 
   # Primary instance
   primary:
@@ -600,12 +682,9 @@ postgresql:
     podAntiAffinityType: "required"  # or "preferred"
     topologyKey: "kubernetes.io/hostname"
     # Additional custom affinity rules
-    additionalPodAntiAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        - labelSelector:
-            matchLabels:
-              cnpg.io/cluster: monad-indexer-postgresql
-          topologyKey: kubernetes.io/hostname
+    # Note: cnpg.io/cluster label is automatically set by CloudNativePG
+    # The value is the cluster name ({{ include "monad-indexer.fullname" . }}-postgresql)
+    additionalPodAntiAffinity: {}
 
   nodeSelector: {}
   tolerations: []
@@ -709,8 +788,8 @@ statsPostgresql:
   auth:
     database: stats
     username: stats
-    password: ""  # Leave empty when using sealed secrets
-    # Use sealed secret by default (generate with: make seal-secrets)
+    password: ""  # Leave empty when using External Secrets
+    # Managed by External Secrets Operator (see docs/secrets-management.md)
     existingSecret: "monad-indexer-stats-postgresql-app"
 
   # Storage configuration (smaller than main DB)
@@ -727,7 +806,7 @@ statsPostgresql:
         memory: "2Gi"
 
 # ============================================================
-# INGRESS
+# INGRESS (Deprecated - use Gateway API)
 # ============================================================
 ingress:
   enabled: false
@@ -739,3 +818,60 @@ ingress:
         - path: /
           pathType: Prefix
   tls: []
+
+# ============================================================
+# GATEWAY API (Recommended)
+# ============================================================
+gateway:
+  enabled: false  # Enable per environment
+
+  # Gateway name and namespace
+  name: "monad-indexer-gateway"
+  namespace: ""  # Defaults to Release.Namespace
+
+  # Gateway annotations
+  annotations: {}
+
+  # Hostnames and paths
+  hosts:
+    - host: indexer.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+
+  # TLS configuration
+  tls:
+    enabled: true
+    # Secret name for TLS certificate (created by cert-manager)
+    secretName: "indexer-tls"
+    # ClusterIssuer for cert-manager
+    clusterIssuer: "letsencrypt-prod"
+
+  # Traffic policies
+  timeout: 300s  # Request timeout
+  retries:
+    attempts: 3
+    backoff: 1s
+
+  # Rate limiting (optional, requires Envoy config)
+  rateLimit:
+    enabled: false
+    requestsPerSecond: 1000
+    burst: 2000
+    
+
+# ============================================================
+# EXTERNAL SECRETS (AWS Secrets Manager Integration)
+# ============================================================
+externalSecrets:
+  enabled: true  # Set to false to use plain Kubernetes Secrets
+
+  aws:
+    region: "eu-north-1"  # Stockholm region
+    secretName: "blockscout"  # Single AWS Secrets Manager secret containing all credentials
+    credentialsSecret: "aws-credentials"  # Kubernetes Secret containing AWS access keys
+    # Create this secret manually with:
+    # kubectl create secret generic aws-credentials \
+    #   --from-literal=access-key-id=YOUR_KEY \
+    #   --from-literal=secret-access-key=YOUR_SECRET \
+    #   -n <namespace>
