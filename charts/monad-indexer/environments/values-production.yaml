@@ -5,7 +5,7 @@ backend:
   # ExternalSecret will create this secret from AWS Secrets Manager
   existingSecret: "monad-indexer-production-backend-secret"
 
-  replicaCount: 5
+  replicaCount: 1
 
   resources:
     requests:
@@ -69,7 +69,7 @@ backend:
 microservices:
   smart-contract-verifier:
     enabled: true
-    replicaCount: 5
+    replicaCount: 1
     config:
       server:
         http:
@@ -90,7 +90,7 @@ microservices:
 
   sig-provider:
     enabled: true
-    replicaCount: 3
+    replicaCount: 1
     resources:
       requests:
         cpu: "500m"
@@ -100,7 +100,7 @@ microservices:
 
   visualizer:
     enabled: true
-    replicaCount: 2
+    replicaCount: 1
     resources:
       requests:
         cpu: "500m"
@@ -110,7 +110,7 @@ microservices:
 
   stats:
     enabled: true
-    replicaCount: 2
+    replicaCount: 1
     resources:
       requests:
         cpu: "1000m"
@@ -120,7 +120,7 @@ microservices:
 
 # PostgreSQL - production HA
 postgresql:
-  replicaCount: 3
+  replicaCount: 1
 
   auth:
     # ExternalSecret will create this secret from AWS Secrets Manager
@@ -161,7 +161,7 @@ postgresql:
 
   pooler:
     enabled: true
-    replicaCount: 3
+    replicaCount: 1
     maxClientConn: 5000
     defaultPoolSize: 100
 
@@ -177,7 +177,7 @@ postgresql:
 # Redis - production HA
 redis:
   replica:
-    replicaCount: 3
+    replicaCount: 2
   sentinel:
     enabled: true
     quorum: 2
