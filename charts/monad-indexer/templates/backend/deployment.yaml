@@ -55,7 +55,7 @@ spec:
             - -c
             - |
               {{- if .Values.postgresql.pooler.enabled }}
-              until nc -z {{ include "monad-indexer.fullname" . }}-pooler-rw 5432; do
+              until nc -z {{ include "monad-indexer.fullname" . }}-pooler 5432; do
               {{- else }}
               until nc -z {{ include "monad-indexer.fullname" . }}-postgresql-rw 5432; do
               {{- end }}
