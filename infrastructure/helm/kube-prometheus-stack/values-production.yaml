@@ -84,16 +84,9 @@ grafana:
         hosts:
           - grafana.monad.example.com
 
-  # Datasources - Prometheus auto-configured
-  datasources:
-    datasources.yaml:
-      apiVersion: 1
-      datasources:
-        - name: Prometheus
-          type: prometheus
-          url: http://kube-prometheus-stack-prometheus:9090
-          access: proxy
-          isDefault: true
+  # Datasources - Prometheus auto-configured by chart
+  # Default datasource is automatically created by kube-prometheus-stack
+  # No need to manually define it to avoid duplicate default datasource error
 
   # Dashboards
   dashboardProviders:
