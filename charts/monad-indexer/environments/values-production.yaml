@@ -137,9 +137,9 @@ postgresql:
     existingSecret: "monad-indexer-production-postgresql-app"
 
   config:
-    sharedBuffers: "8GB"
-    effectiveCacheSize: "24GB"
-    maintenanceWorkMem: "2GB"
+    sharedBuffers: "2GB"
+    effectiveCacheSize: "4GB"
+    maintenanceWorkMem: "4GB"
     workMem: "128MB"
     maxConnections: "500"
 
