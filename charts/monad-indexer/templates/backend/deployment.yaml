@@ -49,16 +49,15 @@ spec:
       initContainers:
         {{- if .Values.backend.initContainers.waitForPostgres.enabled }}
         - name: wait-for-postgres
-          image: alpine:3.19
+          image: busybox:1.28
           command:
             - sh
             - -c
             - |
-              apk add --no-cache netcat-openbsd
               {{- if .Values.postgresql.pooler.enabled }}
-              until nc -zv {{ include "monad-indexer.fullname" . }}-pooler 5432; do
+              until nc -z {{ include "monad-indexer.fullname" . }}-pooler 5432; do
               {{- else }}
-              until nc -zv {{ include "monad-indexer.fullname" . }}-postgresql-rw 5432; do
+              until nc -z {{ include "monad-indexer.fullname" . }}-postgresql-rw 5432; do
               {{- end }}
                 echo "Waiting for PostgreSQL..."
                 sleep 2
