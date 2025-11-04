@@ -1,5 +1,5 @@
 # Gateway for Production Environment
-# Public IP: 65.109.80.202
+# Public IP: 65.109.80.235
 # Domains: cd.hoodscan.io, monad-tn1-indexer.hoodscan.io
 
 apiVersion: gateway.networking.k8s.io/v1
@@ -19,7 +19,13 @@ spec:
 
   addresses:
     - type: IPAddress
-      value: "65.109.80.202"
+      value: "65.109.80.235"
+
+  # Pass annotations to LoadBalancer Service for IP sharing
+  infrastructure:
+    annotations:
+      io.cilium.lb/ipam-sharing-key: monad-indexer-public
+      lbipam.cilium.io/sharing-key: monad-indexer-public
 
   listeners:
     # HTTPS listener for ArgoCD (cd.hoodscan.io)

@@ -1,5 +1,5 @@
 # HTTP-only Gateway dedicated to ACME HTTP-01 challenges
-# Shares the same public IP as the main Gateway (65.109.80.202)
+# Shares the same public IP as the main Gateway (65.109.80.235)
 
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
@@ -18,7 +18,13 @@ spec:
 
   addresses:
     - type: IPAddress
-      value: "65.109.80.202"
+      value: "65.109.80.235"
+
+  # Pass annotations to LoadBalancer Service for IP sharing
+  infrastructure:
+    annotations:
+      io.cilium.lb/ipam-sharing-key: monad-indexer-public
+      lbipam.cilium.io/sharing-key: monad-indexer-public
 
   listeners:
     - name: http
