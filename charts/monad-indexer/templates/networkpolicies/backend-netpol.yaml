@@ -13,14 +13,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow from ingress controller (nginx) and Gateway API (Cilium)
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              name: ingress-nginx
-      ports:
-        - protocol: TCP
-          port: 4000
+    # Allow from Gateway API (Cilium Envoy in kube-system)
     - from:
         - namespaceSelector:
             matchLabels:
