@@ -100,7 +100,7 @@ data:
   # REDIS CACHE
   # ============================================
   {{- if .Values.redis.enabled }}
-  REDIS_HOST: {{ include "monad-indexer.fullname" . }}-redis-master
+  REDIS_HOST: {{ include "monad-indexer.fullname" . }}-redis
   REDIS_PORT: "6379"
   {{- end }}
 
