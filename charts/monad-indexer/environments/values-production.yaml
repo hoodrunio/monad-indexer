@@ -9,30 +9,31 @@ backend:
 
   resources:
     requests:
-      cpu: "500m"  # Reduced for single-node cluster
-      memory: "2Gi"  # Reduced for single-node cluster
+      cpu: "400m"  # Optimized based on actual usage (~311m/pod)
+      memory: "512Mi"  # Optimized based on actual usage (~358Mi/pod)
     limits:
-      memory: "8Gi"
+      cpu: "1000m"  # Added CPU limit for burst protection
+      memory: "2Gi"  # Reduced from 8Gi for efficiency
 
   autoscaling:
     enabled: true
     minReplicas: 1
-    maxReplicas: 5
-    targetCPUUtilizationPercentage: 60  # Aggressive scaling
+    maxReplicas: 2  # Reduced from 5 for efficient resource usage
+    targetCPUUtilizationPercentage: 80  # Increased from 60 to prevent aggressive scaling
     targetMemoryUtilizationPercentage: 70
     behavior:
       scaleUp:
-        stabilizationWindowSeconds: 60
+        stabilizationWindowSeconds: 120  # Increased from 60 for stability
         policies:
         - type: Percent
           value: 100
-          periodSeconds: 60
+          periodSeconds: 120  # Increased from 60 for stability
       scaleDown:
         stabilizationWindowSeconds: 300
         policies:
         - type: Percent
           value: 50
-          periodSeconds: 60
+          periodSeconds: 120  # Increased from 60 for stability
 
   podDisruptionBudget:
     enabled: true
