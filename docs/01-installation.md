@@ -125,10 +125,7 @@ This will:
 **Access ArgoCD UI**:
 
 ```bash
-# Port forward
-kubectl port-forward svc/argocd-server -n argocd 8080:443
-
-# Visit https://localhost:8080
+# Visit https://cd.hoodscan.io
 # Username: admin
 # Password: (displayed by install script)
 ```
@@ -143,8 +140,11 @@ brew install argocd
 curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
 chmod +x /usr/local/bin/argocd
 
-# Login
-argocd login localhost:8080
+# Login to ArgoCD
+argocd login cd.hoodscan.io
+
+# Username: admin
+# Password: (same as UI password from install script)
 ```
 
 ### Configure Repository Credentials
