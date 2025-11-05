@@ -15,12 +15,8 @@ spec:
   ingress:
     # Allow from Gateway API (Cilium Envoy pods)
     # Note: Gateway API traffic uses Cilium's "ingress identity" rather than pod identity
-    # so we match by namespace only, not pod labels
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-      ports:
+    # We allow all sources on port 4000 as Gateway traffic doesn't preserve source identity
+    - ports:
         - protocol: TCP
           port: 4000
   egress:
