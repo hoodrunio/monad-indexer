@@ -2,9 +2,10 @@
 # These route traffic from Gateway listeners to backend services
 
 ---
-# HTTPRoute for ArgoCD Web UI
-# Note: Gateway API doesn't support mixed HTTP/gRPC on same hostname (GEP-1016)
-# This route only handles Web UI traffic. For CLI access, use NodePort (port 30080)
+# HTTPRoute for ArgoCD (Web UI + CLI)
+# Routes both HTTP/1.1 (UI) and HTTP/2 (gRPC CLI) traffic
+# Uses header matching to route gRPC traffic (CLI) vs HTTP traffic (UI)
+# Gateway API evaluates rules in order, first match wins
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -20,6 +21,16 @@ spec:
   hostnames:
     - cd.hoodscan.io
   rules:
+    # Rule 1: Route gRPC traffic (CLI) based on Content-Type header
+    - matches:
+        - headers:
+            - type: Exact
+              name: content-type
+              value: application/grpc
+      backendRefs:
+        - name: argocd-server-grpc
+          port: 80
+    # Rule 2: Route HTTP traffic (Web UI) - default fallback
     - backendRefs:
         - name: argocd-server-http
           port: 80
