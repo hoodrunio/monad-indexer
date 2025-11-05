@@ -9,11 +9,11 @@ backend:
 
   resources:
     requests:
-      cpu: "400m"  # Optimized based on actual usage (~311m/pod)
-      memory: "512Mi"  # Optimized based on actual usage (~358Mi/pod)
+      cpu: "500m"  # Optimized based on actual usage (~311m/pod)
+      memory: "1Gi"  # Optimized based on actual usage (~358Mi/pod)
     limits:
       cpu: "1000m"  # Added CPU limit for burst protection
-      memory: "2Gi"  # Reduced from 8Gi for efficiency
+      memory: "4Gi"  # Reduced from 8Gi for efficiency
 
   autoscaling:
     enabled: true
