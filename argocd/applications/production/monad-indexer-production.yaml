@@ -43,13 +43,34 @@ spec:
         factor: 2
         maxDuration: 3m
 
-  # Ignore differences for HPA-managed replicas
+  # Ignore differences for operator-managed fields
   ignoreDifferences:
+    # HPA-managed replicas
     - group: apps
       kind: Deployment
       name: monad-indexer-backend
       jsonPointers:
         - /spec/replicas
+    # CNPG Operator-managed fields
+    - group: postgresql.cnpg.io
+      kind: Cluster
+      jsonPointers:
+        - /spec/backup/target  # Operator sets this to "prefer-standby" automatically
+        - /spec/postgresql/parameters/archive_mode  # Operator manages WAL archiving
+        - /spec/postgresql/parameters/archive_timeout
+        - /spec/postgresql/parameters/dynamic_shared_memory_type
+        - /spec/postgresql/parameters/log_destination  # Operator manages logging
+        - /spec/postgresql/parameters/log_directory
+        - /spec/postgresql/parameters/log_filename
+        - /spec/postgresql/parameters/log_rotation_age
+        - /spec/postgresql/parameters/log_rotation_size
+        - /spec/postgresql/parameters/log_truncate_on_rotation
+        - /spec/postgresql/parameters/logging_collector
+        - /spec/logLevel  # Operator default
+        - /spec/postgresGID  # Operator default
+        - /spec/postgresUID  # Operator default
+        - /spec/maxSyncReplicas  # Operator manages replication
+        - /spec/minSyncReplicas
 
   # Health assessment
   # (CloudNativePG custom health checks are automatic)
