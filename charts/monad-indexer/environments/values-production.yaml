@@ -50,7 +50,7 @@ backend:
       fallbackHttpUrl: "https://lb.drpc.live/monad-testnet/Ag9VzqLbl0KSsk-eqggyUSEMjYZNtZoR8L4M_hXb38UN"
       traceUrl: "https://monad-rpc.hoodscan.io"
       fallbackTraceUrl: "https://lb.drpc.live/monad-testnet/Ag9VzqLbl0KSsk-eqggyUSEMjYZNtZoR8L4M_hXb38UN"
-      wsUrl: "wss://monad-rpc.hoodscan.io"
+      wsUrl: "wss://monad-rpc.hoodscan.io/ws/"
       ethCallUrl: "https://monad-rpc.hoodscan.io"
       fallbackEthCallUrl: "https://lb.drpc.live/monad-testnet/Ag9VzqLbl0KSsk-eqggyUSEMjYZNtZoR8L4M_hXb38UN"
 
