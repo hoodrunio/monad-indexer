@@ -976,6 +976,91 @@
           "default": false
         }
       }
+    },
+    "precompile": {
+      "type": "object",
+      "description": "Precompile ABI seeder configuration for blockchain precompiled contracts",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable precompile ABI seeding job",
+          "default": true
+        },
+        "address": {
+          "type": "string",
+          "description": "Precompile contract address (must start with 0x)",
+          "pattern": "^0x[0-9a-fA-F]{40}$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name for the precompile contract in Blockscout UI",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "job": {
+          "type": "object",
+          "description": "Kubernetes Job configuration for ABI seeding (uses postgresql.image.* for container image)",
+          "properties": {
+            "resources": {
+              "type": "object",
+              "description": "Resource requests and limits",
+              "properties": {
+                "requests": {
+                  "type": "object",
+                  "properties": {
+                    "cpu": {
+                      "type": "string",
+                      "pattern": "^[0-9]+(m|\\.[0-9]+)?$"
+                    },
+                    "memory": {
+                      "type": "string",
+                      "pattern": "^[0-9]+(Mi|Gi)$"
+                    }
+                  }
+                },
+                "limits": {
+                  "type": "object",
+                  "properties": {
+                    "cpu": {
+                      "type": "string",
+                      "pattern": "^[0-9]+(m|\\.[0-9]+)?$"
+                    },
+                    "memory": {
+                      "type": "string",
+                      "pattern": "^[0-9]+(Mi|Gi)$"
+                    }
+                  }
+                }
+              }
+            },
+            "backoffLimit": {
+              "type": "integer",
+              "description": "Number of retries before marking job as failed",
+              "minimum": 0,
+              "maximum": 10,
+              "default": 3
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "description": "Job timeout in seconds",
+              "minimum": 60,
+              "maximum": 3600,
+              "default": 300
+            },
+            "nodeSelector": {
+              "type": "object",
+              "description": "Node selector for job pod placement"
+            },
+            "tolerations": {
+              "type": "array",
+              "description": "Tolerations for job pod scheduling",
+              "items": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

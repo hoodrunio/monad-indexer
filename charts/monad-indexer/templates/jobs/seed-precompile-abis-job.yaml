@@ -1,0 +1,140 @@
+{{- if .Values.precompile.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-seed-precompile-abis
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: precompile-seeder
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: {{ .Values.precompile.job.backoffLimit | default 3 }}
+  activeDeadlineSeconds: {{ .Values.precompile.job.timeoutSeconds | default 300 }}
+  template:
+    metadata:
+      labels:
+        {{- include "monad-indexer.labels" . | nindent 8 }}
+        app.kubernetes.io/component: precompile-seeder
+    spec:
+      serviceAccountName: {{ include "monad-indexer.serviceAccountName" . }}
+      restartPolicy: OnFailure
+      {{- with .Values.precompile.job.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.precompile.job.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: seed-precompile-abis
+        image: {{ .Values.postgresql.image.registry }}/{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: PGHOST
+          value: {{ include "monad-indexer.fullname" . }}-postgresql-rw
+        - name: PGPORT
+          value: "5432"
+        - name: PGDATABASE
+          value: {{ .Values.postgresql.auth.database | quote }}
+        - name: PGUSER
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.postgresql.auth.existingSecret | default (printf "%s-postgresql-app" (include "monad-indexer.fullname" .)) }}
+              key: username
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.postgresql.auth.existingSecret | default (printf "%s-postgresql-app" (include "monad-indexer.fullname" .)) }}
+              key: password
+        - name: PRECOMPILE_ADDRESS
+          value: {{ .Values.precompile.address | quote }}
+        - name: PRECOMPILE_NAME
+          value: {{ .Values.precompile.name | quote }}
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -euo pipefail
+
+          echo "================================================================"
+          echo "MONAD PRECOMPILE ABI SEEDER"
+          echo "================================================================"
+          echo "Started: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "Precompile Address: ${PRECOMPILE_ADDRESS}"
+          echo "Precompile Name: ${PRECOMPILE_NAME}"
+          echo "Database: ${PGHOST}:${PGPORT}/${PGDATABASE}"
+          echo "================================================================"
+
+          # Wait for database to be ready
+          echo ">>> Waiting for database to be ready..."
+          max_attempts=30
+          attempt=0
+          until psql -c "SELECT 1" > /dev/null 2>&1 || [ $attempt -eq $max_attempts ]; do
+            attempt=$((attempt + 1))
+            echo "Waiting for database... attempt $attempt/$max_attempts"
+            sleep 2
+          done
+
+          if [ $attempt -eq $max_attempts ]; then
+            echo "ERROR: Database not available after $max_attempts attempts"
+            exit 1
+          fi
+
+          echo ">>> Database is ready!"
+
+          # Verify smart_contracts table exists
+          echo ">>> Verifying smart_contracts table exists..."
+          if ! psql -t -c "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'smart_contracts');" | grep -q 't'; then
+            echo "ERROR: smart_contracts table does not exist!"
+            echo "Please ensure the database schema has been initialized by Blockscout."
+            exit 1
+          fi
+
+          echo ">>> Table exists, proceeding with ABI seeding..."
+
+          # Load ABI JSON from ConfigMap
+          ABI_CONTENT=$(cat /mnt/abi/staking_abi.json)
+
+          # Execute SQL with ABI content as parameter
+          psql -v ON_ERROR_STOP=1 -v abi_content="$ABI_CONTENT" < /mnt/sql/seed-precompile.sql
+
+          if [ $? -eq 0 ]; then
+            echo ""
+            echo "================================================================"
+            echo "SUCCESS: Precompile ABI seeded successfully!"
+            echo "Completed: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+            echo "================================================================"
+            exit 0
+          else
+            echo ""
+            echo "================================================================"
+            echo "ERROR: Failed to seed precompile ABI"
+            echo "Failed at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+            echo "================================================================"
+            exit 1
+          fi
+
+        volumeMounts:
+        - name: abi
+          mountPath: /mnt/abi
+          readOnly: true
+        - name: sql
+          mountPath: /mnt/sql
+          readOnly: true
+        {{- with .Values.precompile.job.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      volumes:
+      - name: abi
+        configMap:
+          name: {{ include "monad-indexer.fullname" . }}-precompile-abi
+      - name: sql
+        configMap:
+          name: {{ include "monad-indexer.fullname" . }}-precompile-seed-sql
+{{- end }}

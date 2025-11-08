@@ -505,7 +505,7 @@ postgresql:
 
   image:
     registry: ghcr.io
-    repository: cloudnative-pg/postgresql
+    repository: hoodrunio/postgresql-partman
     tag: "17"
 
   auth:
@@ -858,7 +858,39 @@ gateway:
     enabled: false
     requestsPerSecond: 1000
     burst: 2000
-    
+
+# ============================================================
+# PRECOMPILE ABI SEEDER
+# ============================================================
+precompile:
+  enabled: true  # Set to false to disable precompile ABI seeding
+
+  # Monad Staking Precompile
+  address: "0x0000000000000000000000000000000000001000"
+  name: "Staking Precompile"
+
+  # Job configuration
+  job:
+    # Note: Job uses postgresql.image.* configuration (same as pg-partman job)
+    # This ensures consistency and avoids redundant image pulls
+
+    # Resource limits
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "256Mi"
+
+    # Job behavior
+    backoffLimit: 3
+    timeoutSeconds: 300  # 5 minutes
+
+    # Node affinity (optional)
+    nodeSelector: {}
+    tolerations: []
+
 
 # ============================================================
 # EXTERNAL SECRETS (AWS Secrets Manager Integration)
