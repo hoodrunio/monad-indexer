@@ -103,6 +103,8 @@ SELECT
   encode(address_hash, 'hex') as address,
   name,
   compiler_version,
+  contract_code_md5,
+  license_type,
   jsonb_array_length(abi) as abi_entries
 FROM smart_contracts
 WHERE address_hash = decode('0000000000000000000000000000000000001000', 'hex');
@@ -110,9 +112,9 @@ WHERE address_hash = decode('0000000000000000000000000000000000001000', 'hex');
 
 **Expected result:**
 ```
-                  address                   |       name        | compiler_version | abi_entries
---------------------------------------------+-------------------+------------------+-------------
- 0000000000000000000000000000000000001000 | Staking Precompile | precompile      |          31
+                  address                   |       name        | compiler_version |        contract_code_md5         | license_type | abi_entries
+--------------------------------------------+-------------------+------------------+----------------------------------+--------------+-------------
+ 0000000000000000000000000000000000001000 | Staking Precompile | precompile       | 0409709531219fabb3de0b511872080d |            1 |          30
 ```
 
 ### 3. Verify in Blockscout UI
@@ -271,10 +273,12 @@ The precompile ABI is stored in the `smart_contracts` table with these values:
 |---------------------------------|------------------------------------------------|
 | `address_hash`                  | `\x0000...1000` (bytea)                        |
 | `name`                          | "Staking Precompile"                           |
-| `abi`                           | Full ABI JSON array (31 entries)               |
+| `abi`                           | Full ABI JSON array (30 entries)               |
 | `compiler_version`              | "precompile"                                   |
 | `optimization`                  | false                                          |
 | `contract_source_code`          | Documentation comment                          |
+| `contract_code_md5`             | MD5("precompile") = "0409709531219fabb3de0b511872080d" |
+| `license_type`                  | 1 (no license)                                 |
 | `is_vyper_contract`             | false                                          |
 | `partially_verified`            | false                                          |
 | `verified_via_sourcify`         | false                                          |
