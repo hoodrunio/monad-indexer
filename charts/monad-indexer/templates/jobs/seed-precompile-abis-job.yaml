@@ -98,10 +98,70 @@ spec:
           echo ">>> Table exists, proceeding with ABI seeding..."
 
           # Load ABI JSON from ConfigMap
+          echo ">>> Loading ABI from ConfigMap..."
           ABI_CONTENT=$(cat /mnt/abi/staking_abi.json)
+          echo ">>> ABI loaded successfully"
 
-          # Execute SQL with ABI content as parameter
-          psql -v ON_ERROR_STOP=1 -v abi_content="$ABI_CONTENT" < /mnt/sql/seed-precompile.sql
+          # Execute SQL to insert precompile ABI
+          echo ">>> Inserting precompile ABI into database..."
+          psql -v ON_ERROR_STOP=1 <<EOF
+          DO \$\$
+          DECLARE
+            precompile_address BYTEA := decode('${PRECOMPILE_ADDRESS#0x}', 'hex');
+            abi_json JSONB := '${ABI_CONTENT}'::jsonb;
+          BEGIN
+            -- Insert or update the precompile contract
+            INSERT INTO smart_contracts (
+              address_hash,
+              name,
+              abi,
+              compiler_version,
+              optimization,
+              contract_source_code,
+              is_vyper_contract,
+              partially_verified,
+              verified_via_sourcify,
+              verified_via_eth_bytecode_db,
+              verified_via_verifier_alliance,
+              inserted_at,
+              updated_at
+            ) VALUES (
+              precompile_address,
+              '${PRECOMPILE_NAME}',
+              abi_json,
+              'precompile',
+              false,
+              '-- Monad native staking precompile\n-- This is a precompiled contract and cannot be verified through traditional means.\n-- Address: ${PRECOMPILE_ADDRESS}\n-- Documentation: https://docs.monad.xyz/',
+              false,
+              false,
+              false,
+              false,
+              false,
+              NOW(),
+              NOW()
+            )
+            ON CONFLICT (address_hash)
+            DO UPDATE SET
+              name = EXCLUDED.name,
+              abi = EXCLUDED.abi,
+              compiler_version = EXCLUDED.compiler_version,
+              contract_source_code = EXCLUDED.contract_source_code,
+              updated_at = NOW();
+
+            RAISE NOTICE 'Successfully seeded precompile ABI for address: ${PRECOMPILE_ADDRESS}';
+          END \$\$;
+
+          -- Verify insertion
+          SELECT
+            '0x' || encode(address_hash, 'hex') as address,
+            name,
+            compiler_version,
+            jsonb_array_length(abi) as abi_entries,
+            inserted_at,
+            updated_at
+          FROM smart_contracts
+          WHERE address_hash = decode('${PRECOMPILE_ADDRESS#0x}', 'hex');
+          EOF
 
           if [ $? -eq 0 ]; then
             echo ""
@@ -123,9 +183,6 @@ spec:
         - name: abi
           mountPath: /mnt/abi
           readOnly: true
-        - name: sql
-          mountPath: /mnt/sql
-          readOnly: true
         {{- with .Values.precompile.job.resources }}
         resources:
           {{- toYaml . | nindent 10 }}
@@ -134,7 +191,4 @@ spec:
       - name: abi
         configMap:
           name: {{ include "monad-indexer.fullname" . }}-precompile-abi
-      - name: sql
-        configMap:
-          name: {{ include "monad-indexer.fullname" . }}-precompile-seed-sql
 {{- end }}
