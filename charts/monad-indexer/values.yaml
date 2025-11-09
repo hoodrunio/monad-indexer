@@ -76,7 +76,7 @@ backend:
 
     # Market data
     market:
-      coinName: "MON"
+      coinName: "monad"
       coin: "MON"
       disabled: false
 
