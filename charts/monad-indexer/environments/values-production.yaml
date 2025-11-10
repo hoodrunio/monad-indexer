@@ -12,16 +12,16 @@ backend:
 
   resources:
     requests:
-      cpu: "500m"  # Optimized based on actual usage (~311m/pod)
-      memory: "1Gi"  # Optimized based on actual usage (~358Mi/pod)
+      cpu: "1000m"  # Optimized based on actual usage (~311m/pod)
+      memory: "2Gi"  # Optimized based on actual usage (~358Mi/pod)
     limits:
-      cpu: "1000m"  # Added CPU limit for burst protection
-      memory: "4Gi"  # Reduced from 8Gi for efficiency
+      cpu: "1500m"  # Added CPU limit for burst protection
+      memory: "6i"  # Reduced from 8Gi for efficiency
 
   autoscaling:
-    enabled: true
+    enabled: false
     minReplicas: 1
-    maxReplicas: 2  # Reduced from 5 for efficient resource usage
+    maxReplicas: 1  # Reduced from 5 for efficient resource usage
     targetCPUUtilizationPercentage: 80  # Increased from 60 to prevent aggressive scaling
     targetMemoryUtilizationPercentage: 70
     behavior:
@@ -143,9 +143,9 @@ postgresql:
   config:
     sharedBuffers: "2GB"
     effectiveCacheSize: "4GB"
-    maintenanceWorkMem: "4GB"
-    workMem: "128MB"
-    maxConnections: "500"
+    maintenanceWorkMem: "8GB"
+    workMem: "512MB"
+    maxConnections: "800"
 
   primary:
     persistence:
@@ -153,7 +153,7 @@ postgresql:
       storageClass: "fast-ssd"  # Use high-performance storage
     resources:
       requests:
-        cpu: "1000m"  # Reduced for single-node cluster
+        cpu: "1500m"  # Reduced for single-node cluster
         memory: "4Gi"  # Reduced for single-node cluster
       limits:
         memory: "16Gi"
