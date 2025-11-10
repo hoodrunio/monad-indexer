@@ -45,6 +45,8 @@ backend:
   env:
     INDEXER_MEMORY_LIMIT: "5"
     LOG_LEVEL: "warn"
+    INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER: "true"
+    INDEXER_DISABLE_INTERNAL_TRANSACTIONS_FETCHER: "true" 
 
   config:
     # RPC endpoints with fallback
