@@ -51,8 +51,8 @@ backend:
   config:
     # Database configuration - Use pooler for connection management
     database:
-      poolSize: 50  # Reduced from 80 (using pooler now)
-      poolSizeApi: 10  # Keep same for API connections
+      poolSize: 60  # Increased from 50 for better indexer throughput
+      poolSizeApi: 30  # Increased from 10 for faster API responses (transaction/block queries)
 
     # RPC endpoints with fallback
     rpc:
@@ -200,9 +200,9 @@ postgresql:
     replicaCount: 1
     poolMode: "transaction"  # Release connection after each transaction
     maxClientConn: 5000
-    defaultPoolSize: 200  # Increased from 100 for better connection reuse
-    maxDbConnections: 250  # Max connections to PostgreSQL
-    reservePoolSize: 50  # Increased from 25 for burst capacity
+    defaultPoolSize: 300  # Increased from 200 to support backend pools (3 replicas × 90 = 270)
+    maxDbConnections: 350  # Increased from 250 to support higher load
+    reservePoolSize: 75  # Increased from 50 for burst capacity
     # Override default affinity with empty affinity for single-node
     affinity:
       podAntiAffinity: {}
