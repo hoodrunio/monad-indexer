@@ -14,7 +14,7 @@
   hosts: all
   become: yes
   vars:
-    k3s_version: v1.28.5+k3s1  # Stable version
+    k3s_version: v1.33.5+k3s1  # Match server version
     k3s_server_ip: "{{ hostvars[groups['k3s_server'][0]]['ansible_host'] }}"
     k3s_token: ""  # Will be fetched from server
 
