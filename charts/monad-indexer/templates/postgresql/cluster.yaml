@@ -152,6 +152,9 @@ spec:
     {{- if .Values.postgresql.backup.barmanObjectStore }}
     barmanObjectStore:
       destinationPath: {{ .Values.postgresql.backup.barmanObjectStore.destinationPath }}
+      {{- if .Values.postgresql.backup.barmanObjectStore.endpointURL }}
+      endpointURL: {{ .Values.postgresql.backup.barmanObjectStore.endpointURL }}
+      {{- end }}
       {{- if .Values.postgresql.backup.barmanObjectStore.s3Credentials }}
       s3Credentials:
         accessKeyId:

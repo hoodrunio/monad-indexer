@@ -1,6 +1,9 @@
 # Production Environment Configuration
 # Full HA, high resources, all features enabled
 
+# Environment identifier for S3 credentials
+environment: "testnet"
+
 backend:
   # ExternalSecret will create this secret from AWS Secrets Manager
   existingSecret: "monad-indexer-production-backend-secret"
@@ -157,9 +160,21 @@ postgresql:
 
   backup:
     enabled: true
-    retentionPolicy: "30d"
+    retentionPolicy: "7d"
+    secretName: "postgres-backup-creds"
     barmanObjectStore:
-      destinationPath: "s3://monad-indexer-backups/postgresql"
+      destinationPath: "s3://monad-testnet-archive/postgresql"
+      endpointURL: "https://nbg1.your-objectstorage.com"
+      s3Credentials:
+        accessKeyId:
+          name: "postgres-backup-creds"
+          key: "ACCESS_KEY_ID"
+        secretAccessKey:
+          name: "postgres-backup-creds"
+          key: "SECRET_ACCESS_KEY"
+      wal:
+        compression: gzip
+        maxParallel: 2
 
   # Partition management with pg_partman
   partman:
