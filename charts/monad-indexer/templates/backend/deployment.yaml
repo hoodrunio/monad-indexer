@@ -104,6 +104,9 @@ spec:
                 name: {{ include "monad-indexer.fullname" . }}-backend-config
           env:
             {{- include "monad-indexer.backend.env" . | nindent 12 }}
+            {{- if .Values.backend.extraEnv }}
+            {{- toYaml .Values.backend.extraEnv | nindent 12 }}
+            {{- end }}
           {{- if .Values.backend.initContainers.dbMigration.resources }}
           resources:
             {{- toYaml .Values.backend.initContainers.dbMigration.resources | nindent 12 }}
@@ -144,6 +147,9 @@ spec:
 
           env:
             {{- include "monad-indexer.backend.env" . | nindent 12 }}
+            {{- if .Values.backend.extraEnv }}
+            {{- toYaml .Values.backend.extraEnv | nindent 12 }}
+            {{- end }}
 
           {{- if .Values.backend.livenessProbe.enabled }}
           livenessProbe:

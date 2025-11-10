@@ -46,9 +46,30 @@ backend:
     INDEXER_MEMORY_LIMIT: "5"
     LOG_LEVEL: "warn"
     INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER: "true"
-    INDEXER_DISABLE_INTERNAL_TRANSACTIONS_FETCHER: "true" 
+    INDEXER_DISABLE_INTERNAL_TRANSACTIONS_FETCHER: "true"
+
+  # Override DATABASE_URL to use pooler instead of direct PostgreSQL connection
+  extraEnv:
+    - name: DB_USER
+      valueFrom:
+        secretKeyRef:
+          name: monad-indexer-production-postgresql-app
+          key: username
+    - name: DB_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: monad-indexer-production-postgresql-app
+          key: password
+    - name: DATABASE_URL
+      value: "postgresql://$(DB_USER):$(DB_PASSWORD)@monad-indexer-production-pooler:5432/blockscout?sslmode=disable" 
 
   config:
+    # Database configuration - Use pooler for connection management
+    database:
+      usePooler: true  # Route connections through PgBouncer pooler
+      poolSize: 50  # Reduced from 80 (using pooler now)
+      poolSizeApi: 10  # Keep same for API connections
+
     # RPC endpoints with fallback
     rpc:
       httpUrl: "https://monad-rpc.hoodscan.io"
@@ -148,6 +169,8 @@ postgresql:
     maintenanceWorkMem: "8GB"
     workMem: "512MB"
     maxConnections: "800"
+    idle_in_transaction_session_timeout: "10s"  # Cleanup idle transactions after 10s
+    statement_timeout: "30s"  # Kill queries running longer than 30s
 
   primary:
     persistence:
@@ -190,8 +213,11 @@ postgresql:
   pooler:
     enabled: true
     replicaCount: 1
+    poolMode: "transaction"  # Release connection after each transaction
     maxClientConn: 5000
-    defaultPoolSize: 100
+    defaultPoolSize: 200  # Increased from 100 for better connection reuse
+    maxDbConnections: 250  # Max connections to PostgreSQL
+    reservePoolSize: 50  # Increased from 25 for burst capacity
     # Override default affinity with empty affinity for single-node
     affinity:
       podAntiAffinity: {}

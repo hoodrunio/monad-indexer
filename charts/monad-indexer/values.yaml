@@ -40,6 +40,7 @@ backend:
     # Database configuration
     database:
       ectoUseSsl: false
+      usePooler: false  # Set to true to route through PgBouncer pooler
       poolSize: 80
       poolSizeApi: 10
 
