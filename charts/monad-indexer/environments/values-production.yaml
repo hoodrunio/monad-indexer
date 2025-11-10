@@ -19,9 +19,9 @@ backend:
       memory: "6Gi"  # Reduced from 8Gi for efficiency
 
   autoscaling:
-    enabled: false
+    enabled: true
     minReplicas: 1
-    maxReplicas: 1  # Reduced from 5 for efficient resource usage
+    maxReplicas: 3  # Reduced from 5 for efficient resource usage
     targetCPUUtilizationPercentage: 80  # Increased from 60 to prevent aggressive scaling
     targetMemoryUtilizationPercentage: 70
     behavior:
