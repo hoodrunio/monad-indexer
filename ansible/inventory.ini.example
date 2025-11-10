@@ -1,0 +1,20 @@
+# Ansible Inventory for K3s Cluster Setup
+#
+# INSTRUCTIONS:
+# 1. Replace the IP addresses below with your actual server IPs
+# 2. Update ansible_user if you use a different SSH user
+# 3. Ensure SSH key-based authentication is configured
+# 4. Test connectivity: ansible -i inventory.ini all -m ping
+
+[k3s_server]
+node1 ansible_host=YOUR_EXISTING_SERVER_IP ansible_user=root
+
+[k3s_agents]
+node2 ansible_host=YOUR_NEW_SERVER_IP ansible_user=root
+
+[all:vars]
+ansible_python_interpreter=/usr/bin/python3
+ansible_ssh_common_args='-o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ServerAliveCountMax=10'
+# SSH connection resilience settings
+ansible_ssh_retries=3
+ansible_ssh_timeout=30

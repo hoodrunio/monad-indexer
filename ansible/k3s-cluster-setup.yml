@@ -1,0 +1,212 @@
+---
+# K3s Multi-Node Cluster Setup
+# This playbook sets up a 2-node K3s cluster for PostgreSQL HA and Backend scaling
+#
+# Usage:
+#   1. Update inventory.ini with your server IPs
+#   2. Run: ansible-playbook -i inventory.ini k3s-cluster-setup.yml
+#
+# Architecture:
+#   Node 1 (existing): K3s Server + PostgreSQL Primary + Backend pods
+#   Node 2 (new):      K3s Agent  + PostgreSQL Replica + Backend pods
+
+- name: Setup K3s Multi-Node Cluster
+  hosts: all
+  become: yes
+  vars:
+    k3s_version: v1.28.5+k3s1  # Stable version
+    k3s_server_ip: "{{ hostvars[groups['k3s_server'][0]]['ansible_host'] }}"
+    k3s_token: ""  # Will be fetched from server
+
+  tasks:
+    # =============================================================================
+    # PHASE 1: Prepare K3s Server (Existing Node)
+    # =============================================================================
+    - name: Server - Install K3s server (if not already installed)
+      when: "'k3s_server' in group_names"
+      block:
+        - name: Check if K3s is already installed
+          stat:
+            path: /usr/local/bin/k3s
+          register: k3s_installed
+
+        - name: Install K3s server
+          when: not k3s_installed.stat.exists
+          shell: |
+            curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ k3s_version }}" sh -s - server \
+              --write-kubeconfig-mode=644 \
+              --disable traefik \
+              --node-name="{{ inventory_hostname }}" \
+              --node-label="node-role=primary" \
+              --kube-apiserver-arg="default-not-ready-toleration-seconds=10" \
+              --kube-apiserver-arg="default-unreachable-toleration-seconds=10"
+          args:
+            creates: /usr/local/bin/k3s
+
+        - name: Wait for K3s server to be ready
+          wait_for:
+            path: /etc/rancher/k3s/k3s.yaml
+            timeout: 120
+
+        - name: Get K3s node token
+          slurp:
+            src: /var/lib/rancher/k3s/server/node-token
+          register: k3s_token_file
+
+        - name: Set K3s token fact
+          set_fact:
+            k3s_token: "{{ k3s_token_file.content | b64decode | trim }}"
+
+        - name: Display K3s token for verification
+          debug:
+            msg: "K3s token: {{ k3s_token[:20] }}..."
+
+    # =============================================================================
+    # PHASE 2: Setup K3s Agent (New Node)
+    # =============================================================================
+    - name: Agent - Join K3s cluster
+      when: "'k3s_agents' in group_names"
+      block:
+        - name: Ensure K3s token is available
+          fail:
+            msg: "K3s token not found. Make sure server setup completed successfully."
+          when: hostvars[groups['k3s_server'][0]]['k3s_token'] is not defined
+
+        - name: Check if K3s agent is already installed
+          stat:
+            path: /usr/local/bin/k3s
+          register: k3s_agent_installed
+
+        - name: Install K3s agent
+          when: not k3s_agent_installed.stat.exists
+          shell: |
+            curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ k3s_version }}" K3S_URL="https://{{ k3s_server_ip }}:6443" K3S_TOKEN="{{ hostvars[groups['k3s_server'][0]]['k3s_token'] }}" sh -s - agent \
+              --node-name="{{ inventory_hostname }}" \
+              --node-label="node-role=replica"
+          args:
+            creates: /usr/local/bin/k3s-agent
+
+        - name: Wait for K3s agent to be ready
+          wait_for:
+            timeout: 60
+
+    # =============================================================================
+    # PHASE 3: Minimal Safe System Optimizations for PostgreSQL
+    # =============================================================================
+    # NOTE: These are MINIMAL and SAFE settings that won't break existing workloads
+    # More aggressive tuning can be done manually if needed
+    - name: Apply minimal safe PostgreSQL optimizations
+      block:
+        - name: Set safe kernel parameters (PostgreSQL shared memory only)
+          sysctl:
+            name: "{{ item.name }}"
+            value: "{{ item.value }}"
+            state: present
+            sysctl_set: yes
+            reload: no  # Apply without reload to prevent network disruption
+          loop:
+            # Shared memory for PostgreSQL (SAFE - only affects shared memory)
+            - { name: 'kernel.shmmax', value: '17179869184' }  # 16GB max shared memory segment
+            - { name: 'kernel.shmall', value: '4194304' }      # Total shared memory pages
+
+            # Connection backlog (SAFE - improves connection handling)
+            - { name: 'net.core.somaxconn', value: '1024' }
+            - { name: 'net.ipv4.tcp_max_syn_backlog', value: '4096' }
+
+          # REMOVED for safety (these affect ALL processes on the system):
+          # - vm.swappiness: Affects swap behavior globally
+          # - vm.dirty_ratio: Affects all disk I/O
+          # - vm.dirty_background_ratio: Affects all background writes
+          # - vm.overcommit_memory: DANGEROUS without swap, caused fork failures
+
+        - name: Reload sysctl parameters
+          command: sysctl -p
+          changed_when: false
+          failed_when: false  # Don't fail if some params don't apply
+
+        - name: Set file descriptor limits (safe for all processes)
+          pam_limits:
+            domain: '*'
+            limit_type: "{{ item.type }}"
+            limit_item: nofile
+            value: "{{ item.value }}"
+          loop:
+            - { type: 'soft', value: '65536' }
+            - { type: 'hard', value: '65536' }
+
+        # NOTE: Transparent Huge Pages disabled for PostgreSQL
+        # This is OPTIONAL and affects system-wide memory management
+        # Kept as manual step - can be done separately if needed
+        # - name: Disable transparent huge pages (PostgreSQL best practice)
+        #   Command: echo never > /sys/kernel/mm/transparent_hugepage/enabled
+
+    # =============================================================================
+    # PHASE 4: Install Required Tools
+    # =============================================================================
+    - name: Install required packages
+      apt:
+        name:
+          - curl
+          - wget
+          - git
+          - htop
+          - iotop
+          - sysstat
+          - net-tools
+          - nfs-common  # For shared storage if needed
+        state: present
+        update_cache: yes
+
+    # =============================================================================
+    # PHASE 5: Verify Cluster Setup
+    # =============================================================================
+    - name: Verify cluster setup
+      when: "'k3s_server' in group_names"
+      block:
+        - name: Wait for all nodes to be ready
+          shell: kubectl get nodes --no-headers | wc -l
+          register: node_count
+          until: node_count.stdout | int == groups['all'] | length
+          retries: 30
+          delay: 10
+
+        - name: Display cluster nodes
+          shell: kubectl get nodes -o wide
+          register: cluster_nodes
+
+        - name: Show cluster status
+          debug:
+            msg: "{{ cluster_nodes.stdout_lines }}"
+
+        - name: Get primary node name from cluster
+          shell: kubectl get nodes -o jsonpath='{.items[?(@.status.addresses[0].address=="{{ hostvars[groups["k3s_server"][0]]["ansible_host"] }}")].metadata.name}'
+          register: primary_node_name
+          changed_when: false
+          tags: [labels, label]
+
+        - name: Get replica node name from cluster
+          shell: kubectl get nodes -o jsonpath='{.items[?(@.status.addresses[0].address=="{{ hostvars[groups["k3s_agents"][0]]["ansible_host"] }}")].metadata.name}'
+          register: replica_node_name
+          changed_when: false
+          tags: [labels, label]
+
+        - name: Label primary node for workload placement
+          shell: kubectl label nodes {{ primary_node_name.stdout }} postgres-role=primary --overwrite
+          register: label_primary
+          when: primary_node_name.stdout != ""
+          tags: [labels, label]
+
+        - name: Label replica node for workload placement
+          shell: kubectl label nodes {{ replica_node_name.stdout }} postgres-role=replica --overwrite
+          register: label_replica
+          when: replica_node_name.stdout != ""
+          tags: [labels, label]
+
+        - name: Show label results
+          debug:
+            msg:
+              - "Primary node ({{ primary_node_name.stdout }}): {{ label_primary.stdout | default('skipped') }}"
+              - "Replica node ({{ replica_node_name.stdout }}): {{ label_replica.stdout | default('skipped') }}"
+          tags: [labels, label]
+
+  # handlers:  # Removed - no longer needed after simplifying sysctl tasks

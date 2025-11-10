@@ -8,21 +8,21 @@ backend:
   # ExternalSecret will create this secret from AWS Secrets Manager
   existingSecret: "monad-indexer-production-backend-secret"
 
-  replicaCount: 1
+  replicaCount: 3  # Conservative start - scale gradually after migration stabilizes
 
   resources:
     requests:
-      cpu: "1000m"  # Optimized based on actual usage (~311m/pod)
-      memory: "2Gi"  # Optimized based on actual usage (~358Mi/pod)
+      cpu: "1000m"  # Keep current to avoid scheduling issues during migration
+      memory: "2Gi"  # Keep current for safety
     limits:
-      cpu: "1500m"  # Added CPU limit for burst protection
-      memory: "6Gi"  # Reduced from 8Gi for efficiency
+      cpu: "2000m"  # Increased from 1500m for better burst capacity
+      memory: "6Gi"  # Keep current
 
   autoscaling:
     enabled: true
-    minReplicas: 1
-    maxReplicas: 3  # Reduced from 5 for efficient resource usage
-    targetCPUUtilizationPercentage: 80  # Increased from 60 to prevent aggressive scaling
+    minReplicas: 3  # Conservative minimum - can increase post-migration
+    maxReplicas: 6  # Reasonable max for 2-node cluster
+    targetCPUUtilizationPercentage: 70  # Lower threshold for faster scaling
     targetMemoryUtilizationPercentage: 70
     behavior:
       scaleUp:
@@ -40,19 +40,32 @@ backend:
 
   podDisruptionBudget:
     enabled: true
-    minAvailable: 1  # Adjusted for single-node cluster
+    minAvailable: 3  # Increased from 1 to ensure minimum pods per node
+
+  # Pod affinity to distribute across nodes
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: backend
 
   env:
-    INDEXER_MEMORY_LIMIT: "5"
+    INDEXER_MEMORY_LIMIT: "7"  # Increased from 5 for higher memory limit
     LOG_LEVEL: "warn"
-    INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER: "true"
-    INDEXER_DISABLE_INTERNAL_TRANSACTIONS_FETCHER: "true"
+    INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER: "false"  # Re-enabled for complete indexing
+    INDEXER_DISABLE_INTERNAL_TRANSACTIONS_FETCHER: "false"  # Re-enabled for complete indexing
+    # Read replica configuration (will connect to PostgreSQL replica for read queries)
+    DATABASE_REPLICA_URL: ""  # Will be set to pooler-ro service after HA setup
 
   config:
     # Database configuration - Use pooler for connection management
     database:
-      poolSize: 60  # Increased from 50 for better indexer throughput
-      poolSizeApi: 30  # Increased from 10 for faster API responses (transaction/block queries)
+      poolSize: 100  # Increased from 60 for high TPS load
+      poolSizeApi: 50  # Increased from 30 for faster API responses
 
     # RPC endpoints with fallback
     rpc:
@@ -132,9 +145,9 @@ microservices:
       limits:
         memory: "2Gi"
 
-# PostgreSQL - production HA
+# PostgreSQL - production HA (1 primary + 1 replica)
 postgresql:
-  replicaCount: 1
+  replicaCount: 2  # Changed from 1 to 2 for HA (1 primary + 1 replica)
 
   # Custom image with pg_partman extension
   image:
@@ -142,30 +155,50 @@ postgresql:
     repository: hoodrunio/postgresql-partman
     tag: "17"
 
-
   auth:
     # ExternalSecret will create this secret from AWS Secrets Manager
     existingSecret: "monad-indexer-production-postgresql-app"
 
   config:
-    sharedBuffers: "2GB"
-    effectiveCacheSize: "4GB"
-    maintenanceWorkMem: "8GB"
-    workMem: "512MB"
-    maxConnections: "800"
-    idle_in_transaction_session_timeout: "10s"  # Cleanup idle transactions after 10s
-    statement_timeout: "30s"  # Kill queries running longer than 30s
+    # Optimized for high TPS workload
+    sharedBuffers: "8GB"  # Increased from 2GB (25% of total RAM for primary)
+    effectiveCacheSize: "24GB"  # Increased from 4GB (75% of total RAM)
+    maintenanceWorkMem: "2GB"  # Reduced from 8GB (maintenance operations)
+    workMem: "256MB"  # Reduced from 512MB for high concurrency
+    maxConnections: "1000"  # Increased from 800 for more connections
+
+    # Timeout optimizations for high TPS
+    idle_in_transaction_session_timeout: "30s"  # Increased from 10s to prevent premature disconnects
+    statement_timeout: "15s"  # Reduced from 30s to fail fast
+    lock_timeout: "5s"  # NEW: Fail fast on lock contention
+
+    # Performance tuning for high TPS
+    synchronous_commit: "off"  # Trade durability for performance (safe with WAL archiving)
+    wal_buffers: "64MB"  # Increased for high write throughput
+    checkpoint_timeout: "15min"  # Increased for less frequent checkpoints
+    max_wal_size: "8GB"  # Increased for high write load
+    random_page_cost: "1.1"  # Optimized for SSD storage
+    effective_io_concurrency: "200"  # Optimized for NVMe storage
+
+    # Lock management
+    max_locks_per_transaction: "256"  # Increased for complex transactions
+    deadlock_timeout: "1s"  # Fast deadlock detection
 
   primary:
     persistence:
-      size: 100Gi
-      storageClass: "fast-ssd"  # Use high-performance storage
+      size: 300Gi  # Increased from 100Gi for long-term data retention
+      storageClass: "fast-ssd"  # Use high-performance NVMe storage
     resources:
       requests:
-        cpu: "1500m"  # Reduced for single-node cluster
-        memory: "4Gi"  # Reduced for single-node cluster
+        cpu: "3000m"  # Balanced for 12-core node with other workloads
+        memory: "24Gi"  # Optimized for shared_buffers=8GB with room for OS cache
       limits:
-        memory: "16Gi"
+        cpu: "8000m"  # Can burst up to 8 cores when needed
+        memory: "40Gi"  # Limit under node capacity for safety
+
+    # Node affinity to schedule on primary node
+    nodeSelector:
+      postgres-role: primary
 
   backup:
     enabled: true
@@ -185,6 +218,25 @@ postgresql:
         compression: gzip
         maxParallel: 2
 
+  # Replica configuration
+  readReplicas:
+    enabled: true
+    replicaCount: 1
+    persistence:
+      size: 300Gi  # Matched with primary
+      storageClass: "fast-ssd"
+    resources:
+      requests:
+        cpu: "2000m"  # Suitable for 6-8 core node
+        memory: "16Gi"  # Optimized for read-only workload
+      limits:
+        cpu: "6000m"  # Can use most of 6-8 core node when needed
+        memory: "32Gi"  # Half of node capacity
+
+    # Node affinity to schedule on replica node
+    nodeSelector:
+      postgres-role: replica
+
   # Partition management with pg_partman
   partman:
     enabled: true
@@ -197,19 +249,16 @@ postgresql:
   pooler:
     enabled: true
     useForBackend: true  # Route backend connections through pooler (best practice)
-    replicaCount: 1
+    replicaCount: 3  # Increased from 1 for high availability
     poolMode: "transaction"  # Release connection after each transaction
-    maxClientConn: 5000
-    defaultPoolSize: 300  # Increased from 200 to support backend pools (3 replicas × 90 = 270)
-    maxDbConnections: 350  # Increased from 250 to support higher load
-    reservePoolSize: 75  # Increased from 50 for burst capacity
-    # Override default affinity with empty affinity for single-node
-    affinity:
-      podAntiAffinity: {}
+    maxClientConn: 10000  # Increased from 5000 for more client connections
+    defaultPoolSize: 500  # Increased from 300 for 6 backend replicas (6 × 150 = 900 connections)
+    maxDbConnections: 600  # Increased from 350 to match defaultPoolSize
+    reservePoolSize: 150  # Increased from 75 for burst capacity
 
-  # Disable pod anti-affinity for single-node cluster
+  # Enable pod anti-affinity for multi-node cluster
   affinity:
-    enablePodAntiAffinity: false  # Must be false for single-node clusters
+    enablePodAntiAffinity: true  # Changed from false for multi-node HA
 
 # Redis - production HA
 redis:
