@@ -48,25 +48,9 @@ backend:
     INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER: "true"
     INDEXER_DISABLE_INTERNAL_TRANSACTIONS_FETCHER: "true"
 
-  # Override DATABASE_URL to use pooler instead of direct PostgreSQL connection
-  extraEnv:
-    - name: DB_USER
-      valueFrom:
-        secretKeyRef:
-          name: monad-indexer-production-postgresql-app
-          key: username
-    - name: DB_PASSWORD
-      valueFrom:
-        secretKeyRef:
-          name: monad-indexer-production-postgresql-app
-          key: password
-    - name: DATABASE_URL
-      value: "postgresql://$(DB_USER):$(DB_PASSWORD)@monad-indexer-production-pooler:5432/blockscout?sslmode=disable" 
-
   config:
     # Database configuration - Use pooler for connection management
     database:
-      usePooler: true  # Route connections through PgBouncer pooler
       poolSize: 50  # Reduced from 80 (using pooler now)
       poolSizeApi: 10  # Keep same for API connections
 
@@ -212,6 +196,7 @@ postgresql:
 
   pooler:
     enabled: true
+    useForBackend: true  # Route backend connections through pooler (best practice)
     replicaCount: 1
     poolMode: "transaction"  # Release connection after each transaction
     maxClientConn: 5000

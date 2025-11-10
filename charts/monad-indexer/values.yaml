@@ -40,7 +40,6 @@ backend:
     # Database configuration
     database:
       ectoUseSsl: false
-      usePooler: false  # Set to true to route through PgBouncer pooler
       poolSize: 80
       poolSizeApi: 10
 
@@ -653,6 +652,7 @@ postgresql:
   # PgBouncer connection pooler
   pooler:
     enabled: true
+    useForBackend: false  # Set to true to route backend connections through pooler
     replicaCount: 2
     type: "rw"  # read-write
     poolMode: "transaction"
