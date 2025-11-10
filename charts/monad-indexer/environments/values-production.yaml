@@ -16,7 +16,7 @@ backend:
       memory: "2Gi"  # Optimized based on actual usage (~358Mi/pod)
     limits:
       cpu: "1500m"  # Added CPU limit for burst protection
-      memory: "6i"  # Reduced from 8Gi for efficiency
+      memory: "6Gi"  # Reduced from 8Gi for efficiency
 
   autoscaling:
     enabled: false
