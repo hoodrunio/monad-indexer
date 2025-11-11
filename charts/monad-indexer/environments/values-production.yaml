@@ -8,6 +8,13 @@ backend:
   # ExternalSecret will create this secret from AWS Secrets Manager
   existingSecret: "monad-indexer-production-backend-secret"
 
+  # Custom Blockscout image with Replica1 support
+  image:
+    registry: ghcr.io
+    repository: hoodrunio/blockscout
+    tag: "9.2.2"
+    pullPolicy: Always
+
   replicaCount: 2  # Reduced from 3 - fewer, more powerful pods
 
   resources:
