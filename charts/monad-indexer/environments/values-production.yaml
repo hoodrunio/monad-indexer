@@ -86,12 +86,12 @@ backend:
     # RPC endpoints with fallback
     rpc:
       httpUrl: "https://monad-rpc.hoodscan.io"
-      fallbackHttpUrl: "https://lb.drpc.live/monad-testnet/Ag9VzqLbl0KSsk-eqggyUSEMjYZNtZoR8L4M_hXb38UN"
+      fallbackHttpUrl: "https://lb.drpc.live/monad-testnet/AmQfj8VYakvApG0KMH--gJ8n9WvdvrMR8JFFQmlfqV1j"
       traceUrl: "https://monad-rpc.hoodscan.io"
-      fallbackTraceUrl: "https://lb.drpc.live/monad-testnet/Ag9VzqLbl0KSsk-eqggyUSEMjYZNtZoR8L4M_hXb38UN"
+      fallbackTraceUrl: "https://lb.drpc.live/monad-testnet/AmQfj8VYakvApG0KMH--gJ8n9WvdvrMR8JFFQmlfqV1j"
       wsUrl: "wss://monad-rpc.hoodscan.io/ws/"
       ethCallUrl: "https://monad-rpc.hoodscan.io"
-      fallbackEthCallUrl: "https://lb.drpc.live/monad-testnet/Ag9VzqLbl0KSsk-eqggyUSEMjYZNtZoR8L4M_hXb38UN"
+      fallbackEthCallUrl: "https://lb.drpc.live/monad-testnet/AmQfj8VYakvApG0KMH--gJ8n9WvdvrMR8JFFQmlfqV1j"
 
     api:
       corsAllowedOrigin: "https://monad.hoodscan.io"

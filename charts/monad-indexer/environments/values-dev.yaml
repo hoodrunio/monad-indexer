@@ -28,12 +28,12 @@ backend:
   config:
     # RPC endpoints with fallback
     rpc:
-      httpUrl: "https://lb.drpc.live/monad-testnet/Ag9VzqLbl0KSsk-eqggyUSEMjYZNtZoR8L4M_hXb38UN"
+      httpUrl: "https://lb.drpc.live/monad-testnet/AmQfj8VYakvApG0KMH--gJ8n9WvdvrMR8JFFQmlfqV1j"
       fallbackHttpUrl: "https://testnet-rpc.monad.xyz"
-      traceUrl: "https://lb.drpc.live/monad-testnet/Ag9VzqLbl0KSsk-eqggyUSEMjYZNtZoR8L4M_hXb38UN"
+      traceUrl: "https://lb.drpc.live/monad-testnet/AmQfj8VYakvApG0KMH--gJ8n9WvdvrMR8JFFQmlfqV1j"
       fallbackTraceUrl: "https://testnet-rpc.monad.xyz"
       wsUrl: "wss://testnet-rpc.monad.xyz"
-      ethCallUrl: "https://lb.drpc.live/monad-testnet/Ag9VzqLbl0KSsk-eqggyUSEMjYZNtZoR8L4M_hXb38UN"
+      ethCallUrl: "https://lb.drpc.live/monad-testnet/AmQfj8VYakvApG0KMH--gJ8n9WvdvrMR8JFFQmlfqV1j"
       fallbackEthCallUrl: "https://testnet-rpc.monad.xyz"
 
     api:

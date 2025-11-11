@@ -30,12 +30,12 @@ backend:
     # RPC endpoints with fallback
     rpc:
       httpUrl: "https://testnet-rpc.monad.xyz"
-      fallbackHttpUrl: "https://lb.drpc.live/monad-testnet/Ag9VzqLbl0KSsk-eqggyUSEMjYZNtZoR8L4M_hXb38UN"
+      fallbackHttpUrl: "https://lb.drpc.live/monad-testnet/AmQfj8VYakvApG0KMH--gJ8n9WvdvrMR8JFFQmlfqV1j"
       traceUrl: "https://testnet-rpc.monad.xyz"
-      fallbackTraceUrl: "https://lb.drpc.live/monad-testnet/Ag9VzqLbl0KSsk-eqggyUSEMjYZNtZoR8L4M_hXb38UN"
+      fallbackTraceUrl: "https://lb.drpc.live/monad-testnet/AmQfj8VYakvApG0KMH--gJ8n9WvdvrMR8JFFQmlfqV1j"
       wsUrl: "wss://testnet-rpc.monad.xyz"
       ethCallUrl: "https://testnet-rpc.monad.xyz"
-      fallbackEthCallUrl: "https://lb.drpc.live/monad-testnet/Ag9VzqLbl0KSsk-eqggyUSEMjYZNtZoR8L4M_hXb38UN"
+      fallbackEthCallUrl: "https://lb.drpc.live/monad-testnet/AmQfj8VYakvApG0KMH--gJ8n9WvdvrMR8JFFQmlfqV1j"
 
     api:
       corsAllowedOrigin: "https://testnet.monad.hoodscan.io,https://monad.hoodscan.io"
