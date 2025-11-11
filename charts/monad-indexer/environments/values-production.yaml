@@ -256,9 +256,9 @@ postgresql:
     maxDbConnections: 600  # Increased from 350 to match defaultPoolSize
     reservePoolSize: 150  # Increased from 75 for burst capacity
 
-    # Node selector to place pooler pods on node2 (avoid conflict with postgresql-1 anti-affinity)
+    # Node selector to place pooler pods on node1 (now safe with fixed anti-affinity)
     nodeSelector:
-      postgres-role: replica  # Schedule pooler on node2 alongside postgresql-4
+      postgres-role: primary  # Schedule pooler on node1 with postgresql-1
 
   # Enable pod anti-affinity for multi-node cluster
   affinity:
