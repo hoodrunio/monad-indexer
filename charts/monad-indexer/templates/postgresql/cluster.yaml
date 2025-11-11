@@ -221,22 +221,6 @@ spec:
     {{- toYaml .Values.postgresql.primary.resources | nindent 4 }}
   {{- end }}
 
-  # Managed roles configuration for instance-specific placement
-  {{- if or .Values.postgresql.primary.nodeSelector .Values.postgresql.readReplicas.nodeSelector }}
-  managed:
-    roles:
-    {{- if .Values.postgresql.primary.nodeSelector }}
-    - name: primary
-      nodeSelector:
-        {{- toYaml .Values.postgresql.primary.nodeSelector | nindent 8 }}
-    {{- end }}
-    {{- if and .Values.postgresql.readReplicas.enabled .Values.postgresql.readReplicas.nodeSelector }}
-    - name: replica
-      nodeSelector:
-        {{- toYaml .Values.postgresql.readReplicas.nodeSelector | nindent 8 }}
-    {{- end }}
-  {{- end }}
-
   # Affinity configuration (includes nodeSelector and tolerations)
   {{- if or .Values.postgresql.affinity .Values.postgresql.nodeSelector .Values.postgresql.tolerations }}
   affinity:
