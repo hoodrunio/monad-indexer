@@ -230,7 +230,7 @@ spec:
   # Affinity configuration (includes nodeSelector and tolerations)
   {{- if or .Values.postgresql.affinity .Values.postgresql.nodeSelector .Values.postgresql.tolerations }}
   affinity:
-    {{- if .Values.postgresql.affinity.enablePodAntiAffinity }}
+    {{- if hasKey .Values.postgresql.affinity "enablePodAntiAffinity" }}
     enablePodAntiAffinity: {{ .Values.postgresql.affinity.enablePodAntiAffinity }}
     {{- end }}
     {{- if .Values.postgresql.affinity.podAntiAffinityType }}
