@@ -30,8 +30,8 @@ backend:
 
   image:
     registry: ghcr.io
-    repository: blockscout/blockscout
-    tag: "9.0.2"
+    repository: hoodrunio/blockscout
+    tag: "9.2.2"
     pullPolicy: IfNotPresent
     pullSecrets: []
 
