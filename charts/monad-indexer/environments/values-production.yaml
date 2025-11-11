@@ -275,11 +275,19 @@ postgresql:
     nodeSelector:
       postgres-role: primary  # Schedule pooler on node1 with postgresql-1
 
-  # Pod anti-affinity for multi-node cluster - distribute instances across nodes
+  # Disable pod anti-affinity for local storage compatibility
   affinity:
-    enablePodAntiAffinity: true  # Enable built-in anti-affinity
-    podAntiAffinityType: preferred  # Prefer (not require) different nodes to avoid blocking
-    topologyKey: kubernetes.io/hostname  # Spread across different nodes
+    enablePodAntiAffinity: false  # Disabled to avoid conflicts with local storage PVC node affinity
+
+  # Use topology spread constraints (modern Kubernetes best practice)
+  # This provides soft distribution across nodes without blocking on local storage
+  topologySpreadConstraints:
+    - maxSkew: 1  # Allow max 1 pod difference between nodes
+      topologyKey: kubernetes.io/hostname  # Distribute across nodes
+      whenUnsatisfiable: ScheduleAnyway  # Soft constraint - schedule even if spread not perfect
+      labelSelector:
+        matchLabels:
+          cnpg.io/podRole: instance  # Only spread instance pods, not pooler
 
 # Redis - production HA
 redis:

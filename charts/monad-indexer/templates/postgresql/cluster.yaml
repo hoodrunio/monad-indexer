@@ -221,6 +221,12 @@ spec:
     {{- toYaml .Values.postgresql.primary.resources | nindent 4 }}
   {{- end }}
 
+  # Topology spread constraints for distributing pods across nodes
+  {{- if .Values.postgresql.topologySpreadConstraints }}
+  topologySpreadConstraints:
+    {{- toYaml .Values.postgresql.topologySpreadConstraints | nindent 4 }}
+  {{- end }}
+
   # Affinity configuration (includes nodeSelector and tolerations)
   {{- if or .Values.postgresql.affinity .Values.postgresql.nodeSelector .Values.postgresql.tolerations }}
   affinity:
