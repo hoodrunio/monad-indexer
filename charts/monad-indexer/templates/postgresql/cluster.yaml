@@ -48,6 +48,10 @@ spec:
       effective_cache_size: {{ .Values.postgresql.config.effectiveCacheSize | quote }}
       maintenance_work_mem: {{ .Values.postgresql.config.maintenanceWorkMem | quote }}
       work_mem: {{ .Values.postgresql.config.workMem | quote }}
+      {{- if .Values.postgresql.config.dynamicSharedMemoryType }}
+      # Use mmap for Kubernetes containers (posix has issues with shared memory allocation)
+      dynamic_shared_memory_type: {{ .Values.postgresql.config.dynamicSharedMemoryType | quote }}
+      {{- end }}
 
       # ============================================================
       # WAL OPTIMIZATION FOR WRITE-HEAVY WORKLOADS

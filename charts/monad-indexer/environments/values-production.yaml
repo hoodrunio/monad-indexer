@@ -172,6 +172,10 @@ postgresql:
     workMem: "256MB"  # Reduced from 512MB for high concurrency
     maxConnections: "1000"  # Increased from 800 for more connections
 
+    # Shared memory type - use mmap for Kubernetes containers
+    # posix uses shm_open() which has issues in containers
+    dynamicSharedMemoryType: "mmap"
+
     # Timeout optimizations for high TPS
     idle_in_transaction_session_timeout: "30s"  # Increased from 10s to prevent premature disconnects
     statement_timeout: "15s"  # Reduced from 30s to fail fast
