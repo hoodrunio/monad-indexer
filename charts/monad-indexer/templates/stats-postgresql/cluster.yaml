@@ -54,4 +54,10 @@ spec:
   resources:
     {{- toYaml .Values.statsPostgresql.primary.resources | nindent 4 }}
   {{- end }}
+
+  # Node selector for pod placement
+  {{- if .Values.statsPostgresql.primary.nodeSelector }}
+  nodeSelector:
+    {{- toYaml .Values.statsPostgresql.primary.nodeSelector | nindent 4 }}
+  {{- end }}
 {{- end }}

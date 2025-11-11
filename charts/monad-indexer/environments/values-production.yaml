@@ -40,13 +40,18 @@ backend:
 
   podDisruptionBudget:
     enabled: true
-    minAvailable: 3  # Increased from 1 to ensure minimum pods per node
+    minAvailable: 2  # Reduced from 3 - backend pods concentrated on node2
 
-  # Pod affinity to distribute across nodes
+  # Node selector to place backend pods on node2 (read-heavy, close to replica)
+  # Node2: 125GB RAM worker node with PostgreSQL replica for optimal read performance
+  nodeSelector:
+    postgres-role: replica  # node2 (worker)
+
+  # Pod affinity to distribute across nodes (optional - since we prefer node2)
   affinity:
     podAntiAffinity:
       preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 100
+        - weight: 50  # Reduced weight since we prefer node2 concentration
           podAffinityTerm:
             topologyKey: kubernetes.io/hostname
             labelSelector:
@@ -236,15 +241,16 @@ postgresql:
       storageClass: "fast-ssd"
     resources:
       requests:
-        cpu: "2000m"  # Suitable for 6-8 core node
-        memory: "16Gi"  # Optimized for read-only workload
+        cpu: "3000m"  # Increased for node2 (125GB RAM worker node)
+        memory: "24Gi"  # Increased - node2 has 66GB available
       limits:
-        cpu: "6000m"  # Can use most of 6-8 core node when needed
-        memory: "32Gi"  # Half of node capacity
+        cpu: "8000m"  # Can burst up to 8 cores (node2 has more resources)
+        memory: "40Gi"  # Matching primary for consistency
 
-    # Node affinity to schedule on replica node
+    # Node affinity to schedule on node2 (worker node with more memory)
+    # Node2: 125GB RAM, 66GB available - optimized for read-heavy workload
     nodeSelector:
-      postgres-role: replica
+      postgres-role: replica  # node2 (worker)
 
   # Partition management with pg_partman
   partman:
@@ -378,6 +384,12 @@ statsPostgresql:
   auth:
     # ExternalSecret will create this secret from AWS Secrets Manager
     existingSecret: "monad-indexer-production-stats-postgresql-app"
+
+  # Node selector to place stats database on node2 (free up 1-2GB on node1)
+  # Node2: 125GB RAM worker node - analytics database co-located with stats microservice
+  primary:
+    nodeSelector:
+      postgres-role: replica  # node2 (worker)
 
 # External Secrets configuration for production environment
 externalSecrets:
