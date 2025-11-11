@@ -8,20 +8,20 @@ backend:
   # ExternalSecret will create this secret from AWS Secrets Manager
   existingSecret: "monad-indexer-production-backend-secret"
 
-  replicaCount: 3  # Conservative start - scale gradually after migration stabilizes
+  replicaCount: 2  # Reduced from 3 - fewer, more powerful pods
 
   resources:
     requests:
-      cpu: "1000m"  # Keep current to avoid scheduling issues during migration
-      memory: "2Gi"  # Keep current for safety
+      cpu: "3000m"  # Increased from 1000m (3x) for powerful indexing
+      memory: "6Gi"  # Increased from 2Gi (3x) for better performance
     limits:
-      cpu: "2000m"  # Increased from 1500m for better burst capacity
-      memory: "6Gi"  # Keep current
+      cpu: "6000m"  # Increased from 2000m (3x) for burst capacity
+      memory: "16Gi"  # Increased from 6Gi (2.67x) for heavy workloads
 
   autoscaling:
     enabled: true
-    minReplicas: 3  # Conservative minimum - can increase post-migration
-    maxReplicas: 6  # Reasonable max for 2-node cluster
+    minReplicas: 2  # Reduced from 3 - minimum 2 pods for HA
+    maxReplicas: 3  # Reduced from 6 - max 3 powerful pods
     targetCPUUtilizationPercentage: 70  # Lower threshold for faster scaling
     targetMemoryUtilizationPercentage: 70
     behavior:
@@ -40,7 +40,7 @@ backend:
 
   podDisruptionBudget:
     enabled: true
-    minAvailable: 2  # Reduced from 3 - backend pods concentrated on node2
+    minAvailable: 1  # Reduced from 2 - minimum 1 pod must be available (2 total pods)
 
   # Node selector to place backend pods on node2 (read-heavy, close to replica)
   # Node2: 125GB RAM worker node with PostgreSQL replica for optimal read performance
