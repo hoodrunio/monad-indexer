@@ -280,18 +280,20 @@ postgresql:
     enablePodAntiAffinity: false  # Disabled - using custom additionalPodAntiAffinity instead
     # Custom anti-affinity to ensure only instance pods (not pooler) are separated
     additionalPodAntiAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        - labelSelector:
-            matchExpressions:
-              - key: cnpg.io/cluster
-                operator: In
-                values:
-                  - monad-indexer-production-postgresql
-              - key: cnpg.io/podRole
-                operator: In
-                values:
-                  - instance  # Only apply anti-affinity to instance pods, not pooler
-          topologyKey: kubernetes.io/hostname
+      preferredDuringSchedulingIgnoredDuringExecution:  # Changed from required to preferred
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: cnpg.io/cluster
+                  operator: In
+                  values:
+                    - monad-indexer-production-postgresql
+                - key: cnpg.io/podRole
+                  operator: In
+                  values:
+                    - instance  # Only apply anti-affinity to instance pods, not pooler
+            topologyKey: kubernetes.io/hostname
 
 # Redis - production HA
 redis:
