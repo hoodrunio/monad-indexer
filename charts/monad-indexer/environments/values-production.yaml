@@ -61,8 +61,8 @@ backend:
   env:
     INDEXER_MEMORY_LIMIT: "7"  # Increased from 5 for higher memory limit
     LOG_LEVEL: "warn"
-    INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER: "false"  # Re-enabled for complete indexing
-    INDEXER_DISABLE_INTERNAL_TRANSACTIONS_FETCHER: "false"  # Re-enabled for complete indexing
+    INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER: "true"  # Re-enabled for complete indexing
+    INDEXER_DISABLE_INTERNAL_TRANSACTIONS_FETCHER: "true"  # Re-enabled for complete indexing
     # Read replica configuration (will connect to PostgreSQL replica for read queries)
     DATABASE_REPLICA_URL: ""  # Will be set to pooler-ro service after HA setup
 
