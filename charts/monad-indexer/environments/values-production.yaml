@@ -72,6 +72,17 @@ backend:
       poolSize: 100  # Increased from 60 for high TPS load
       poolSizeApi: 50  # Increased from 30 for faster API responses
 
+    # Indexer performance tuning - Optimize balance fetchers to reduce RPC load
+    indexer:
+      performance:
+        # Coin balances - Aggressive optimization (main issue: 100/100 failures)
+        coinBalancesBatchSize: "20"        # Default: 100 (80% reduction)
+        coinBalancesConcurrency: "1"       # Default: 4 (75% reduction)
+
+        # Token balances - Aggressive optimization
+        tokenBalancesBatchSize: "25"       # Default: 100 (75% reduction)
+        tokenBalancesConcurrency: "2"      # Default: 10 (80% reduction)
+
     # RPC endpoints with fallback
     rpc:
       httpUrl: "https://monad-rpc.hoodscan.io"
