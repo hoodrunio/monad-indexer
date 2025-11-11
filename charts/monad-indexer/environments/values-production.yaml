@@ -256,9 +256,27 @@ postgresql:
     maxDbConnections: 600  # Increased from 350 to match defaultPoolSize
     reservePoolSize: 150  # Increased from 75 for burst capacity
 
+    # Node selector to place pooler pods on node2 (avoid conflict with postgresql-1 anti-affinity)
+    nodeSelector:
+      postgres-role: replica  # Schedule pooler on node2 alongside postgresql-4
+
   # Enable pod anti-affinity for multi-node cluster
   affinity:
     enablePodAntiAffinity: true  # Changed from false for multi-node HA
+    # Additional anti-affinity to ensure only instance pods (not pooler) are separated
+    additionalPodAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchExpressions:
+              - key: cnpg.io/cluster
+                operator: In
+                values:
+                  - monad-indexer-production-postgresql
+              - key: cnpg.io/podRole
+                operator: In
+                values:
+                  - instance  # Only apply anti-affinity to instance pods, not pooler
+          topologyKey: kubernetes.io/hostname
 
 # Redis - production HA
 redis:
