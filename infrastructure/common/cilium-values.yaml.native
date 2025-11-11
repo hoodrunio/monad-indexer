@@ -21,15 +21,15 @@ k8sServicePortRef:
   secretName: cilium-api-server-config
   key: k8sServicePort
 
-# Tunnel Routing - Required for multi-node clusters on different networks
-# Uses VXLAN overlay for cross-node pod communication
-routingMode: "tunnel"
+# Native Routing - Best performance on bare metal
+# Uses direct routing instead of overlay (VXLAN/Geneve)
+routingMode: "native"
 
 # Load Balancer Configuration
 # Replaces MetalLB/ServiceLB with Cilium's integrated LB
 loadBalancer:
   acceleration: "native"  # eBPF-accelerated load balancing
-  mode: "snat"            # SNAT mode (hybrid not compatible with VXLAN)
+  mode: "hybrid"          # DSR (Direct Server Return) for better performance
   serviceTopology: true   # Prefer same-node backends
 
 # L2 Announcements for Bare Metal LoadBalancer
@@ -77,10 +77,9 @@ bpf:
   # Policy map sizes (for L7 policies)
   policyMapMax: 16384  # Policy map size
 
-# BIG TCP disabled (incompatible with tunnel mode)
-# Only supported with native routing mode
-enableIPv4BIGTCP: false
-enableIPv6BIGTCP: false
+# Enable BIG TCP for high-bandwidth networks (100Gbit+)
+enableIPv4BIGTCP: true
+enableIPv6BIGTCP: false  # Disable if not using IPv6
 
 # Gateway API Configuration
 # Replaces nginx-ingress with Cilium's native Gateway API implementation
@@ -172,7 +171,7 @@ hostFirewall:
 # Bandwidth Manager - QoS and rate limiting
 bandwidthManager:
   enabled: true
-  bbr: false  # Requires kernel 5.18+, disabled for 5.15 kernel
+  bbr: true  # TCP BBR congestion control for better throughput
 
 # IPv4/IPv6 Configuration
 ipv4:
@@ -194,11 +193,11 @@ debug:
   # - policy
   # - kvstore
 
-# Auto-direct node routes disabled (not needed with tunnel mode)
-autoDirectNodeRoutes: false
+# Enable auto-direct node routes for better performance
+autoDirectNodeRoutes: true
 
-# Tunnel protocol - VXLAN for cross-node pod communication
-tunnelProtocol: "vxlan"
+# Tunnel protocol (only used if routingMode is not "native")
+tunnelProtocol: ""  # Empty when using native routing
 
 # Cluster name for multi-cluster setups
 cluster:
