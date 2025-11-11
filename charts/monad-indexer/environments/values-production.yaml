@@ -275,25 +275,11 @@ postgresql:
     nodeSelector:
       postgres-role: primary  # Schedule pooler on node1 with postgresql-1
 
-  # Pod anti-affinity for multi-node cluster
+  # Pod anti-affinity for multi-node cluster - distribute instances across nodes
   affinity:
-    enablePodAntiAffinity: false  # Disabled - using custom additionalPodAntiAffinity instead
-    # Custom anti-affinity to ensure only instance pods (not pooler) are separated
-    additionalPodAntiAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:  # Changed from required to preferred
-        - weight: 100
-          podAffinityTerm:
-            labelSelector:
-              matchExpressions:
-                - key: cnpg.io/cluster
-                  operator: In
-                  values:
-                    - monad-indexer-production-postgresql
-                - key: cnpg.io/podRole
-                  operator: In
-                  values:
-                    - instance  # Only apply anti-affinity to instance pods, not pooler
-            topologyKey: kubernetes.io/hostname
+    enablePodAntiAffinity: true  # Enable built-in anti-affinity
+    podAntiAffinityType: preferred  # Prefer (not require) different nodes to avoid blocking
+    topologyKey: kubernetes.io/hostname  # Spread across different nodes
 
 # Redis - production HA
 redis:
