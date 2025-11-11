@@ -159,6 +159,11 @@ postgresql:
     # ExternalSecret will create this secret from AWS Secrets Manager
     existingSecret: "monad-indexer-production-postgresql-app"
 
+  # Ephemeral volumes size limit - shared memory configuration
+  # PostgreSQL with shared_buffers=8GB requires ~9GB of shared memory
+  ephemeralVolumesSizeLimit:
+    shm: "12Gi"  # Set to 12Gi to provide headroom for 8GB shared_buffers
+
   config:
     # Optimized for high TPS workload
     sharedBuffers: "8GB"  # Increased from 2GB (25% of total RAM for primary)

@@ -15,6 +15,17 @@ spec:
   # Creates <cluster-name>-superuser secret automatically
   enableSuperuserAccess: true
 
+  # Ephemeral volumes size limit (for shared memory)
+  {{- if .Values.postgresql.ephemeralVolumesSizeLimit }}
+  ephemeralVolumesSizeLimit:
+    {{- if .Values.postgresql.ephemeralVolumesSizeLimit.shm }}
+    shm: {{ .Values.postgresql.ephemeralVolumesSizeLimit.shm }}
+    {{- end }}
+    {{- if .Values.postgresql.ephemeralVolumesSizeLimit.temporaryData }}
+    temporaryData: {{ .Values.postgresql.ephemeralVolumesSizeLimit.temporaryData }}
+    {{- end }}
+  {{- end }}
+
   # Bootstrap configuration
   bootstrap:
     initdb:
