@@ -61,16 +61,23 @@ backend:
   env:
     INDEXER_MEMORY_LIMIT: "7"  # Increased from 5 for higher memory limit
     LOG_LEVEL: "warn"
-    INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER: "true"  # Re-enabled for complete indexing
-    INDEXER_DISABLE_INTERNAL_TRANSACTIONS_FETCHER: "true"  # Re-enabled for complete indexing
-    # Read replica configuration (will connect to PostgreSQL replica for read queries)
-    DATABASE_REPLICA_URL: ""  # Will be set to pooler-ro service after HA setup
+    INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER: "true"  # Disable pending transactions fetcher
+    INDEXER_DISABLE_INTERNAL_TRANSACTIONS_FETCHER: "true"  # Disable internal transactions fetcher
+
+  # Extra environment variables from ExternalSecret
+  extraEnv:
+    - name: DATABASE_READ_ONLY_API_URL
+      valueFrom:
+        secretKeyRef:
+          name: monad-indexer-production-backend-secret  # ExternalSecret will create this
+          key: DATABASE_READ_ONLY_API_URL
 
   config:
     # Database configuration - Use pooler for connection management
     database:
-      poolSize: 100  # Increased from 60 for high TPS load
-      poolSizeApi: 50  # Increased from 30 for faster API responses
+      poolSize: 100  # For indexer writes
+      poolSizeApi: 50  # For API reads (will use read replica via DATABASE_READ_ONLY_API_URL)
+      replicaMaxLag: "5m"  # Max lag before failback to primary
 
     # Indexer performance tuning - Optimize balance fetchers to reduce RPC load
     indexer:
@@ -275,16 +282,62 @@ postgresql:
   pooler:
     enabled: true
     useForBackend: true  # Route backend connections through pooler (best practice)
-    replicaCount: 3  # Increased from 1 for high availability
+    replicaCount: 3  # High availability
     poolMode: "transaction"  # Release connection after each transaction
-    maxClientConn: 10000  # Increased from 5000 for more client connections
-    defaultPoolSize: 500  # Increased from 300 for 6 backend replicas (6 × 150 = 900 connections)
-    maxDbConnections: 600  # Increased from 350 to match defaultPoolSize
-    reservePoolSize: 150  # Increased from 75 for burst capacity
+    maxClientConn: 10000  # High - allows many client connections
+    defaultPoolSize: 30  # REDUCED from 500 - actual concurrent write needs (3 poolers × 30 = 90 total to primary)
+    maxDbConnections: 60  # REDUCED from 600 - hard limit per pooler instance (3 poolers × 60 = 180 max to primary)
+    reservePoolSize: 10  # REDUCED from 150 - emergency buffer only
+
+    # Timeouts - add explicit values for better control
+    serverIdleTimeout: 600
+    serverLifetime: 3600
+    serverConnectTimeout: 15
+    queryTimeout: 300
+    queryWaitTimeout: 120
+    logConnections: 1
+    logDisconnections: 1
+
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "512Mi"
+      limits:
+        memory: "1Gi"
 
     # Node selector to place pooler pods on node1 (now safe with fixed anti-affinity)
     nodeSelector:
       postgres-role: primary  # Schedule pooler on node1 with postgresql-1
+
+  # Read-Only Pooler - NEW: For API read queries to use replica
+  readOnlyPooler:
+    enabled: true  # Enable RO pooler for read replica
+    replicaCount: 2  # Fewer instances than RW (reads are lighter)
+    poolMode: "transaction"  # Connection multiplexing for API queries
+    maxClientConn: 5000  # High - API generates many short-lived connections
+    defaultPoolSize: 20  # Small pool - read queries are fast (2 poolers × 20 = 40 to replica)
+    maxDbConnections: 40  # 2x default for burst capacity (2 poolers × 40 = 80 max to replica)
+    reservePoolSize: 5  # Small emergency buffer
+
+    # Timeouts - aggressive for fast read queries
+    serverIdleTimeout: 300  # Shorter than RW (reads complete quickly)
+    serverLifetime: 1800  # 30min lifecycle
+    serverConnectTimeout: 10  # Fast connect timeout
+    queryTimeout: 60  # Aggressive timeout for reads (vs 300 for writes)
+    queryWaitTimeout: 30  # Fast fail if pool exhausted
+    logConnections: 1
+    logDisconnections: 1
+
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        memory: "512Mi"
+
+    # Co-locate with replica on node2
+    nodeSelector:
+      postgres-role: replica  # Schedule on node2 with replica
 
   # Disable pod anti-affinity for local storage compatibility
   affinity:

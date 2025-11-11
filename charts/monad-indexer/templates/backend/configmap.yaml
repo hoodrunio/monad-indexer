@@ -16,6 +16,11 @@ data:
   POOL_SIZE: {{ .Values.backend.config.database.poolSize | quote }}
   POOL_SIZE_API: {{ .Values.backend.config.database.poolSizeApi | quote }}
 
+  # Read replica configuration
+  {{- if .Values.backend.config.database.replicaMaxLag }}
+  REPLICA_MAX_LAG: {{ .Values.backend.config.database.replicaMaxLag | quote }}
+  {{- end }}
+
   # ============================================
   # RPC CONFIGURATION
   # ============================================
