@@ -269,10 +269,10 @@ postgresql:
     nodeSelector:
       postgres-role: primary  # Schedule pooler on node1 with postgresql-1
 
-  # Enable pod anti-affinity for multi-node cluster
+  # Pod anti-affinity for multi-node cluster
   affinity:
-    enablePodAntiAffinity: true  # Changed from false for multi-node HA
-    # Additional anti-affinity to ensure only instance pods (not pooler) are separated
+    enablePodAntiAffinity: false  # Disabled - using custom additionalPodAntiAffinity instead
+    # Custom anti-affinity to ensure only instance pods (not pooler) are separated
     additionalPodAntiAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
         - labelSelector:
