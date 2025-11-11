@@ -166,7 +166,7 @@ postgresql:
 
   config:
     # Optimized for high TPS workload
-    sharedBuffers: "8GB"  # Increased from 2GB (25% of total RAM for primary)
+    sharedBuffers: "4GB"  # Reduced from 8GB to avoid container memory allocation issues
     effectiveCacheSize: "24GB"  # Increased from 4GB (75% of total RAM)
     maintenanceWorkMem: "2GB"  # Reduced from 8GB (maintenance operations)
     workMem: "256MB"  # Reduced from 512MB for high concurrency
