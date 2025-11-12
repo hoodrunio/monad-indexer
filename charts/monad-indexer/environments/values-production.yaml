@@ -175,9 +175,9 @@ microservices:
       limits:
         memory: "2Gi"
 
-# PostgreSQL - production HA (1 primary + 1 replica)
+# PostgreSQL - production (single instance for now, scale to 2 when disk space available)
 postgresql:
-  replicaCount: 2  # Changed from 1 to 2 for HA (1 primary + 1 replica)
+  replicaCount: 1  # Temporarily reduced from 2 to 1 due to disk space constraints
 
   # Custom image with pg_partman extension
   image:
