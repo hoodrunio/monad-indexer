@@ -326,7 +326,7 @@ postgresql:
   # Read-Only Pooler - NEW: For API read queries to use replica
   readOnlyPooler:
     enabled: true  # Enable RO pooler for read replica
-    replicaCount: 2  # Fewer instances than RW (reads are lighter)
+    replicaCount: 1  # Fewer instances than RW (reads are lighter)
     poolMode: "transaction"  # Connection multiplexing for API queries
     maxClientConn: 5000  # High - API generates many short-lived connections
     defaultPoolSize: 20  # Small pool - read queries are fast (2 poolers × 20 = 40 to replica)

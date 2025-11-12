@@ -4,7 +4,7 @@ set -e
 echo "🚀 Installing CloudNativePG Operator..."
 
 # Install CloudNativePG operator
-kubectl apply -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.22/releases/cnpg-1.22.0.yaml
+kubectl apply -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.24/releases/cnpg-1.24.1.yaml
 
 # Wait for operator to be ready
 echo "⏳ Waiting for CloudNativePG operator to be ready..."
