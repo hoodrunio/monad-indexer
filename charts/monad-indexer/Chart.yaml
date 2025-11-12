@@ -22,19 +22,20 @@ sources:
   - https://github.com/blockscout/blockscout
 
 # Dependencies - using production-ready Bitnami charts
+# Using OCI registry to avoid memory issues with large HTTP index files
 dependencies:
   # Redis for caching (master-replica with Sentinel)
   - name: redis
-    version: "~18.x"
-    repository: https://charts.bitnami.com/bitnami
+    version: "18.19.4"
+    repository: oci://registry-1.docker.io/bitnamicharts
     condition: redis.enabled
     tags:
       - cache
 
   # Common library functions from Bitnami
   - name: common
-    version: "~2.x"
-    repository: https://charts.bitnami.com/bitnami
+    version: "2.31.4"
+    repository: oci://registry-1.docker.io/bitnamicharts
     tags:
       - bitnami-common
 
