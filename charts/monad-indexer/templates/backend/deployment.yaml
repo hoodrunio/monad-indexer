@@ -103,6 +103,9 @@ spec:
             - configMapRef:
                 name: {{ include "monad-indexer.fullname" . }}-backend-config
           env:
+            # Mark as migration task to exclude Replica1 from ecto_repos
+            - name: RELEASE_COMMAND
+              value: "migrate"
             {{- include "monad-indexer.backend.env" . | nindent 12 }}
             {{- if .Values.backend.extraEnv }}
             {{- toYaml .Values.backend.extraEnv | nindent 12 }}
