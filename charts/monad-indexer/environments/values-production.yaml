@@ -206,6 +206,11 @@ postgresql:
     # posix uses shm_open() which has issues in containers
     dynamicSharedMemoryType: "mmap"
 
+    # WAL retention limit for replication slots - prevents PRIMARY disk exhaustion
+    # Without this limit (default: -1/unlimited), WAL files accumulate indefinitely
+    # Production issue: 1.8TB of WAL files accumulated on PRIMARY (115K files)
+    max_slot_wal_keep_size: "10240"  # 10 GB (in MB) - adequate buffer for replication lag spikes
+
     # Timeout optimizations for high TPS
     idle_in_transaction_session_timeout: "30s"  # Increased from 10s to prevent premature disconnects
     statement_timeout: "15s"  # Reduced from 30s to fail fast
