@@ -5,11 +5,12 @@ FROM citusdata/citus:latest
 
 USER root
 
-# Install pg_cron extension for automated partition management
+# Install pg_cron extension and barman-cli-cloud for backups
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
         postgresql-17-cron \
+        barman-cli-cloud \
     ; \
     rm -rf /var/lib/apt/lists/*
 
