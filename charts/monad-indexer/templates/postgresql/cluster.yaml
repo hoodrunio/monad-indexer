@@ -85,6 +85,24 @@ spec:
       client_connection_check_interval: {{ .Values.postgresql.config.clientConnectionCheckInterval | default "60000" | quote }}
 
       # ============================================================
+      # TIMEOUT CONFIGURATION (LOCK CONTENTION OPTIMIZATION)
+      # ============================================================
+      {{- if .Values.postgresql.config.idle_in_transaction_session_timeout }}
+      # Automatically terminate idle-in-transaction sessions after this time
+      # Critical for preventing lock holding by stuck transactions
+      idle_in_transaction_session_timeout: {{ .Values.postgresql.config.idle_in_transaction_session_timeout | quote }}
+      {{- end }}
+      {{- if .Values.postgresql.config.statement_timeout }}
+      # Maximum execution time for any statement
+      statement_timeout: {{ .Values.postgresql.config.statement_timeout | quote }}
+      {{- end }}
+      {{- if .Values.postgresql.config.lock_timeout }}
+      # Maximum time to wait for a lock before failing
+      # Fail fast to prevent cascading lock waits
+      lock_timeout: {{ .Values.postgresql.config.lock_timeout | quote }}
+      {{- end }}
+
+      # ============================================================
       # QUERY PLANNER (for NVMe SSD)
       # ============================================================
       random_page_cost: {{ .Values.postgresql.config.randomPageCost | quote }}
