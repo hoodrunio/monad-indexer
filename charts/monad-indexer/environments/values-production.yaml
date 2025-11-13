@@ -218,7 +218,7 @@ postgresql:
 
     # Timeout optimizations for high TPS - OPTIMIZED FOR LOCK CONTENTION
     idle_in_transaction_session_timeout: "10s"  # Aggressive: terminate idle transactions quickly to prevent lock holding
-    statement_timeout: "0"  # Disabled for TimescaleDB hypertable migration (77M rows, ~1-2 hours)
+    statement_timeout: "30s"  # Allow complex queries while preventing runaway queries
     lock_timeout: "3s"  # Reduced: fail fast on lock contention to prevent cascading waits
 
     # Performance tuning for high TPS
