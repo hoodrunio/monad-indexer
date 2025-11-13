@@ -47,9 +47,6 @@ spec:
       postInitApplicationSQL:
         - CREATE EXTENSION IF NOT EXISTS citus;
         - CREATE EXTENSION IF NOT EXISTS pg_cron;
-      # Create pg_cron in postgres database as well (for system-wide scheduling)
-      postInitSQL:
-        - CREATE EXTENSION IF NOT EXISTS pg_cron;
       {{- end }}
       # Note: Citus distributed table setup handled by post-install Job
       # This ensures setup runs AFTER Blockscout creates base tables
@@ -64,6 +61,14 @@ spec:
       - pg_cron
     {{- end }}
     parameters:
+      {{- if .Values.postgresql.citus.enabled }}
+      # ============================================================
+      # CITUS & PG_CRON CONFIGURATION
+      # ============================================================
+      # pg_cron: Configure to use blockscout database instead of postgres
+      cron.database_name: {{ .Values.postgresql.auth.database | quote }}
+      {{- end }}
+
       # ============================================================
       # MEMORY CONFIGURATION
       # ============================================================
