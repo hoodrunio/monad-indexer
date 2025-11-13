@@ -36,8 +36,9 @@ data:
 
             -- TimescaleDB requires partitioning column (inserted_at) to be part of all unique indexes
             -- Drop existing constraints that don't include inserted_at
-            RAISE NOTICE 'Dropping PRIMARY KEY constraint: transactions_pkey';
-            ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_pkey;
+            -- CASCADE is required because foreign keys reference these constraints
+            RAISE NOTICE 'Dropping PRIMARY KEY constraint: transactions_pkey (CASCADE)';
+            ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_pkey CASCADE;
 
             RAISE NOTICE 'Dropping UNIQUE constraint: transactions_block_hash_index_index';
             ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_block_hash_index_index;
