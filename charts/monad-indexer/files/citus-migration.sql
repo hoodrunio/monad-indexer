@@ -124,8 +124,14 @@ BEGIN
         RAISE NOTICE '[DROP] Dropping PRIMARY KEY internal_transactions_pkey';
         ALTER TABLE internal_transactions DROP CONSTRAINT IF EXISTS internal_transactions_pkey;
 
-        RAISE NOTICE '[CREATE] Creating new PRIMARY KEY (transaction_hash, block_hash, block_index)';
-        ALTER TABLE internal_transactions ADD PRIMARY KEY (transaction_hash, block_hash, block_index);
+        RAISE NOTICE '[CREATE] Creating new PRIMARY KEY (transaction_hash, index)';
+        ALTER TABLE internal_transactions ADD PRIMARY KEY (transaction_hash, index);
+
+        -- Create UNIQUE index for block-based queries
+        RAISE NOTICE '[CREATE] Creating UNIQUE INDEX for (block_hash, block_index)';
+        CREATE UNIQUE INDEX IF NOT EXISTS internal_transactions_block_hash_block_index_index
+            ON internal_transactions (block_hash, block_index);
+
         RAISE NOTICE '[OK] internal_transactions PRIMARY KEY updated';
     END IF;
 
@@ -157,8 +163,9 @@ BEGIN
 
     RAISE NOTICE '';
     RAISE NOTICE 'Rationale: Citus requires PRIMARY KEYs to include distribution column.';
-    RAISE NOTICE '           - internal_transactions: distribution column = transaction_hash';
-    RAISE NOTICE '           - address_*: distribution column = address_hash';
+    RAISE NOTICE '           - internal_transactions: PK (transaction_hash, index), dist by transaction_hash';
+    RAISE NOTICE '           - internal_transactions: UNIQUE INDEX (block_hash, block_index) for block queries';
+    RAISE NOTICE '           - address_*: PK (address_hash, id), dist by address_hash';
 END $$;
 
 -- ============================================================================
