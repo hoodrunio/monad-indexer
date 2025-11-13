@@ -14,6 +14,10 @@
 
 \set ON_ERROR_STOP on
 
+-- Disable statement timeout for migration (large data copy operations)
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+
 -- ============================================================================
 -- SECTION 1: Pre-Flight Checks
 -- ============================================================================
