@@ -125,7 +125,7 @@ backend:
 
     # NFT features
     nft:
-      mediaHandlerEnabled: true
+      mediaHandlerEnabled: false
 
     # Logging
     logging:
