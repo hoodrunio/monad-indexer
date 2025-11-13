@@ -504,9 +504,9 @@ postgresql:
   replicaCount: 3  # 1 primary + 2 read replicas
 
   image:
-    registry: ghcr.io
-    repository: hoodrunio/postgresql-partman
-    tag: "17"
+    registry: docker.io
+    repository: timescale/timescaledb-ha
+    tag: "pg16"  # PostgreSQL 16 + TimescaleDB 2.18+
 
   auth:
     database: blockscout
@@ -537,72 +537,50 @@ postgresql:
     logDisconnections: "on"
     additionalParameters: {}
 
-  # pg_partman configuration for partition-based data retention
-  # More efficient than DELETE-based retention (99.9% faster)
-  partman:
-    enabled: false  # Enable after testing in dev/staging
+  # TimescaleDB configuration for automatic time-series partitioning
+  # Provides automatic partitioning, compression, and zero-maintenance
+  timescaledb:
+    enabled: false  # Enable in production after testing
 
-    # Retention period (partitions older than this are automatically dropped)
-    retentionDays: 30
+    # Hypertable configurations (time-series optimized tables)
+    hypertables:
+      # Transactions table - highest priority for performance
+      - table: "transactions"
+        timeColumn: "inserted_at"
+        chunkInterval: "1 day"  # Daily chunks for optimal performance
+        compression:
+          enabled: true
+          afterDays: 7  # Compress data older than 7 days (70-90% disk savings)
+        retention:
+          enabled: false  # Disabled by default (keep all data)
+          afterDays: 30  # Optional: auto-drop chunks older than 30 days
 
-    # How many days ahead to pre-create partitions
-    # Prevents "no partition found" errors for future data
-    premakeDays: 7
+      # Future hypertables (uncomment when needed)
+      # - table: "logs"
+      #   timeColumn: "inserted_at"
+      #   chunkInterval: "1 day"
+      #   compression:
+      #     enabled: true
+      #     afterDays: 7
+      #   retention:
+      #     enabled: false
+      #     afterDays: 30
 
-    # Partition interval (daily partitions recommended for blockchain data)
-    partitionInterval: "1 day"
+      # - table: "token_transfers"
+      #   timeColumn: "inserted_at"
+      #   chunkInterval: "1 day"
+      #   compression:
+      #     enabled: true
+      #     afterDays: 7
+      #   retention:
+      #     enabled: false
+      #     afterDays: 30
 
-    # Background worker interval in seconds (how often to run maintenance)
-    # 3600 = 1 hour (checks for partitions to create/drop)
-    bgwInterval: 3600
-
-    # Tables to partition (must have inserted_at column)
-    tables:
-      - blocks
-      - transactions
-      - logs
-      - token_transfers
-      - internal_transactions
-
-    # Data migration job configuration (one-time)
-    migration:
-      enabled: false  # Enable to run migration job
-      batchSize: 50000  # Rows per batch
-      batchInterval: 10  # Seconds between batches
-      timeoutSeconds: 86400  # 24 hours
-      resources:
-        requests:
-          cpu: "1000m"
-          memory: "2Gi"
-        limits:
-          memory: "4Gi"
-      nodeSelector: {}
-      tolerations: []
-
-    # Maintenance CronJob configuration
-    # NOTE: Background worker (pg_partman_bgw) not available in CloudNativePG
-    # CronJob is automatically enabled when partman.enabled=true
-    maintenance:
-      schedule: "0 * * * *"  # Hourly (every hour at :00)
-      waitBetweenSets: 1  # Seconds to wait between partition sets
-      analyze: false  # Run ANALYZE (expensive, set true only if needed)
-      timeoutSeconds: 3600  # 1 hour timeout
-      resources:
-        requests:
-          cpu: "100m"
-          memory: "128Mi"
-        limits:
-          memory: "256Mi"
-      nodeSelector: {}
-      tolerations: []
-
-  # Init database with pg_partman extension
+  # Init database with TimescaleDB extension
+  # NOTE: Hypertable creation is done via scripts/timescaledb_setup.sql
   initdb:
     postInitSQL:
-      - CREATE SCHEMA IF NOT EXISTS partman;
-      - CREATE EXTENSION IF NOT EXISTS pg_partman SCHEMA partman;
-      - GRANT ALL ON SCHEMA partman TO blockscout;
-      - GRANT ALL ON ALL TABLES IN SCHEMA partman TO blockscout;
+      - CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
 
   # Primary instance
   primary:
@@ -872,7 +850,7 @@ precompile:
 
   # Job configuration
   job:
-    # Note: Job uses postgresql.image.* configuration (same as pg-partman job)
+    # Note: Job uses postgresql.image.* configuration
     # This ensures consistency and avoids redundant image pulls
 
     # Resource limits

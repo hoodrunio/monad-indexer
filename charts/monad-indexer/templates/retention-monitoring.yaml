@@ -247,147 +247,151 @@ data:
             usage: "GAUGE"
             description: "Seconds since latest block was inserted"
 
-    {{- if .Values.postgresql.partman.enabled }}
+    {{- if .Values.postgresql.timescaledb.enabled }}
     # ========================================
-    # PG_PARTMAN SPECIFIC MONITORING
+    # TIMESCALEDB SPECIFIC MONITORING
     # ========================================
 
-    # Partition counts per table
-    partman_partition_count:
+    # Hypertable chunk counts
+    timescaledb_chunk_count:
       query: |
         SELECT
-          pc.parent_table,
-          COUNT(i.inhrelid) as partition_count
-        FROM partman.part_config pc
-        LEFT JOIN pg_inherits i ON i.inhparent = pc.parent_table::regclass
-        GROUP BY pc.parent_table
+          hypertable_name,
+          COUNT(*) as chunk_count,
+          COUNT(*) FILTER (WHERE is_compressed = true) as compressed_chunks,
+          COUNT(*) FILTER (WHERE is_compressed = false) as uncompressed_chunks
+        FROM timescaledb_information.chunks
+        WHERE hypertable_name IN ('transactions', 'logs', 'token_transfers')
+        GROUP BY hypertable_name
       metrics:
-        - parent_table:
+        - hypertable_name:
             usage: "LABEL"
-            description: "Parent partitioned table"
-        - partition_count:
+            description: "Hypertable name"
+        - chunk_count:
             usage: "GAUGE"
-            description: "Number of partitions"
+            description: "Total number of chunks"
+        - compressed_chunks:
+            usage: "GAUGE"
+            description: "Number of compressed chunks"
+        - uncompressed_chunks:
+            usage: "GAUGE"
+            description: "Number of uncompressed chunks"
 
-    # Partition maintenance last run
-    partman_maintenance_last_run:
+    # Compression ratio and disk savings
+    timescaledb_compression_stats:
       query: |
         SELECT
-          parent_table,
-          COALESCE(EXTRACT(EPOCH FROM (NOW() - maintenance_last_run)), 0) as seconds_since_maintenance
-        FROM partman.part_config
+          hypertable_name,
+          SUM(total_bytes) as total_bytes,
+          SUM(compressed_total_bytes) as compressed_bytes,
+          CASE
+            WHEN SUM(total_bytes) > 0
+            THEN 100.0 * SUM(compressed_total_bytes) / SUM(total_bytes)
+            ELSE 0
+          END as compression_ratio_pct
+        FROM timescaledb_information.chunks
+        WHERE hypertable_name IN ('transactions', 'logs', 'token_transfers')
+          AND is_compressed = true
+        GROUP BY hypertable_name
       metrics:
-        - parent_table:
+        - hypertable_name:
             usage: "LABEL"
-            description: "Parent partitioned table"
-        - seconds_since_maintenance:
+            description: "Hypertable name"
+        - total_bytes:
             usage: "GAUGE"
-            description: "Seconds since last maintenance run for this partition set"
+            description: "Total uncompressed bytes"
+        - compressed_bytes:
+            usage: "GAUGE"
+            description: "Total compressed bytes"
+        - compression_ratio_pct:
+            usage: "GAUGE"
+            description: "Compression ratio percentage"
 
-    # Default partition data check (should be 0 or low)
-    partman_default_partition_rows:
+    # Hypertable sizes
+    timescaledb_hypertable_size:
       query: |
         SELECT
-          parent_table,
-          partman.check_default(parent_table) as default_rows
-        FROM partman.part_config
+          hypertable_name,
+          pg_size_bytes(total_size) as total_size_bytes,
+          num_chunks
+        FROM timescaledb_information.hypertables
+        WHERE hypertable_name IN ('transactions', 'logs', 'token_transfers')
       metrics:
-        - parent_table:
+        - hypertable_name:
             usage: "LABEL"
-            description: "Parent partitioned table"
-        - default_rows:
+            description: "Hypertable name"
+        - total_size_bytes:
             usage: "GAUGE"
-            description: "Number of rows in default partition (should be 0 or low)"
-
-    # Partition configuration status
-    partman_config_status:
-      query: |
-        SELECT
-          parent_table,
-          CASE WHEN automatic_maintenance = 'on' THEN 1 ELSE 0 END as automatic_maintenance,
-          premake,
-          EXTRACT(EPOCH FROM retention::interval) as retention_seconds,
-          CASE WHEN infinite_time_partitions THEN 1 ELSE 0 END as infinite_time_partitions
-        FROM partman.part_config
-      metrics:
-        - parent_table:
-            usage: "LABEL"
-            description: "Parent partitioned table"
-        - automatic_maintenance:
+            description: "Total hypertable size in bytes"
+        - num_chunks:
             usage: "GAUGE"
-            description: "Automatic maintenance enabled (1) or disabled (0)"
-        - premake:
-            usage: "GAUGE"
-            description: "Number of partitions to premake"
-        - retention_seconds:
-            usage: "GAUGE"
-            description: "Retention period in seconds"
-        - infinite_time_partitions:
-            usage: "GAUGE"
-            description: "Infinite time partitions enabled (1) or disabled (0)"
+            description: "Number of chunks in hypertable"
     {{- end }}
 {{- end }}
 {{- end }}
 
 ---
-{{- if and .Values.postgresql.partman.enabled .Values.monitoring.enabled }}
-# PG_PARTMAN ALERTS
+{{- if and .Values.postgresql.timescaledb.enabled .Values.monitoring.enabled }}
+# TIMESCALEDB ALERTS
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: {{ include "monad-indexer.fullname" . }}-partman-alerts
+  name: {{ include "monad-indexer.fullname" . }}-timescaledb-alerts
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "monad-indexer.labels" . | nindent 4 }}
     app.kubernetes.io/component: monitoring
 spec:
   groups:
-  - name: pg-partman
+  - name: timescaledb
     interval: 60s
     rules:
-    # Alert if pg_partman maintenance hasn't run (CronJob-based)
-    - alert: PartmanMaintenanceNotRunning
+    # Alert if hypertable has unusually low chunk count
+    - alert: TimescaleDBLowChunkCount
       expr: |
-        max(pg_partman_maintenance_last_run_seconds_since_maintenance) > 7200
-      for: 30m
+        timescaledb_chunk_count_chunk_count < 7
+      for: 2h
       labels:
         severity: warning
-        component: pg-partman
+        component: timescaledb
       annotations:
-        summary: "pg_partman maintenance hasn't run in 2 hours"
+        summary: "TimescaleDB hypertable has low chunk count"
         description: |
-          pg_partman maintenance hasn't run in over 2 hours.
-          This may cause missing future partitions or failure to drop old partitions.
-          Check: kubectl get cronjob {{`{{ include "monad-indexer.fullname" . }}`}}-pg-partman-maintenance -n {{`{{ .Release.Namespace }}`}}
+          Hypertable {{`{{ $labels.hypertable_name }}`}} has only {{`{{ $value }}`}} chunks.
+          Expected: At least 7 days of data with daily chunks.
+          This may indicate data ingestion issues or chunk creation problems.
+          Check: SELECT * FROM timescaledb_information.chunks WHERE hypertable_name = '{{`{{ $labels.hypertable_name }}`}}';
 
-    # Alert if default partition has too much data
-    - alert: PartmanDefaultPartitionDataAccumulating
+    # Alert if compression ratio is unusually poor
+    - alert: TimescaleDBPoorCompressionRatio
       expr: |
-        pg_partman_default_partition_rows_default_rows > 10000
-      for: 1h
+        timescaledb_compression_stats_compression_ratio_pct > 50
+      for: 6h
       labels:
-        severity: warning
-        component: pg-partman
+        severity: info
+        component: timescaledb
       annotations:
-        summary: "Default partition accumulating data"
+        summary: "TimescaleDB compression ratio is higher than expected"
         description: |
-          Table {{`{{ $labels.parent_table }}`}} has {{`{{ $value }}`}} rows in default partition.
-          This indicates data outside partition boundaries or maintenance issues.
-          Check: SELECT * FROM partman.check_default('{{`{{ $labels.parent_table }}`}}');
-          Migrate: CALL partman.partition_data_proc(p_parent_table := '{{`{{ $labels.parent_table }}`}}');
+          Hypertable {{`{{ $labels.hypertable_name }}`}} has compression ratio of {{`{{ $value }}`}}%.
+          Expected: 10-30% (70-90% disk savings).
+          This may indicate compression is not working optimally.
+          Check compression settings and data patterns.
 
-    # Alert if partition count is unexpectedly low
-    - alert: PartmanLowPartitionCount
+    # Alert if no compressed chunks after 7 days
+    - alert: TimescaleDBNoCompressedChunks
       expr: |
-        pg_partman_partition_count < 30
-      for: 1h
+        timescaledb_chunk_count_compressed_chunks == 0
+          AND
+        timescaledb_chunk_count_chunk_count > 10
+      for: 12h
       labels:
         severity: warning
-        component: pg-partman
+        component: timescaledb
       annotations:
-        summary: "Unusually low partition count"
+        summary: "TimescaleDB has no compressed chunks"
         description: |
-          Table {{`{{ $labels.parent_table }}`}} has only {{`{{ $value }}`}} partitions.
-          Expected: ~30 days retention + 7 days premake = ~37 partitions.
-          May indicate retention is too aggressive or partitions aren't being created.
+          Hypertable {{`{{ $labels.hypertable_name }}`}} has {{`{{ $value }}`}} chunks but none are compressed.
+          Compression policy may not be running or chunks may not be old enough (7+ days).
+          Check: SELECT * FROM timescaledb_information.jobs WHERE proc_name = 'policy_compression';
 {{- end }}

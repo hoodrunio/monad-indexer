@@ -73,11 +73,11 @@ microservices:
 postgresql:
   replicaCount: 1
 
-  # Custom image with pg_partman extension
+  # TimescaleDB image with PostgreSQL 16
   image:
-    registry: ghcr.io
-    repository: hoodrunio/postgresql-partman
-    tag: "17"
+    registry: docker.io
+    repository: timescale/timescaledb-ha
+    tag: "pg16"
 
   auth:
     # ExternalSecret will create this secret from AWS Secrets Manager
@@ -89,17 +89,19 @@ postgresql:
     maintenanceWorkMem: "128MB"
     maxConnections: "100"
 
-  # pg_partman enabled in dev for testing
-  partman:
-    enabled: true  # Enable in dev to test partition-based retention
-    retentionDays: 90  # Conservative for testing
-    premakeDays: 3  # Smaller buffer for dev
-    # Maintenance CronJob (replaces background worker)
-    maintenance:
-      enabled: true  # Enable in dev for testing
-      schedule: "*/30 * * * *"  # Every 30 minutes
-      waitBetweenSets: 1
-      analyze: false
+  # TimescaleDB configuration for dev testing
+  timescaledb:
+    enabled: true  # Enable in dev to test automatic partitioning
+    hypertables:
+      - table: "transactions"
+        timeColumn: "inserted_at"
+        chunkInterval: "1 day"
+        compression:
+          enabled: true
+          afterDays: 7
+        retention:
+          enabled: false  # Disabled by default (keep all data)
+          afterDays: 90
 
   primary:
     persistence:

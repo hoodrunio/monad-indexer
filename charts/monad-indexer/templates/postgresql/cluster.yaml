@@ -11,7 +11,7 @@ spec:
 
   imageName: {{ .Values.postgresql.image.registry }}/{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}
 
-  # Enable superuser access for maintenance tasks (pg_partman CronJob)
+  # Enable superuser access for maintenance tasks (TimescaleDB setup, backups)
   # Creates <cluster-name>-superuser secret automatically
   enableSuperuserAccess: true
 
@@ -155,12 +155,12 @@ spec:
       temp_buffers: "128MB"
 
       # ============================================================
-      # PG_PARTMAN EXTENSION (for partition-based retention)
+      # TIMESCALEDB EXTENSION (for automatic time-series partitioning)
       # ============================================================
-      # NOTE: CloudNativePG doesn't allow shared_preload_libraries customization.
-      # Background worker (pg_partman_bgw) is NOT available.
-      # Use manual maintenance instead: SELECT partman.run_maintenance();
-      # Schedule via Kubernetes CronJob if needed.
+      # NOTE: TimescaleDB extension is enabled via postInitSQL.
+      # Hypertable creation and compression policies are configured via
+      # scripts/timescaledb_setup.sql after initial bootstrap.
+      # TimescaleDB background workers run automatically.
 
     {{- if .Values.postgresql.config.additionalParameters }}
     {{- range $key, $value := .Values.postgresql.config.additionalParameters }}
