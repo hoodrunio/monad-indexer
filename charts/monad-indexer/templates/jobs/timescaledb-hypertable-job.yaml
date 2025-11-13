@@ -108,15 +108,21 @@ spec:
             exit 1
           fi
 
-          # Verify TimescaleDB extension is loaded
-          echo ">>> Verifying TimescaleDB extension..."
+          # Create TimescaleDB extension if not exists
+          echo ">>> Creating TimescaleDB extension if not exists..."
           if ! psql -t -c "SELECT COUNT(*) FROM pg_extension WHERE extname = 'timescaledb';" | grep -q '1'; then
-            echo "ERROR: TimescaleDB extension not found!"
-            echo "Please ensure TimescaleDB is properly installed and loaded."
-            exit 1
+            echo ">>> TimescaleDB extension not found, creating it..."
+            psql -v ON_ERROR_STOP=1 -c "CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;"
+            if [ $? -eq 0 ]; then
+              echo ">>> TimescaleDB extension created successfully!"
+            else
+              echo "ERROR: Failed to create TimescaleDB extension!"
+              echo "Please check PostgreSQL logs for details."
+              exit 1
+            fi
+          else
+            echo ">>> TimescaleDB extension already exists!"
           fi
-
-          echo ">>> TimescaleDB extension verified!"
 
           # Check if transactions table is already a hypertable
           echo ">>> Checking if transactions table is already a hypertable..."
