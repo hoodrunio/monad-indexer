@@ -96,6 +96,36 @@ BEGIN
     RAISE NOTICE '           Blockchain consensus already guarantees transaction ordering within blocks.';
 END $$;
 
+-- Drop and recreate PRIMARY KEY on internal_transactions to include distribution column
+DO $$
+BEGIN
+    RAISE NOTICE '';
+    RAISE NOTICE '========================================';
+    RAISE NOTICE 'Fixing internal_transactions PRIMARY KEY';
+    RAISE NOTICE '========================================';
+
+    -- Check if table exists
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'internal_transactions'
+    ) THEN
+        RAISE NOTICE '[SKIP] Table internal_transactions does not exist';
+        RETURN;
+    END IF;
+
+    -- Drop old PRIMARY KEY (block_hash, block_index)
+    RAISE NOTICE '[DROP] Dropping PRIMARY KEY internal_transactions_pkey';
+    ALTER TABLE internal_transactions DROP CONSTRAINT IF EXISTS internal_transactions_pkey;
+
+    -- Create new PRIMARY KEY including distribution column (transaction_hash)
+    RAISE NOTICE '[CREATE] Creating new PRIMARY KEY (transaction_hash, block_hash, block_index)';
+    ALTER TABLE internal_transactions ADD PRIMARY KEY (transaction_hash, block_hash, block_index);
+
+    RAISE NOTICE '[OK] PRIMARY KEY updated successfully';
+    RAISE NOTICE '';
+    RAISE NOTICE 'Rationale: Citus requires PRIMARY KEY to include distribution column (transaction_hash).';
+END $$;
+
 -- ============================================================================
 -- SECTION 2.5: Drop Foreign Key Constraints Temporarily
 -- ============================================================================
