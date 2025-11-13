@@ -68,6 +68,7 @@ backend:
   env:
     INDEXER_MEMORY_LIMIT: "7"  # Increased from 5 for higher memory limit
     LOG_LEVEL: "warn"
+    INDEXER_DISABLE_BLOCK_REWARD_FETCHER: "true"  # Disable block reward fetcher
     INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER: "true"  # Disable pending transactions fetcher
     INDEXER_DISABLE_INTERNAL_TRANSACTIONS_FETCHER: "true"  # Disable internal transactions fetcher
     INDEXER_DISABLE_NFT_MEDIA_HANDLER: "true"  # Disable nft media handler
