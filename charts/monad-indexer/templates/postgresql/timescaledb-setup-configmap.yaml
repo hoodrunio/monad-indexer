@@ -12,6 +12,10 @@ data:
     -- This script sets up TimescaleDB extension and configures hypertables
     -- for Monad Blockscout indexer optimized for high-TPS blockchain
 
+    -- Disable statement timeout for long-running migration (77M rows, ~1-2 hours)
+    -- This is a safety fallback in case the cluster-level setting is not applied yet
+    SET statement_timeout = 0;
+
     -- Enable TimescaleDB extension
     CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
 
