@@ -96,34 +96,57 @@ BEGIN
     RAISE NOTICE '           Blockchain consensus already guarantees transaction ordering within blocks.';
 END $$;
 
--- Drop and recreate PRIMARY KEY on internal_transactions to include distribution column
+-- Drop and recreate PRIMARY KEYs to include distribution columns
 DO $$
 BEGIN
     RAISE NOTICE '';
     RAISE NOTICE '========================================';
-    RAISE NOTICE 'Fixing internal_transactions PRIMARY KEY';
+    RAISE NOTICE 'Fixing PRIMARY KEYs for Citus Compatibility';
     RAISE NOTICE '========================================';
 
-    -- Check if table exists
-    IF NOT EXISTS (
+    -- Fix internal_transactions PRIMARY KEY
+    IF EXISTS (
         SELECT 1 FROM information_schema.tables
         WHERE table_schema = 'public' AND table_name = 'internal_transactions'
     ) THEN
-        RAISE NOTICE '[SKIP] Table internal_transactions does not exist';
-        RETURN;
+        RAISE NOTICE '[DROP] Dropping PRIMARY KEY internal_transactions_pkey';
+        ALTER TABLE internal_transactions DROP CONSTRAINT IF EXISTS internal_transactions_pkey;
+
+        RAISE NOTICE '[CREATE] Creating new PRIMARY KEY (transaction_hash, block_hash, block_index)';
+        ALTER TABLE internal_transactions ADD PRIMARY KEY (transaction_hash, block_hash, block_index);
+        RAISE NOTICE '[OK] internal_transactions PRIMARY KEY updated';
     END IF;
 
-    -- Drop old PRIMARY KEY (block_hash, block_index)
-    RAISE NOTICE '[DROP] Dropping PRIMARY KEY internal_transactions_pkey';
-    ALTER TABLE internal_transactions DROP CONSTRAINT IF EXISTS internal_transactions_pkey;
+    -- Fix address_token_balances PRIMARY KEY
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'address_token_balances'
+    ) THEN
+        RAISE NOTICE '[DROP] Dropping PRIMARY KEY address_token_balances_pkey';
+        ALTER TABLE address_token_balances DROP CONSTRAINT IF EXISTS address_token_balances_pkey;
 
-    -- Create new PRIMARY KEY including distribution column (transaction_hash)
-    RAISE NOTICE '[CREATE] Creating new PRIMARY KEY (transaction_hash, block_hash, block_index)';
-    ALTER TABLE internal_transactions ADD PRIMARY KEY (transaction_hash, block_hash, block_index);
+        RAISE NOTICE '[CREATE] Creating new PRIMARY KEY (address_hash, token_contract_address_hash, block_number)';
+        ALTER TABLE address_token_balances ADD PRIMARY KEY (address_hash, token_contract_address_hash, block_number);
+        RAISE NOTICE '[OK] address_token_balances PRIMARY KEY updated';
+    END IF;
 
-    RAISE NOTICE '[OK] PRIMARY KEY updated successfully';
+    -- Fix address_current_token_balances PRIMARY KEY
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'address_current_token_balances'
+    ) THEN
+        RAISE NOTICE '[DROP] Dropping PRIMARY KEY address_current_token_balances_pkey';
+        ALTER TABLE address_current_token_balances DROP CONSTRAINT IF EXISTS address_current_token_balances_pkey;
+
+        RAISE NOTICE '[CREATE] Creating new PRIMARY KEY (address_hash, token_contract_address_hash, token_id)';
+        ALTER TABLE address_current_token_balances ADD PRIMARY KEY (address_hash, token_contract_address_hash, token_id);
+        RAISE NOTICE '[OK] address_current_token_balances PRIMARY KEY updated';
+    END IF;
+
     RAISE NOTICE '';
-    RAISE NOTICE 'Rationale: Citus requires PRIMARY KEY to include distribution column (transaction_hash).';
+    RAISE NOTICE 'Rationale: Citus requires PRIMARY KEYs to include distribution column.';
+    RAISE NOTICE '           - internal_transactions: distribution column = transaction_hash';
+    RAISE NOTICE '           - address_*: distribution column = address_hash';
 END $$;
 
 -- ============================================================================
