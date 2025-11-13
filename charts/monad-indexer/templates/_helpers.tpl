@@ -303,9 +303,9 @@ PostgreSQL primary fullname
 PostgreSQL service account name
 */}}
 {{- define "monad-indexer.postgresql.serviceAccountName" -}}
-{{- if .Values.postgresql.serviceAccount.create -}}
-{{- default (printf "%s-postgresql" (include "monad-indexer.fullname" .)) .Values.postgresql.serviceAccount.name -}}
+{{- if .Values.serviceAccount.create -}}
+{{- default (include "monad-indexer.fullname" .) .Values.serviceAccount.name -}}
 {{- else -}}
-{{- default "default" .Values.postgresql.serviceAccount.name -}}
+{{- "default" -}}
 {{- end -}}
 {{- end -}}
