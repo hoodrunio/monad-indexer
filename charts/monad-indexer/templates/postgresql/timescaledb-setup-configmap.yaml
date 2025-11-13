@@ -53,13 +53,15 @@ data:
             RAISE NOTICE 'Creating composite PRIMARY KEY: (hash, inserted_at)';
             ALTER TABLE transactions ADD PRIMARY KEY (hash, inserted_at);
 
+            -- IMPORTANT: Add UNIQUE constraint on hash BEFORE hypertable conversion
+            -- TimescaleDB allows this pre-existing constraint to remain after conversion
+            -- This enables Blockscout's ON CONFLICT (hash) queries to work
+            RAISE NOTICE 'Creating UNIQUE constraint on hash column for ON CONFLICT support';
+            ALTER TABLE transactions ADD CONSTRAINT transactions_hash_unique UNIQUE (hash);
+
             RAISE NOTICE 'Creating composite UNIQUE constraint: (block_hash, index, inserted_at)';
             ALTER TABLE transactions ADD CONSTRAINT transactions_block_hash_index_index
                 UNIQUE (block_hash, index, inserted_at);
-
-            -- Add UNIQUE constraint on hash column alone for ON CONFLICT and foreign keys
-            RAISE NOTICE 'Creating UNIQUE constraint on hash column for ON CONFLICT support';
-            ALTER TABLE transactions ADD CONSTRAINT transactions_hash_unique UNIQUE (hash);
 
             RAISE NOTICE 'Constraints updated successfully. Proceeding with hypertable conversion...';
 
