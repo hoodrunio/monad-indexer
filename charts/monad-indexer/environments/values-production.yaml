@@ -257,9 +257,11 @@ postgresql:
       postgres-role: primary
 
   backup:
-    enabled: false  # Disabled during TPS test
+    enabled: true  # Enable automated backups to S3
     retentionPolicy: "7d"
     secretName: "postgres-backup-creds"
+    schedule: "0 3 * * *"  # Daily at 3 AM UTC
+    backupOwnerReference: "self"
     barmanObjectStore:
       destinationPath: "s3://monad-testnet-archive/postgresql"
       endpointURL: "https://nbg1.your-objectstorage.com"

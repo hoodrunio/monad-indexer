@@ -1,0 +1,38 @@
+{{- if and .Values.postgresql.enabled .Values.postgresql.backup.enabled }}
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-postgresql-backup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  # Daily backup schedule (3 AM UTC)
+  # Cron format: minute hour day month weekday
+  schedule: {{ .Values.postgresql.backup.schedule | default "0 3 * * *" | quote }}
+
+  # Backup retention policy
+  # CloudNativePG will automatically clean up old backups based on this policy
+  backupOwnerReference: {{ .Values.postgresql.backup.backupOwnerReference | default "self" }}
+
+  # Cluster reference
+  cluster:
+    name: {{ include "monad-indexer.fullname" . }}-postgresql
+
+  # Backup method (defaults to barmanObjectStore if configured)
+  # CNPG will automatically use the barmanObjectStore configuration from the cluster spec
+  {{- if .Values.postgresql.backup.method }}
+  method: {{ .Values.postgresql.backup.method }}
+  {{- end }}
+
+  # Immediate backup on creation (optional)
+  {{- if .Values.postgresql.backup.immediate }}
+  immediate: {{ .Values.postgresql.backup.immediate }}
+  {{- end }}
+
+  # Suspend scheduled backups (useful for maintenance)
+  {{- if hasKey .Values.postgresql.backup "suspend" }}
+  suspend: {{ .Values.postgresql.backup.suspend }}
+  {{- end }}
+{{- end }}
