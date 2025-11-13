@@ -70,6 +70,7 @@ backend:
     LOG_LEVEL: "warn"
     INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER: "true"  # Disable pending transactions fetcher
     INDEXER_DISABLE_INTERNAL_TRANSACTIONS_FETCHER: "true"  # Disable internal transactions fetcher
+    INDEXER_DISABLE_NFT_MEDIA_HANDLER: "true"  # Disable nft media handler
 
   # Extra environment variables from ExternalSecret
   extraEnv:
