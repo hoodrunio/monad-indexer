@@ -822,13 +822,25 @@ BEGIN
     RAISE NOTICE 'Next Steps:';
     RAISE NOTICE '  1. Start Blockscout indexer to begin data ingestion';
     RAISE NOTICE '  2. Monitor shard distribution: SELECT * FROM citus_tables;';
-    RAISE NOTICE '  3. Wait 7 days for columnar compression to activate';
-    RAISE NOTICE '  4. Check disk savings: SELECT * FROM citus_table_size(''transactions'');';
+    IF v_partition_count > 0 THEN
+        RAISE NOTICE '  3. Wait 7 days for columnar compression to activate on partitions';
+        RAISE NOTICE '  4. Check disk savings: SELECT * FROM citus_table_size(''transactions'');';
+    ELSE
+        RAISE NOTICE '  3. (Optional) Set up table partitioning for disk savings';
+        RAISE NOTICE '     See CITUS_MIGRATION_GUIDE.md for partitioning instructions';
+    END IF;
     RAISE NOTICE '';
-    RAISE NOTICE 'Expected Results After 3 Months:';
-    RAISE NOTICE '  - 54-70%% disk savings with columnar compression';
-    RAISE NOTICE '  - Automated partition management (no manual intervention)';
-    RAISE NOTICE '  - Horizontal scalability ready (add worker nodes anytime)';
+    IF v_partition_count > 0 THEN
+        RAISE NOTICE 'Expected Results After 3 Months:';
+        RAISE NOTICE '  - 54-70%% disk savings with columnar compression on partitions';
+        RAISE NOTICE '  - Automated partition management (no manual intervention)';
+        RAISE NOTICE '  - Horizontal scalability ready (add worker nodes anytime)';
+    ELSE
+        RAISE NOTICE 'Current Setup (Without Partitioning):';
+        RAISE NOTICE '  ✓ Horizontal scalability ready (add worker nodes anytime)';
+        RAISE NOTICE '  ✓ Hash-based distribution for balanced load';
+        RAISE NOTICE '  ℹ For columnar compression savings, set up partitioning';
+    END IF;
     RAISE NOTICE '';
     RAISE NOTICE '========================================';
     RAISE NOTICE 'Citus Migration Script - Completed';
