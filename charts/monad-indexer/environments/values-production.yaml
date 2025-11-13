@@ -311,6 +311,14 @@ postgresql:
           enabled: false  # Disabled for now, will enable for mainnet
           afterDays: 30  # Keep 30 days (when enabled)
 
+    # Setup job runs post-install to convert transactions table to hypertable
+    setupJob:
+      enabled: true
+      backoffLimit: 5
+      timeoutSeconds: 600  # 10 minutes
+      waitForTableTimeout: 300  # 5 minutes to wait for table creation
+      waitForTableInterval: 5  # Check every 5 seconds
+
   # Database maintenance jobs
   maintenance:
     # One-time job: Drop unused indexes (runs during helm upgrade/install)

@@ -576,9 +576,17 @@ postgresql:
       #     enabled: false
       #     afterDays: 30
 
-  # TimescaleDB initialization is handled via postInitApplicationSQLRefs in cluster.yaml
-  # See: templates/postgresql/timescaledb-setup-configmap.yaml
-  # No manual postInitSQL needed - everything is in the ConfigMap
+    # TimescaleDB setup job configuration
+    # Runs as a post-install/post-upgrade Helm hook AFTER backend migrations complete
+    setupJob:
+      enabled: true  # Enable to automatically convert tables to hypertables
+      backoffLimit: 5  # Number of retries on failure
+      timeoutSeconds: 600  # 10 minutes timeout (includes waiting for table creation)
+      waitForTableTimeout: 300  # 5 minutes to wait for transactions table to be created
+      waitForTableInterval: 5  # Check every 5 seconds
+      resources: {}
+      nodeSelector: {}
+      tolerations: []
 
   # Primary instance
   primary:

@@ -43,14 +43,9 @@ spec:
       owner: {{ .Values.postgresql.auth.username }}
       secret:
         name: {{ .Values.postgresql.auth.existingSecret | default (printf "%s-postgresql-app" (include "monad-indexer.fullname" .)) }}
-      {{- if .Values.postgresql.timescaledb.enabled }}
-      # TimescaleDB setup via ConfigMap (CNPG native method)
-      # Runs automatically during cluster bootstrap
-      postInitApplicationSQLRefs:
-        configMapRefs:
-          - name: {{ include "monad-indexer.fullname" . }}-timescaledb-setup
-            key: timescaledb_setup.sql
-      {{- end }}
+      # Note: TimescaleDB hypertable setup is now handled by a post-install Job
+      # See templates/jobs/timescaledb-hypertable-job.yaml
+      # This ensures the setup runs AFTER Blockscout creates the transactions table
 
   # PostgreSQL configuration optimized for high-throughput blockchain indexing (5000+ TPS)
   postgresql:

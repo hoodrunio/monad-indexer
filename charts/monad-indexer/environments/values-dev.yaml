@@ -103,6 +103,14 @@ postgresql:
           enabled: false  # Disabled by default (keep all data)
           afterDays: 90
 
+    # Setup job for dev environment
+    setupJob:
+      enabled: true
+      backoffLimit: 3
+      timeoutSeconds: 300  # 5 minutes (less data in dev)
+      waitForTableTimeout: 180  # 3 minutes
+      waitForTableInterval: 5
+
   primary:
     persistence:
       size: 100Gi
