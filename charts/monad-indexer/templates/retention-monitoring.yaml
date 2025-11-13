@@ -247,151 +247,126 @@ data:
             usage: "GAUGE"
             description: "Seconds since latest block was inserted"
 
-    {{- if .Values.postgresql.timescaledb.enabled }}
+    {{- if .Values.postgresql.citus.enabled }}
     # ========================================
-    # TIMESCALEDB SPECIFIC MONITORING
+    # CITUS SPECIFIC MONITORING
     # ========================================
 
-    # Hypertable chunk counts
-    timescaledb_chunk_count:
+    # Distributed table shard counts
+    citus_shard_count:
       query: |
         SELECT
-          hypertable_name,
-          COUNT(*) as chunk_count,
-          COUNT(*) FILTER (WHERE is_compressed = true) as compressed_chunks,
-          COUNT(*) FILTER (WHERE is_compressed = false) as uncompressed_chunks
-        FROM timescaledb_information.chunks
-        WHERE hypertable_name IN ('transactions', 'logs', 'token_transfers')
-        GROUP BY hypertable_name
+          logicalrelid::text as table_name,
+          COUNT(*) as shard_count,
+          SUM(shardlength) as total_shard_size
+        FROM pg_dist_shard
+        WHERE logicalrelid::text IN ('transactions', 'logs', 'token_transfers', 'internal_transactions')
+        GROUP BY logicalrelid
       metrics:
-        - hypertable_name:
+        - table_name:
             usage: "LABEL"
-            description: "Hypertable name"
-        - chunk_count:
+            description: "Distributed table name"
+        - shard_count:
             usage: "GAUGE"
-            description: "Total number of chunks"
-        - compressed_chunks:
+            description: "Total number of shards"
+        - total_shard_size:
             usage: "GAUGE"
-            description: "Number of compressed chunks"
-        - uncompressed_chunks:
-            usage: "GAUGE"
-            description: "Number of uncompressed chunks"
+            description: "Total size of all shards in bytes"
 
-    # Compression ratio and disk savings
-    timescaledb_compression_stats:
+    # Columnar compression stats (Citus columnar storage)
+    citus_columnar_compression_stats:
       query: |
         SELECT
-          hypertable_name,
-          SUM(total_bytes) as total_bytes,
-          SUM(compressed_total_bytes) as compressed_bytes,
+          relname as table_name,
+          pg_total_relation_size(c.oid) as total_size_bytes,
           CASE
-            WHEN SUM(total_bytes) > 0
-            THEN 100.0 * SUM(compressed_total_bytes) / SUM(total_bytes)
-            ELSE 0
-          END as compression_ratio_pct
-        FROM timescaledb_information.chunks
-        WHERE hypertable_name IN ('transactions', 'logs', 'token_transfers')
-          AND is_compressed = true
-        GROUP BY hypertable_name
+            WHEN am.amname = 'columnar' THEN true
+            ELSE false
+          END as is_columnar
+        FROM pg_class c
+        JOIN pg_am am ON c.relam = am.oid
+        WHERE relname IN ('transactions', 'logs', 'token_transfers', 'internal_transactions')
+          OR relname LIKE '%_p_%'  -- Include partitions
       metrics:
-        - hypertable_name:
+        - table_name:
             usage: "LABEL"
-            description: "Hypertable name"
-        - total_bytes:
-            usage: "GAUGE"
-            description: "Total uncompressed bytes"
-        - compressed_bytes:
-            usage: "GAUGE"
-            description: "Total compressed bytes"
-        - compression_ratio_pct:
-            usage: "GAUGE"
-            description: "Compression ratio percentage"
-
-    # Hypertable sizes
-    timescaledb_hypertable_size:
-      query: |
-        SELECT
-          hypertable_name,
-          pg_size_bytes(total_size) as total_size_bytes,
-          num_chunks
-        FROM timescaledb_information.hypertables
-        WHERE hypertable_name IN ('transactions', 'logs', 'token_transfers')
-      metrics:
-        - hypertable_name:
-            usage: "LABEL"
-            description: "Hypertable name"
+            description: "Table or partition name"
         - total_size_bytes:
             usage: "GAUGE"
-            description: "Total hypertable size in bytes"
-        - num_chunks:
+            description: "Total table size in bytes"
+        - is_columnar:
             usage: "GAUGE"
-            description: "Number of chunks in hypertable"
+            description: "Whether table uses columnar storage (1=yes, 0=no)"
+
+    # Distributed table sizes
+    citus_distributed_table_size:
+      query: |
+        SELECT
+          logicalrelid::text as table_name,
+          citus_table_size(logicalrelid) as total_size_bytes,
+          COUNT(DISTINCT shardid) as num_shards
+        FROM pg_dist_shard
+        WHERE logicalrelid::text IN ('transactions', 'logs', 'token_transfers', 'internal_transactions')
+        GROUP BY logicalrelid
+      metrics:
+        - table_name:
+            usage: "LABEL"
+            description: "Distributed table name"
+        - total_size_bytes:
+            usage: "GAUGE"
+            description: "Total distributed table size in bytes"
+        - num_shards:
+            usage: "GAUGE"
+            description: "Number of shards for this table"
     {{- end }}
 {{- end }}
 {{- end }}
 
 ---
-{{- if and .Values.postgresql.timescaledb.enabled .Values.monitoring.enabled }}
-# TIMESCALEDB ALERTS
+{{- if and .Values.postgresql.citus.enabled .Values.monitoring.enabled }}
+# CITUS ALERTS
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: {{ include "monad-indexer.fullname" . }}-timescaledb-alerts
+  name: {{ include "monad-indexer.fullname" . }}-citus-alerts
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "monad-indexer.labels" . | nindent 4 }}
     app.kubernetes.io/component: monitoring
 spec:
   groups:
-  - name: timescaledb
+  - name: citus
     interval: 60s
     rules:
-    # Alert if hypertable has unusually low chunk count
-    - alert: TimescaleDBLowChunkCount
+    # Alert if distributed table has too few shards
+    - alert: CitusLowShardCount
       expr: |
-        timescaledb_chunk_count_chunk_count < 7
+        citus_shard_count_shard_count < 4
       for: 2h
       labels:
         severity: warning
-        component: timescaledb
+        component: citus
       annotations:
-        summary: "TimescaleDB hypertable has low chunk count"
+        summary: "Citus distributed table has low shard count"
         description: |
-          Hypertable {{`{{ $labels.hypertable_name }}`}} has only {{`{{ $value }}`}} chunks.
-          Expected: At least 7 days of data with daily chunks.
-          This may indicate data ingestion issues or chunk creation problems.
-          Check: SELECT * FROM timescaledb_information.chunks WHERE hypertable_name = '{{`{{ $labels.hypertable_name }}`}}';
+          Table {{`{{ $labels.table_name }}`}} has only {{`{{ $value }}`}} shards.
+          This may indicate distribution issues or configuration problems.
+          Check: SELECT * FROM pg_dist_shard WHERE logicalrelid = '{{`{{ $labels.table_name }}`}}'::regclass;
 
-    # Alert if compression ratio is unusually poor
-    - alert: TimescaleDBPoorCompressionRatio
+    # Alert if columnar compression is not being used
+    - alert: CitusNoColumnarCompression
       expr: |
-        timescaledb_compression_stats_compression_ratio_pct > 50
-      for: 6h
-      labels:
-        severity: info
-        component: timescaledb
-      annotations:
-        summary: "TimescaleDB compression ratio is higher than expected"
-        description: |
-          Hypertable {{`{{ $labels.hypertable_name }}`}} has compression ratio of {{`{{ $value }}`}}%.
-          Expected: 10-30% (70-90% disk savings).
-          This may indicate compression is not working optimally.
-          Check compression settings and data patterns.
-
-    # Alert if no compressed chunks after 7 days
-    - alert: TimescaleDBNoCompressedChunks
-      expr: |
-        timescaledb_chunk_count_compressed_chunks == 0
+        citus_columnar_compression_stats_is_columnar == 0
           AND
-        timescaledb_chunk_count_chunk_count > 10
+        citus_columnar_compression_stats_total_size_bytes > 10737418240
       for: 12h
       labels:
-        severity: warning
-        component: timescaledb
+        severity: info
+        component: citus
       annotations:
-        summary: "TimescaleDB has no compressed chunks"
+        summary: "Citus table not using columnar compression"
         description: |
-          Hypertable {{`{{ $labels.hypertable_name }}`}} has {{`{{ $value }}`}} chunks but none are compressed.
-          Compression policy may not be running or chunks may not be old enough (7+ days).
-          Check: SELECT * FROM timescaledb_information.jobs WHERE proc_name = 'policy_compression';
+          Table {{`{{ $labels.table_name }}`}} is {{`{{ $value | humanize1024 }}`}}B but not using columnar storage.
+          Consider converting old partitions to columnar for 70-90% disk savings.
+          Check: SELECT * FROM pg_class WHERE relname = '{{`{{ $labels.table_name }}`}}';
 {{- end }}

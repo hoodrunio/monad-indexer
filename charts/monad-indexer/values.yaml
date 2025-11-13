@@ -504,9 +504,9 @@ postgresql:
   replicaCount: 3  # 1 primary + 2 read replicas
 
   image:
-    registry: docker.io
-    repository: timescale/timescaledb-ha
-    tag: "pg17"  # PostgreSQL 17 + TimescaleDB latest
+    registry: ghcr.io
+    repository: hoodrunio/postgresql-citus
+    tag: "17-citus13.2"  # PostgreSQL 17.6 + Citus 13.2.0 + pg_cron
 
   auth:
     database: blockscout
@@ -537,56 +537,10 @@ postgresql:
     logDisconnections: "on"
     additionalParameters: {}
 
-  # TimescaleDB configuration for automatic time-series partitioning
-  # Provides automatic partitioning, compression, and zero-maintenance
-  timescaledb:
-    enabled: false  # Enable in production after testing
-
-    # Hypertable configurations (time-series optimized tables)
-    hypertables:
-      # Transactions table - highest priority for performance
-      - table: "transactions"
-        timeColumn: "inserted_at"
-        chunkInterval: "1 day"  # Daily chunks for optimal performance
-        compression:
-          enabled: true
-          afterDays: 7  # Compress data older than 7 days (70-90% disk savings)
-        retention:
-          enabled: false  # Disabled by default (keep all data)
-          afterDays: 30  # Optional: auto-drop chunks older than 30 days
-
-      # Future hypertables (uncomment when needed)
-      # - table: "logs"
-      #   timeColumn: "inserted_at"
-      #   chunkInterval: "1 day"
-      #   compression:
-      #     enabled: true
-      #     afterDays: 7
-      #   retention:
-      #     enabled: false
-      #     afterDays: 30
-
-      # - table: "token_transfers"
-      #   timeColumn: "inserted_at"
-      #   chunkInterval: "1 day"
-      #   compression:
-      #     enabled: true
-      #     afterDays: 7
-      #   retention:
-      #     enabled: false
-      #     afterDays: 30
-
-    # TimescaleDB setup job configuration
-    # Runs as a post-install/post-upgrade Helm hook AFTER backend migrations complete
-    setupJob:
-      enabled: true  # Enable to automatically convert tables to hypertables
-      backoffLimit: 5  # Number of retries on failure
-      timeoutSeconds: 600  # 10 minutes timeout (includes waiting for table creation)
-      waitForTableTimeout: 300  # 5 minutes to wait for transactions table to be created
-      waitForTableInterval: 5  # Check every 5 seconds
-      resources: {}
-      nodeSelector: {}
-      tolerations: []
+  # Citus configuration for distributed PostgreSQL with horizontal scaling
+  # Provides hash-based sharding + native time-series partitioning + columnar compression
+  citus:
+    enabled: true  # Enable Citus distributed database features
 
   # Primary instance
   primary:

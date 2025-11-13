@@ -73,11 +73,11 @@ microservices:
 postgresql:
   replicaCount: 1
 
-  # TimescaleDB image with PostgreSQL 16
+  # Citus image with PostgreSQL 17 + pg_cron
   image:
-    registry: docker.io
-    repository: timescale/timescaledb-ha
-    tag: "pg17"
+    registry: ghcr.io
+    repository: hoodrunio/postgresql-citus
+    tag: "17-citus13.2"
 
   auth:
     # ExternalSecret will create this secret from AWS Secrets Manager
@@ -89,27 +89,9 @@ postgresql:
     maintenanceWorkMem: "128MB"
     maxConnections: "100"
 
-  # TimescaleDB configuration for dev testing
-  timescaledb:
-    enabled: true  # Enable in dev to test automatic partitioning
-    hypertables:
-      - table: "transactions"
-        timeColumn: "inserted_at"
-        chunkInterval: "1 day"
-        compression:
-          enabled: true
-          afterDays: 7
-        retention:
-          enabled: false  # Disabled by default (keep all data)
-          afterDays: 90
-
-    # Setup job for dev environment
-    setupJob:
-      enabled: true
-      backoffLimit: 3
-      timeoutSeconds: 300  # 5 minutes (less data in dev)
-      waitForTableTimeout: 180  # 3 minutes
-      waitForTableInterval: 5
+  # Citus configuration for dev testing
+  citus:
+    enabled: true  # Enable Citus distributed features
 
   primary:
     persistence:

@@ -165,12 +165,12 @@ spec:
       temp_buffers: "128MB"
 
       # ============================================================
-      # TIMESCALEDB EXTENSION (for automatic time-series partitioning)
+      # CITUS EXTENSION (for distributed PostgreSQL with horizontal scaling)
       # ============================================================
-      # NOTE: TimescaleDB extension is enabled via postInitSQL.
-      # Hypertable creation and compression policies are configured via
-      # scripts/timescaledb_setup.sql after initial bootstrap.
-      # TimescaleDB background workers run automatically.
+      # NOTE: Citus extension is loaded via shared_preload_libraries above.
+      # Distributed table creation and partition management are configured via
+      # post-install migration scripts with pg_cron automation.
+      # See docs/CITUS_ONLY_ARCHITECTURE.md for details.
 
     {{- if .Values.postgresql.config.additionalParameters }}
     {{- range $key, $value := .Values.postgresql.config.additionalParameters }}

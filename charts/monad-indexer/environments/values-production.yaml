@@ -188,12 +188,12 @@ microservices:
 postgresql:
   replicaCount: 1  # Temporarily reduced from 2 to 1 due to disk space constraints
 
-  # TimescaleDB image - PostgreSQL 17 with TimescaleDB extension
-  # Provides automatic partitioning, compression, and time-series optimizations
+  # Citus image - PostgreSQL 17 with Citus + pg_cron extensions
+  # Provides distributed tables, horizontal scaling, and automated partition management
   image:
-    registry: docker.io
-    repository: timescale/timescaledb-ha
-    tag: "pg17"  # PostgreSQL 17 + TimescaleDB latest
+    registry: ghcr.io
+    repository: hoodrunio/postgresql-citus
+    tag: "17-citus13.2"  # PostgreSQL 17.5 + Citus 13.1.0 + pg_cron
 
   auth:
     # ExternalSecret will create this secret from AWS Secrets Manager
@@ -296,34 +296,15 @@ postgresql:
     nodeSelector:
       postgres-role: replica  # node2 (worker)
 
-  # TimescaleDB configuration - replaces pg_partman
-  timescaledb:
+  # Citus configuration - distributed PostgreSQL with horizontal scaling
+  citus:
     enabled: true
-    # Hypertable configuration
-    hypertables:
-      - table: "transactions"
-        timeColumn: "inserted_at"
-        chunkInterval: "1 day"  # Daily chunks
-        compression:
-          enabled: true
-          afterDays: 7  # Compress data older than 7 days
-        retention:
-          enabled: false  # Disabled for now, will enable for mainnet
-          afterDays: 30  # Keep 30 days (when enabled)
-
-    # Setup job runs post-install to convert transactions table to hypertable
-    setupJob:
-      enabled: true
-      backoffLimit: 5
-      timeoutSeconds: 600  # 10 minutes
-      waitForTableTimeout: 300  # 5 minutes to wait for table creation
-      waitForTableInterval: 5  # Check every 5 seconds
 
   # Database maintenance jobs
   maintenance:
     # One-time job: Drop unused indexes (runs during helm upgrade/install)
     dropUnusedIndexes:
-      enabled: false  # Disabled during TimescaleDB migration
+      enabled: false  # Disabled during Citus migration
 
     # Recurring job: Index maintenance (monitors and drops unused indexes)
     indexMaintenance:
