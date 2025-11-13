@@ -57,6 +57,10 @@ data:
             ALTER TABLE transactions ADD CONSTRAINT transactions_block_hash_index_index
                 UNIQUE (block_hash, index, inserted_at);
 
+            -- Add UNIQUE constraint on hash column alone for ON CONFLICT and foreign keys
+            RAISE NOTICE 'Creating UNIQUE constraint on hash column for ON CONFLICT support';
+            ALTER TABLE transactions ADD CONSTRAINT transactions_hash_unique UNIQUE (hash);
+
             RAISE NOTICE 'Constraints updated successfully. Proceeding with hypertable conversion...';
 
             -- Create hypertable
@@ -75,6 +79,113 @@ data:
         ELSE
             RAISE NOTICE 'Hypertable already exists or table not found: transactions';
         END IF;
+    END $$;
+
+    -- =====================================================
+    -- RESTORE FOREIGN KEYS
+    -- =====================================================
+    -- Recreate foreign keys that were dropped by CASCADE
+    -- These reference the UNIQUE constraint on hash column
+
+    DO $$
+    BEGIN
+        RAISE NOTICE 'Restoring foreign key constraints...';
+
+        -- logs table
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.table_constraints
+            WHERE constraint_name = 'logs_transaction_hash_fkey'
+        ) THEN
+            ALTER TABLE logs
+                ADD CONSTRAINT logs_transaction_hash_fkey
+                FOREIGN KEY (transaction_hash)
+                REFERENCES transactions(hash)
+                ON DELETE CASCADE;
+            RAISE NOTICE 'Created foreign key: logs_transaction_hash_fkey';
+        END IF;
+
+        -- internal_transactions table
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.table_constraints
+            WHERE constraint_name = 'internal_transactions_transaction_hash_fkey'
+        ) THEN
+            ALTER TABLE internal_transactions
+                ADD CONSTRAINT internal_transactions_transaction_hash_fkey
+                FOREIGN KEY (transaction_hash)
+                REFERENCES transactions(hash)
+                ON DELETE CASCADE;
+            RAISE NOTICE 'Created foreign key: internal_transactions_transaction_hash_fkey';
+        END IF;
+
+        -- token_transfers table
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.table_constraints
+            WHERE constraint_name = 'token_transfers_transaction_hash_fkey'
+        ) THEN
+            ALTER TABLE token_transfers
+                ADD CONSTRAINT token_transfers_transaction_hash_fkey
+                FOREIGN KEY (transaction_hash)
+                REFERENCES transactions(hash)
+                ON DELETE CASCADE;
+            RAISE NOTICE 'Created foreign key: token_transfers_transaction_hash_fkey';
+        END IF;
+
+        -- account_tag_transactions table
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.table_constraints
+            WHERE constraint_name = 'account_tag_transactions_transaction_hash_fkey'
+        ) THEN
+            ALTER TABLE account_tag_transactions
+                ADD CONSTRAINT account_tag_transactions_transaction_hash_fkey
+                FOREIGN KEY (transaction_hash)
+                REFERENCES transactions(hash)
+                ON DELETE CASCADE;
+            RAISE NOTICE 'Created foreign key: account_tag_transactions_transaction_hash_fkey';
+        END IF;
+
+        -- account_watchlist_notifications table
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.table_constraints
+            WHERE constraint_name = 'account_watchlist_notifications_transaction_hash_fkey'
+        ) THEN
+            ALTER TABLE account_watchlist_notifications
+                ADD CONSTRAINT account_watchlist_notifications_transaction_hash_fkey
+                FOREIGN KEY (transaction_hash)
+                REFERENCES transactions(hash)
+                ON DELETE CASCADE;
+            RAISE NOTICE 'Created foreign key: account_watchlist_notifications_transaction_hash_fkey';
+        END IF;
+
+        -- pending_transaction_operations table
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.table_constraints
+            WHERE constraint_name = 'pending_transaction_operations_transaction_hash_fkey'
+        ) THEN
+            ALTER TABLE pending_transaction_operations
+                ADD CONSTRAINT pending_transaction_operations_transaction_hash_fkey
+                FOREIGN KEY (transaction_hash)
+                REFERENCES transactions(hash)
+                ON DELETE CASCADE;
+            RAISE NOTICE 'Created foreign key: pending_transaction_operations_transaction_hash_fkey';
+        END IF;
+
+        -- signed_authorizations table
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.table_constraints
+            WHERE constraint_name = 'signed_authorizations_transaction_hash_fkey'
+        ) THEN
+            ALTER TABLE signed_authorizations
+                ADD CONSTRAINT signed_authorizations_transaction_hash_fkey
+                FOREIGN KEY (transaction_hash)
+                REFERENCES transactions(hash)
+                ON DELETE CASCADE;
+            RAISE NOTICE 'Created foreign key: signed_authorizations_transaction_hash_fkey';
+        END IF;
+
+        RAISE NOTICE 'All foreign keys restored successfully';
+    EXCEPTION
+        WHEN OTHERS THEN
+            RAISE WARNING 'Error restoring foreign keys: %', SQLERRM;
     END $$;
 
     -- =====================================================
