@@ -9,6 +9,10 @@ metadata:
 spec:
   instances: {{ .Values.postgresql.replicaCount }}
 
+  # PostgreSQL UID/GID (matches citusdata/citus base image)
+  postgresUID: 999
+  postgresGID: 999
+
   # Citus image via ImageCatalog
   imageCatalogRef:
     apiGroup: postgresql.cnpg.io
