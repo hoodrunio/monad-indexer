@@ -1,0 +1,170 @@
+{{- if .Values.postgresql.maintenance.indexMaintenance.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-index-maintenance
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: maintenance
+    maintenance-type: index-maintenance
+spec:
+  # Run on demand or scheduled
+  schedule: {{ .Values.postgresql.maintenance.indexMaintenance.schedule | quote }}
+  suspend: {{ not .Values.postgresql.maintenance.indexMaintenance.enabled }}
+
+  # Keep last 3 jobs for audit trail
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+
+  # Don't allow concurrent runs
+  concurrencyPolicy: Forbid
+
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "monad-indexer.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: maintenance
+    spec:
+      ttlSecondsAfterFinished: 86400  # 24 hours
+      backoffLimit: 2
+
+      template:
+        metadata:
+          labels:
+            {{- include "monad-indexer.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: maintenance
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ include "monad-indexer.postgresql.serviceAccountName" . }}
+
+          {{- with .Values.postgresql.primary.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+
+          containers:
+          - name: index-maintenance
+            image: {{ .Values.postgresql.image.registry }}/{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}
+            imagePullPolicy: IfNotPresent
+
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+
+              echo "================================================"
+              echo "PostgreSQL Index Maintenance CronJob"
+              echo "Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+              echo "Namespace: {{ .Release.Namespace }}"
+              echo "================================================"
+              echo ""
+
+              # Wait for PostgreSQL
+              until pg_isready -h ${PGHOST} -p ${PGPORT} -U ${PGUSER} -d ${PGDATABASE}; do
+                echo "Waiting for PostgreSQL..."
+                sleep 2
+              done
+
+              echo "✓ PostgreSQL is ready"
+              echo ""
+
+              # Function to check and drop unused indexes
+              drop_unused_index() {
+                local index_name=$1
+                local min_usage=${2:-1000}  # Default: drop if < 1000 scans
+
+                echo "Checking index: $index_name"
+
+                local exists=$(psql -t -c "SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = '$index_name');" | tr -d ' ')
+
+                if [ "$exists" != "t" ]; then
+                  echo "  ℹ Index does not exist (already dropped or never created)"
+                  return 0
+                fi
+
+                local usage=$(psql -t -c "SELECT idx_scan FROM pg_stat_user_indexes WHERE indexrelname = '$index_name';" | tr -d ' ')
+                local size=$(psql -t -c "SELECT pg_size_pretty(pg_relation_size('$index_name'));" | tr -d ' ')
+
+                echo "  Size: $size"
+                echo "  Usage (scans): $usage"
+
+                if [ -z "$usage" ] || [ "$usage" -lt "$min_usage" ]; then
+                  echo "  → Dropping (usage below threshold: $min_usage)"
+                  psql -v ON_ERROR_STOP=1 -c "DROP INDEX CONCURRENTLY IF EXISTS $index_name;" && \
+                    echo "  ✓ Dropped successfully (freed: $size)" || \
+                    echo "  ✗ Failed to drop"
+                else
+                  echo "  → Keeping (usage above threshold)"
+                fi
+                echo ""
+              }
+
+              # Report current index usage
+              echo "Current index usage on address_coin_balances:"
+              psql -c "
+                SELECT
+                  indexrelname as index_name,
+                  pg_size_pretty(pg_relation_size(indexrelid)) as size,
+                  idx_scan as scans,
+                  CASE
+                    WHEN idx_scan < 100 THEN '🔴 Unused'
+                    WHEN idx_scan < 1000 THEN '🟡 Low usage'
+                    ELSE '🟢 Active'
+                  END as status
+                FROM pg_stat_user_indexes
+                WHERE relname = 'address_coin_balances'
+                ORDER BY idx_scan ASC;"
+              echo ""
+
+              # Drop specific unused indexes
+              echo "Maintenance actions:"
+              drop_unused_index "unfetched_balances" 1000
+
+              echo "================================================"
+              echo "Index maintenance completed"
+              echo "================================================"
+
+            env:
+            - name: PGHOST
+              value: {{ include "monad-indexer.postgresql.primary.fullname" . }}
+            - name: PGPORT
+              value: "5432"
+            - name: PGDATABASE
+              value: "blockscout"
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgresql.auth.existingSecret }}
+                  key: username
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgresql.auth.existingSecret }}
+                  key: password
+
+            resources:
+              requests:
+                cpu: 100m
+                memory: 128Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
+
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 1001
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              seccompProfile:
+                type: RuntimeDefault
+
+          securityContext:
+            fsGroup: 1001
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+{{- end }}

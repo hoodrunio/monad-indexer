@@ -291,3 +291,21 @@ monad-indexer: RPC Configuration
     Please set backend.env.ETHEREUM_JSONRPC_HTTP_URL.
 {{- end -}}
 {{- end -}}
+
+{{/*
+PostgreSQL primary fullname
+*/}}
+{{- define "monad-indexer.postgresql.primary.fullname" -}}
+{{- printf "%s-postgresql-1" (include "monad-indexer.fullname" .) -}}
+{{- end -}}
+
+{{/*
+PostgreSQL service account name
+*/}}
+{{- define "monad-indexer.postgresql.serviceAccountName" -}}
+{{- if .Values.postgresql.serviceAccount.create -}}
+{{- default (printf "%s-postgresql" (include "monad-indexer.fullname" .)) .Values.postgresql.serviceAccount.name -}}
+{{- else -}}
+{{- default "default" .Values.postgresql.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}

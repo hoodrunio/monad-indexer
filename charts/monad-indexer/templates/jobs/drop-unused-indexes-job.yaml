@@ -1,0 +1,213 @@
+{{- if .Values.postgresql.maintenance.dropUnusedIndexes.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-drop-unused-indexes
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: maintenance
+    maintenance-type: drop-unused-indexes
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "-1"
+    helm.sh/hook: pre-upgrade,pre-install
+    helm.sh/hook-weight: "-1"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  # Keep job history for audit trail
+  ttlSecondsAfterFinished: 86400  # 24 hours
+  backoffLimit: 3  # Retry up to 3 times on failure
+
+  template:
+    metadata:
+      labels:
+        {{- include "monad-indexer.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: maintenance
+        maintenance-type: drop-unused-indexes
+      annotations:
+        # Force new pod on each run (idempotency check)
+        rollme: {{ randAlphaNum 5 | quote }}
+    spec:
+      restartPolicy: Never
+
+      # Use same service account as postgresql
+      serviceAccountName: {{ include "monad-indexer.postgresql.serviceAccountName" . }}
+
+      # Schedule on node with postgresql for network locality
+      {{- with .Values.postgresql.primary.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      containers:
+      - name: drop-unused-indexes
+        image: {{ .Values.postgresql.image.registry }}/{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}
+        imagePullPolicy: IfNotPresent
+
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+
+          echo "================================================"
+          echo "PostgreSQL Index Maintenance Job"
+          echo "Job: Drop Unused Indexes"
+          echo "Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          echo "Namespace: {{ .Release.Namespace }}"
+          echo "================================================"
+          echo ""
+
+          # Wait for PostgreSQL to be ready
+          echo "Waiting for PostgreSQL to be ready..."
+          until pg_isready -h ${PGHOST} -p ${PGPORT} -U ${PGUSER} -d ${PGDATABASE}; do
+            echo "PostgreSQL is unavailable - sleeping"
+            sleep 2
+          done
+          echo "PostgreSQL is ready!"
+          echo ""
+
+          # Function to check if index exists
+          check_index_exists() {
+            psql -v ON_ERROR_STOP=1 -t -c "
+              SELECT EXISTS (
+                SELECT 1 FROM pg_indexes
+                WHERE schemaname = 'public'
+                AND indexname = '$1'
+              );"
+          }
+
+          # Function to get index size
+          get_index_size() {
+            psql -v ON_ERROR_STOP=1 -t -c "
+              SELECT pg_size_pretty(pg_relation_size('$1'))
+              FROM pg_indexes
+              WHERE schemaname = 'public' AND indexname = '$1';"
+          }
+
+          # Function to get index usage stats
+          get_index_stats() {
+            psql -v ON_ERROR_STOP=1 -c "
+              SELECT
+                indexrelname as index_name,
+                pg_size_pretty(pg_relation_size(indexrelid)) as size,
+                idx_scan as scans,
+                idx_tup_read as tuples_read
+              FROM pg_stat_user_indexes
+              WHERE indexrelname = '$1';"
+          }
+
+          INDEX_NAME="unfetched_balances"
+
+          echo "Checking if index '$INDEX_NAME' exists..."
+          INDEX_EXISTS=$(check_index_exists "$INDEX_NAME" | tr -d ' ')
+
+          if [ "$INDEX_EXISTS" = "t" ]; then
+            echo "✓ Index exists"
+            echo ""
+
+            echo "Current index statistics:"
+            get_index_stats "$INDEX_NAME"
+            echo ""
+
+            INDEX_SIZE=$(get_index_size "$INDEX_NAME" | tr -d ' ')
+            echo "Index size: $INDEX_SIZE"
+            echo ""
+
+            echo "Dropping index CONCURRENTLY (this may take 5-10 minutes)..."
+            echo "This operation will NOT block ongoing writes."
+            echo ""
+
+            # Drop index with error handling
+            if psql -v ON_ERROR_STOP=1 -c "DROP INDEX CONCURRENTLY IF EXISTS $INDEX_NAME;"; then
+              echo ""
+              echo "✓ Index '$INDEX_NAME' dropped successfully!"
+              echo "✓ Disk space freed: $INDEX_SIZE"
+              echo ""
+
+              # Show remaining indexes
+              echo "Remaining indexes on address_coin_balances:"
+              psql -c "
+                SELECT
+                  indexrelname as index_name,
+                  pg_size_pretty(pg_relation_size(indexrelid)) as size,
+                  idx_scan as scans
+                FROM pg_stat_user_indexes
+                WHERE relname = 'address_coin_balances'
+                ORDER BY pg_relation_size(indexrelid) DESC;"
+
+              echo ""
+              echo "================================================"
+              echo "Job completed successfully!"
+              echo "================================================"
+              exit 0
+            else
+              echo ""
+              echo "✗ Failed to drop index '$INDEX_NAME'"
+              echo "Check PostgreSQL logs for details"
+              exit 1
+            fi
+          else
+            echo "ℹ Index '$INDEX_NAME' does not exist (already dropped or never created)"
+            echo "This is not an error - job is idempotent"
+            echo ""
+            echo "Current indexes on address_coin_balances:"
+            psql -c "
+              SELECT
+                indexrelname as index_name,
+                pg_size_pretty(pg_relation_size(indexrelid)) as size
+              FROM pg_stat_user_indexes
+              WHERE relname = 'address_coin_balances'
+              ORDER BY pg_relation_size(indexrelid) DESC;"
+
+            echo ""
+            echo "================================================"
+            echo "Job completed (no action needed)"
+            echo "================================================"
+            exit 0
+          fi
+
+        env:
+        - name: PGHOST
+          value: {{ include "monad-indexer.postgresql.primary.fullname" . }}
+        - name: PGPORT
+          value: "5432"
+        - name: PGDATABASE
+          value: "blockscout"
+        - name: PGUSER
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.postgresql.auth.existingSecret }}
+              key: username
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.postgresql.auth.existingSecret }}
+              key: password
+
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault
+
+      securityContext:
+        fsGroup: 1001
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+{{- end }}

@@ -80,22 +80,31 @@ backend:
           key: DATABASE_READ_ONLY_API_URL
 
   config:
-    # Database configuration - Use pooler for connection management
+    # Database configuration - OPTIMIZED FOR LOCK CONTENTION
     database:
-      poolSize: 100  # For indexer writes
+      poolSize: 80  # Reduced from 100 to prevent connection exhaustion (per backend pod)
       poolSizeApi: 50  # For API reads (will use read replica via DATABASE_READ_ONLY_API_URL)
       replicaMaxLag: "5m"  # Max lag before failback to primary
+      queueTarget: "100"  # Increased from 50ms default to reduce connection pressure
 
-    # Indexer performance tuning - Optimize balance fetchers to reduce RPC load
+    # Indexer performance tuning - OPTIMIZED FOR LOCK CONTENTION
     indexer:
       performance:
-        # Coin balances - Aggressive optimization (main issue: 100/100 failures)
-        coinBalancesBatchSize: "20"        # Default: 100 (80% reduction)
-        coinBalancesConcurrency: "1"       # Default: 4 (75% reduction)
+        # Coin balances - FURTHER OPTIMIZED to reduce lock contention
+        coinBalancesBatchSize: "10"        # Reduced from 20 (smaller batches = less lock duration)
+        coinBalancesConcurrency: "2"       # Increased from 1 (more workers but smaller batches)
 
-        # Token balances - Aggressive optimization
-        tokenBalancesBatchSize: "25"       # Default: 100 (75% reduction)
-        tokenBalancesConcurrency: "2"      # Default: 10 (80% reduction)
+        # Token balances - FURTHER OPTIMIZED
+        tokenBalancesBatchSize: "25"       # Keep at 25 (balanced)
+        tokenBalancesConcurrency: "2"      # Keep at 2 (conservative)
+
+        # Catchup blocks
+        catchupBlocksBatchSize: "5"       # Reduced from default 10 (smaller transactions)
+        catchupBlocksConcurrency: "5"     # Reduced from default 10 (less DB pressure)
+
+        # Internal transactions - Already disabled
+        internalTransactionsBatchSize: "5"    # Reduced from default 10
+        internalTransactionsConcurrency: "2"  # Reduced from default 4
 
     # RPC endpoints with fallback
     rpc:
@@ -206,10 +215,10 @@ postgresql:
     # posix uses shm_open() which has issues in containers
     dynamicSharedMemoryType: "mmap"
 
-    # Timeout optimizations for high TPS
-    idle_in_transaction_session_timeout: "30s"  # Increased from 10s to prevent premature disconnects
-    statement_timeout: "15s"  # Reduced from 30s to fail fast
-    lock_timeout: "5s"  # NEW: Fail fast on lock contention
+    # Timeout optimizations for high TPS - OPTIMIZED FOR LOCK CONTENTION
+    idle_in_transaction_session_timeout: "10s"  # Aggressive: terminate idle transactions quickly to prevent lock holding
+    statement_timeout: "30s"  # Increased back to 30s to allow complex queries during TPS test
+    lock_timeout: "3s"  # Reduced: fail fast on lock contention to prevent cascading waits
 
     # Performance tuning for high TPS
     synchronous_commit: "off"  # Trade durability for performance (safe with WAL archiving)
@@ -293,22 +302,33 @@ postgresql:
       enabled: true
       schedule: "0 2 * * *"  # Daily at 2 AM UTC
 
+  # Database maintenance jobs
+  maintenance:
+    # One-time job: Drop unused indexes (runs during helm upgrade/install)
+    dropUnusedIndexes:
+      enabled: true  # Set to false after first successful run
+
+    # Recurring job: Index maintenance (monitors and drops unused indexes)
+    indexMaintenance:
+      enabled: false  # Enable for ongoing maintenance (optional)
+      schedule: "0 3 * * 0"  # Weekly on Sunday at 3 AM UTC
+
   pooler:
     enabled: true
     useForBackend: true  # Route backend connections through pooler (best practice)
     replicaCount: 3  # High availability
     poolMode: "transaction"  # Release connection after each transaction
     maxClientConn: 10000  # High - allows many client connections
-    defaultPoolSize: 30  # REDUCED from 500 - actual concurrent write needs (3 poolers × 30 = 90 total to primary)
-    maxDbConnections: 60  # REDUCED from 600 - hard limit per pooler instance (3 poolers × 60 = 180 max to primary)
-    reservePoolSize: 10  # REDUCED from 150 - emergency buffer only
+    defaultPoolSize: 25  # OPTIMIZED: Reduced from 30 (3 poolers × 25 = 75 total to primary)
+    maxDbConnections: 50  # OPTIMIZED: Reduced from 60 (3 poolers × 50 = 150 max to primary)
+    reservePoolSize: 5   # OPTIMIZED: Reduced from 10 - minimal emergency buffer
 
-    # Timeouts - add explicit values for better control
-    serverIdleTimeout: 600
-    serverLifetime: 3600
-    serverConnectTimeout: 15
-    queryTimeout: 300
-    queryWaitTimeout: 120
+    # Timeouts - OPTIMIZED FOR LOCK CONTENTION
+    serverIdleTimeout: 300        # Reduced from 600 - recycle idle connections faster
+    serverLifetime: 1800          # Reduced from 3600 - refresh connections more frequently
+    serverConnectTimeout: 10      # Reduced from 15 - fail fast on connection issues
+    queryTimeout: 300             # Keep at 300 - allow complex queries
+    queryWaitTimeout: 60          # CRITICAL: Reduced from 120 - fail fast if pool exhausted
     logConnections: 1
     logDisconnections: 1
 
