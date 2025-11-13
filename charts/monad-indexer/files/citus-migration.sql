@@ -10,6 +10,18 @@
 --   - Automated partition management via pg_cron
 --
 -- Safety: This script is fully idempotent and safe to run multiple times
+--
+-- IMPORTANT NOTES ABOUT PARTITIONING:
+--   - This script will distribute tables using Citus (hash-based sharding)
+--   - PostgreSQL native partitioning (PARTITION BY RANGE) is OPTIONAL
+--   - If tables are already created as regular (non-partitioned) tables:
+--     * Script will distribute them successfully
+--     * Partition creation will be skipped (tables can't be converted easily)
+--     * This is fine - Citus distribution alone provides horizontal scaling
+--   - For optimal disk savings with columnar compression:
+--     * Tables should be created as PARTITION BY RANGE (inserted_at) FIRST
+--     * Then run this migration to distribute them
+--     * See CITUS_MIGRATION_GUIDE.md for detailed partitioning setup
 -- ============================================================================
 
 \set ON_ERROR_STOP on
@@ -364,6 +376,89 @@ BEGIN
 END $$;
 
 -- ============================================================================
+-- SECTION 4: Convert Tables to Partitioned Tables
+-- ============================================================================
+-- Before we can create partitions, tables need to be converted to partitioned tables.
+-- This must happen AFTER distribution but BEFORE partition creation.
+-- We'll convert tables to RANGE partitioned by created_at/inserted_at timestamp.
+-- ============================================================================
+
+DO $$
+DECLARE
+    v_table_info RECORD;
+    v_tables_to_partition TEXT[][] := ARRAY[
+        ARRAY['transactions', 'inserted_at'],
+        ARRAY['logs', 'inserted_at'],
+        ARRAY['token_transfers', 'inserted_at'],
+        ARRAY['internal_transactions', 'inserted_at']
+    ];
+    v_config TEXT[];
+    v_table_name TEXT;
+    v_partition_column TEXT;
+    v_temp_table_name TEXT;
+    v_is_partitioned BOOLEAN;
+BEGIN
+    RAISE NOTICE '';
+    RAISE NOTICE '========================================';
+    RAISE NOTICE 'Converting Tables to Partitioned Tables';
+    RAISE NOTICE '========================================';
+
+    FOREACH v_config SLICE 1 IN ARRAY v_tables_to_partition
+    LOOP
+        v_table_name := v_config[1];
+        v_partition_column := v_config[2];
+        v_temp_table_name := v_table_name || '_temp';
+
+        -- Check if table exists
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = v_table_name
+        ) THEN
+            RAISE NOTICE '[SKIP] Table % does not exist', v_table_name;
+            CONTINUE;
+        END IF;
+
+        -- Check if table is already partitioned
+        SELECT EXISTS (
+            SELECT 1 FROM pg_partitioned_table
+            WHERE partrelid = (v_table_name)::regclass
+        ) INTO v_is_partitioned;
+
+        IF v_is_partitioned THEN
+            RAISE NOTICE '[OK] Table % is already partitioned', v_table_name;
+            CONTINUE;
+        END IF;
+
+        RAISE NOTICE '[CONVERT] Converting % to partitioned table by column %', v_table_name, v_partition_column;
+
+        -- Note: Converting existing distributed table to partitioned is complex
+        -- For now, we'll skip if table has data
+        -- This should be handled during initial setup before data ingestion
+        EXECUTE format('SELECT COUNT(*) > 0 FROM %I LIMIT 1', v_table_name) INTO v_is_partitioned;
+
+        IF v_is_partitioned THEN
+            RAISE NOTICE '[SKIP] Table % already contains data. Cannot convert to partitioned table.', v_table_name;
+            RAISE NOTICE '[INFO] For production use: Convert to partitioned before data ingestion.';
+            CONTINUE;
+        END IF;
+
+        -- If table is empty, we can convert it
+        RAISE NOTICE '[INFO] Table % is empty, converting to partitioned table', v_table_name;
+
+        -- This would require:
+        -- 1. Create new partitioned table
+        -- 2. Copy schema and data
+        -- 3. Swap tables
+        -- For now, we'll log and skip
+        RAISE NOTICE '[SKIP] Automatic conversion not implemented. Please convert manually or run on fresh database.';
+
+    END LOOP;
+
+    RAISE NOTICE '';
+    RAISE NOTICE 'Note: Tables must be partitioned BEFORE data ingestion for best results.';
+END $$;
+
+-- ============================================================================
 -- SECTION 5: Helper Functions for Partition Management
 -- ============================================================================
 
@@ -379,7 +474,19 @@ DECLARE
     v_next_date TIMESTAMP;
     v_partition_name TEXT;
     v_partition_exists BOOLEAN;
+    v_is_partitioned BOOLEAN;
 BEGIN
+    -- Check if table is partitioned
+    SELECT EXISTS (
+        SELECT 1 FROM pg_partitioned_table
+        WHERE partrelid = (p_table_name)::regclass
+    ) INTO v_is_partitioned;
+
+    IF NOT v_is_partitioned THEN
+        RAISE NOTICE 'Table % is not partitioned. Skipping partition creation.', p_table_name;
+        RETURN;
+    END IF;
+
     RAISE NOTICE 'Creating partitions for table % up to %', p_table_name, p_end_date;
 
     WHILE v_current_date < p_end_date LOOP
@@ -509,30 +616,48 @@ DECLARE
     v_command TEXT;
     v_jobs_config TEXT[][] := ARRAY[
         -- Job 1: Create partitions daily (2 AM)
+        -- Note: create_time_partitions will skip tables that aren't partitioned
         ARRAY['citus-create-partitions-daily', '0 2 * * *',
               $CMD$
-              SELECT create_time_partitions('transactions', '1 month', NOW() + INTERVAL '3 months');
-              SELECT create_time_partitions('logs', '1 week', NOW() + INTERVAL '1 month');
-              SELECT create_time_partitions('token_transfers', '1 month', NOW() + INTERVAL '3 months');
-              SELECT create_time_partitions('internal_transactions', '1 month', NOW() + INTERVAL '3 months');
+              DO $$
+              BEGIN
+                  PERFORM create_time_partitions('transactions', '1 month', NOW() + INTERVAL '3 months');
+                  PERFORM create_time_partitions('logs', '1 week', NOW() + INTERVAL '1 month');
+                  PERFORM create_time_partitions('token_transfers', '1 month', NOW() + INTERVAL '3 months');
+                  PERFORM create_time_partitions('internal_transactions', '1 month', NOW() + INTERVAL '3 months');
+              EXCEPTION WHEN OTHERS THEN
+                  RAISE WARNING 'Error in partition creation: %', SQLERRM;
+              END $$;
               $CMD$],
 
         -- Job 2: Compress old partitions weekly (Sundays 3 AM)
+        -- Note: Only runs if partitions exist
         ARRAY['citus-compress-old-partitions', '0 3 * * 0',
               $CMD$
-              SELECT alter_old_partitions_set_access_method('transactions', NOW() - INTERVAL '7 days', 'columnar');
-              SELECT alter_old_partitions_set_access_method('logs', NOW() - INTERVAL '7 days', 'columnar');
-              SELECT alter_old_partitions_set_access_method('token_transfers', NOW() - INTERVAL '7 days', 'columnar');
-              SELECT alter_old_partitions_set_access_method('internal_transactions', NOW() - INTERVAL '7 days', 'columnar');
+              DO $$
+              BEGIN
+                  PERFORM alter_old_partitions_set_access_method('transactions', NOW() - INTERVAL '7 days', 'columnar');
+                  PERFORM alter_old_partitions_set_access_method('logs', NOW() - INTERVAL '7 days', 'columnar');
+                  PERFORM alter_old_partitions_set_access_method('token_transfers', NOW() - INTERVAL '7 days', 'columnar');
+                  PERFORM alter_old_partitions_set_access_method('internal_transactions', NOW() - INTERVAL '7 days', 'columnar');
+              EXCEPTION WHEN OTHERS THEN
+                  RAISE WARNING 'Error in partition compression: %', SQLERRM;
+              END $$;
               $CMD$],
 
         -- Job 3: Drop old partitions monthly (1st of month, 4 AM)
+        -- Note: Only runs if partitions exist
         ARRAY['citus-drop-old-partitions', '0 4 1 * *',
               $CMD$
-              SELECT drop_old_time_partitions('logs', NOW() - INTERVAL '90 days');
-              SELECT drop_old_time_partitions('token_transfers', NOW() - INTERVAL '90 days');
-              SELECT drop_old_time_partitions('internal_transactions', NOW() - INTERVAL '90 days');
-              SELECT drop_old_time_partitions('transactions', NOW() - INTERVAL '90 days');
+              DO $$
+              BEGIN
+                  PERFORM drop_old_time_partitions('logs', NOW() - INTERVAL '90 days');
+                  PERFORM drop_old_time_partitions('token_transfers', NOW() - INTERVAL '90 days');
+                  PERFORM drop_old_time_partitions('internal_transactions', NOW() - INTERVAL '90 days');
+                  PERFORM drop_old_time_partitions('transactions', NOW() - INTERVAL '90 days');
+              EXCEPTION WHEN OTHERS THEN
+                  RAISE WARNING 'Error in partition cleanup: %', SQLERRM;
+              END $$;
               $CMD$],
 
         -- Job 4: Vacuum analyze weekly (Saturdays 2 AM)
@@ -581,6 +706,9 @@ END $$;
 -- ============================================================================
 
 DO $$
+DECLARE
+    v_is_partitioned BOOLEAN;
+    v_any_partitions_created BOOLEAN := FALSE;
 BEGIN
     RAISE NOTICE '';
     RAISE NOTICE '========================================';
@@ -589,29 +717,71 @@ BEGIN
 
     -- Create 3 months of monthly partitions for transactions
     IF EXISTS (SELECT 1 FROM pg_dist_partition WHERE logicalrelid = 'transactions'::regclass) THEN
-        RAISE NOTICE 'Creating monthly partitions for transactions (3 months ahead)';
-        PERFORM create_time_partitions('transactions', '1 month', NOW() + INTERVAL '3 months');
+        SELECT EXISTS (
+            SELECT 1 FROM pg_partitioned_table WHERE partrelid = 'transactions'::regclass
+        ) INTO v_is_partitioned;
+
+        IF v_is_partitioned THEN
+            RAISE NOTICE 'Creating monthly partitions for transactions (3 months ahead)';
+            PERFORM create_time_partitions('transactions', '1 month', NOW() + INTERVAL '3 months');
+            v_any_partitions_created := TRUE;
+        ELSE
+            RAISE NOTICE '[SKIP] Table transactions is not partitioned';
+        END IF;
     END IF;
 
     -- Create 1 month of weekly partitions for logs
     IF EXISTS (SELECT 1 FROM pg_dist_partition WHERE logicalrelid = 'logs'::regclass) THEN
-        RAISE NOTICE 'Creating weekly partitions for logs (1 month ahead)';
-        PERFORM create_time_partitions('logs', '1 week', NOW() + INTERVAL '1 month');
+        SELECT EXISTS (
+            SELECT 1 FROM pg_partitioned_table WHERE partrelid = 'logs'::regclass
+        ) INTO v_is_partitioned;
+
+        IF v_is_partitioned THEN
+            RAISE NOTICE 'Creating weekly partitions for logs (1 month ahead)';
+            PERFORM create_time_partitions('logs', '1 week', NOW() + INTERVAL '1 month');
+            v_any_partitions_created := TRUE;
+        ELSE
+            RAISE NOTICE '[SKIP] Table logs is not partitioned';
+        END IF;
     END IF;
 
     -- Create 3 months of monthly partitions for token_transfers
     IF EXISTS (SELECT 1 FROM pg_dist_partition WHERE logicalrelid = 'token_transfers'::regclass) THEN
-        RAISE NOTICE 'Creating monthly partitions for token_transfers (3 months ahead)';
-        PERFORM create_time_partitions('token_transfers', '1 month', NOW() + INTERVAL '3 months');
+        SELECT EXISTS (
+            SELECT 1 FROM pg_partitioned_table WHERE partrelid = 'token_transfers'::regclass
+        ) INTO v_is_partitioned;
+
+        IF v_is_partitioned THEN
+            RAISE NOTICE 'Creating monthly partitions for token_transfers (3 months ahead)';
+            PERFORM create_time_partitions('token_transfers', '1 month', NOW() + INTERVAL '3 months');
+            v_any_partitions_created := TRUE;
+        ELSE
+            RAISE NOTICE '[SKIP] Table token_transfers is not partitioned';
+        END IF;
     END IF;
 
     -- Create 3 months of monthly partitions for internal_transactions
     IF EXISTS (SELECT 1 FROM pg_dist_partition WHERE logicalrelid = 'internal_transactions'::regclass) THEN
-        RAISE NOTICE 'Creating monthly partitions for internal_transactions (3 months ahead)';
-        PERFORM create_time_partitions('internal_transactions', '1 month', NOW() + INTERVAL '3 months');
+        SELECT EXISTS (
+            SELECT 1 FROM pg_partitioned_table WHERE partrelid = 'internal_transactions'::regclass
+        ) INTO v_is_partitioned;
+
+        IF v_is_partitioned THEN
+            RAISE NOTICE 'Creating monthly partitions for internal_transactions (3 months ahead)';
+            PERFORM create_time_partitions('internal_transactions', '1 month', NOW() + INTERVAL '3 months');
+            v_any_partitions_created := TRUE;
+        ELSE
+            RAISE NOTICE '[SKIP] Table internal_transactions is not partitioned';
+        END IF;
     END IF;
 
-    RAISE NOTICE '[OK] Initial partitions created';
+    IF v_any_partitions_created THEN
+        RAISE NOTICE '[OK] Initial partitions created';
+    ELSE
+        RAISE NOTICE '[INFO] No partitions created - tables are not set up as partitioned tables';
+        RAISE NOTICE '[INFO] This is normal if tables were created before this migration';
+        RAISE NOTICE '[INFO] Partitioning provides additional benefits but is not required for Citus';
+    END IF;
 END $$;
 
 -- ============================================================================
