@@ -125,8 +125,8 @@ BEGIN
         RAISE NOTICE '[DROP] Dropping PRIMARY KEY address_token_balances_pkey';
         ALTER TABLE address_token_balances DROP CONSTRAINT IF EXISTS address_token_balances_pkey;
 
-        RAISE NOTICE '[CREATE] Creating new PRIMARY KEY (address_hash, token_contract_address_hash, block_number)';
-        ALTER TABLE address_token_balances ADD PRIMARY KEY (address_hash, token_contract_address_hash, block_number);
+        RAISE NOTICE '[CREATE] Creating new PRIMARY KEY (address_hash, id)';
+        ALTER TABLE address_token_balances ADD PRIMARY KEY (address_hash, id);
         RAISE NOTICE '[OK] address_token_balances PRIMARY KEY updated';
     END IF;
 
@@ -138,8 +138,8 @@ BEGIN
         RAISE NOTICE '[DROP] Dropping PRIMARY KEY address_current_token_balances_pkey';
         ALTER TABLE address_current_token_balances DROP CONSTRAINT IF EXISTS address_current_token_balances_pkey;
 
-        RAISE NOTICE '[CREATE] Creating new PRIMARY KEY (address_hash, token_contract_address_hash, token_id)';
-        ALTER TABLE address_current_token_balances ADD PRIMARY KEY (address_hash, token_contract_address_hash, token_id);
+        RAISE NOTICE '[CREATE] Creating new PRIMARY KEY (address_hash, id)';
+        ALTER TABLE address_current_token_balances ADD PRIMARY KEY (address_hash, id);
         RAISE NOTICE '[OK] address_current_token_balances PRIMARY KEY updated';
     END IF;
 
