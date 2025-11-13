@@ -55,6 +55,28 @@ spec:
             timescaledb.migration/original-replicas="${CURRENT_REPLICAS}" \
             --overwrite
 
+          # Suspend HPA to prevent auto-scaling during maintenance
+          echo "Suspending HPA to prevent auto-scaling..."
+          HPA_EXISTS=$(kubectl get hpa {{ include "monad-indexer.fullname" . }}-backend -n {{ .Release.Namespace }} --ignore-not-found -o name)
+          if [ -n "$HPA_EXISTS" ]; then
+            # Save current HPA suspend state
+            HPA_SUSPENDED=$(kubectl get hpa {{ include "monad-indexer.fullname" . }}-backend -n {{ .Release.Namespace }} -o jsonpath='{.spec.behavior.scaleDown.stabilizationWindowSeconds}' 2>/dev/null || echo "not-suspended")
+            kubectl annotate hpa {{ include "monad-indexer.fullname" . }}-backend \
+              -n {{ .Release.Namespace }} \
+              timescaledb.migration/was-suspended="${HPA_SUSPENDED}" \
+              --overwrite
+
+            # Suspend HPA (Kubernetes 1.23+)
+            kubectl patch hpa {{ include "monad-indexer.fullname" . }}-backend \
+              -n {{ .Release.Namespace }} \
+              -p '{"spec":{"behavior":{"scaleDown":{"stabilizationWindowSeconds":3600},"scaleUp":{"stabilizationWindowSeconds":3600}}}}' \
+              --type=merge || true
+
+            echo "HPA suspended successfully"
+          else
+            echo "No HPA found, skipping HPA suspension"
+          fi
+
           # Scale down to 0
           kubectl scale deployment {{ include "monad-indexer.fullname" . }}-backend \
             -n {{ .Release.Namespace }} \
@@ -252,6 +274,24 @@ spec:
           fi
 
           echo "Restoring backend to ${ORIGINAL_REPLICAS} replicas..."
+
+          # Restore HPA behavior before scaling up
+          echo "Restoring HPA behavior..."
+          HPA_EXISTS=$(kubectl get hpa {{ include "monad-indexer.fullname" . }}-backend -n {{ .Release.Namespace }} --ignore-not-found -o name)
+          if [ -n "$HPA_EXISTS" ]; then
+            # Remove the artificial stabilization window (restore normal HPA behavior)
+            kubectl patch hpa {{ include "monad-indexer.fullname" . }}-backend \
+              -n {{ .Release.Namespace }} \
+              -p '{"spec":{"behavior":{"scaleDown":{"stabilizationWindowSeconds":300},"scaleUp":{"stabilizationWindowSeconds":0}}}}' \
+              --type=merge || true
+
+            # Clean up HPA annotation
+            kubectl annotate hpa {{ include "monad-indexer.fullname" . }}-backend \
+              -n {{ .Release.Namespace }} \
+              timescaledb.migration/was-suspended- || true
+
+            echo "HPA restored successfully"
+          fi
 
           # Scale back up to original count
           kubectl scale deployment {{ include "monad-indexer.fullname" . }}-backend \
