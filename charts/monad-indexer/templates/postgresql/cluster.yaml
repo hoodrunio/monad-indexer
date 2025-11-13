@@ -14,7 +14,7 @@ spec:
     apiGroup: postgresql.cnpg.io
     kind: ImageCatalog
     name: {{ include "monad-indexer.fullname" . }}-timescaledb-catalog
-    major: 16
+    major: 17
 
   # TimescaleDB image uses UID/GID 1000 (not CNPG default 26)
   # See: https://blog.devops.dev/how-to-run-timescaledb-on-a-kubernetes-cluster-with-automated-backups-and-point-in-time-recovery-b71e3ca303d6

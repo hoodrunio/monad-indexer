@@ -506,7 +506,7 @@ postgresql:
   image:
     registry: docker.io
     repository: timescale/timescaledb-ha
-    tag: "pg16"  # PostgreSQL 16 + TimescaleDB 2.18+
+    tag: "pg17"  # PostgreSQL 17 + TimescaleDB latest
 
   auth:
     database: blockscout

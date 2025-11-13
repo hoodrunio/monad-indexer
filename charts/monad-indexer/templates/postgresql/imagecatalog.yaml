@@ -10,6 +10,6 @@ spec:
   images:
     # TimescaleDB with PostgreSQL 16
     # Using official timescale/timescaledb-ha image
-    - major: 16
+    - major: 17
       image: {{ .Values.postgresql.image.registry }}/{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}
 {{- end }}
