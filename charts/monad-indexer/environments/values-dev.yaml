@@ -77,7 +77,7 @@ postgresql:
   image:
     registry: docker.io
     repository: timescale/timescaledb-ha
-    tag: "pg16"
+    tag: "pg17"
 
   auth:
     # ExternalSecret will create this secret from AWS Secrets Manager
