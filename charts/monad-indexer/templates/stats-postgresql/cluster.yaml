@@ -55,9 +55,18 @@ spec:
     {{- toYaml .Values.statsPostgresql.primary.resources | nindent 4 }}
   {{- end }}
 
-  # Node selector for pod placement
+  # Node affinity for pod placement
   {{- if .Values.statsPostgresql.primary.nodeSelector }}
-  nodeSelector:
-    {{- toYaml .Values.statsPostgresql.primary.nodeSelector | nindent 4 }}
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          {{- range $key, $value := .Values.statsPostgresql.primary.nodeSelector }}
+          - key: {{ $key }}
+            operator: In
+            values:
+            - {{ $value | quote }}
+          {{- end }}
   {{- end }}
 {{- end }}

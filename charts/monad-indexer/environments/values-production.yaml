@@ -247,7 +247,7 @@ postgresql:
       postgres-role: primary
 
   backup:
-    enabled: false  # Temporarily disabled for TPS test - WAL archiving off
+    enabled: false  # Disabled during TPS test
     retentionPolicy: "7d"
     secretName: "postgres-backup-creds"
     barmanObjectStore:
