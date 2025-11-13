@@ -188,11 +188,12 @@ microservices:
 postgresql:
   replicaCount: 1  # Temporarily reduced from 2 to 1 due to disk space constraints
 
-  # Custom image with pg_partman extension
+  # TimescaleDB image - PostgreSQL 16 with TimescaleDB extension
+  # Provides automatic partitioning, compression, and time-series optimizations
   image:
-    registry: ghcr.io
-    repository: hoodrunio/postgresql-partman
-    tag: "17"
+    registry: docker.io
+    repository: timescale/timescaledb-ha
+    tag: "pg16"  # PostgreSQL 16 + TimescaleDB 2.18+
 
   auth:
     # ExternalSecret will create this secret from AWS Secrets Manager
@@ -293,14 +294,20 @@ postgresql:
     nodeSelector:
       postgres-role: replica  # node2 (worker)
 
-  # Partition management with pg_partman
-  partman:
+  # TimescaleDB configuration - replaces pg_partman
+  timescaledb:
     enabled: true
-    retentionDays: 30  # Keep 1 month of data
-    premakeDays: 7  # Pre-create partitions for next 7 days
-    maintenance:
-      enabled: true
-      schedule: "0 2 * * *"  # Daily at 2 AM UTC
+    # Hypertable configuration
+    hypertables:
+      - table: "transactions"
+        timeColumn: "inserted_at"
+        chunkInterval: "1 day"  # Daily chunks
+        compression:
+          enabled: true
+          afterDays: 7  # Compress data older than 7 days
+        retention:
+          enabled: false  # Disabled for now, will enable for mainnet
+          afterDays: 30  # Keep 30 days (when enabled)
 
   # Database maintenance jobs
   maintenance:

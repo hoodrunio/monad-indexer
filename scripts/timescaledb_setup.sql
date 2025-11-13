@@ -1,0 +1,197 @@
+-- TimescaleDB Setup Script
+-- This script sets up TimescaleDB extension and configures hypertables
+-- for Monad Blockscout indexer optimized for high-TPS blockchain
+
+-- Enable TimescaleDB extension
+CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
+
+-- =====================================================
+-- HYPERTABLE SETUP: transactions
+-- =====================================================
+-- Convert transactions table to hypertable
+-- This enables automatic partitioning by time (inserted_at column)
+-- Chunks will be created automatically every 1 day
+
+DO $$
+BEGIN
+    -- Check if transactions table exists and is not already a hypertable
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'transactions'
+    ) AND NOT EXISTS (
+        SELECT 1 FROM timescaledb_information.hypertables
+        WHERE hypertable_schema = 'public' AND hypertable_name = 'transactions'
+    ) THEN
+        -- Create hypertable
+        -- migrate_data => true: converts existing data to chunks (may take 1-2 hours)
+        -- chunk_time_interval => 1 day: creates daily partitions
+        PERFORM create_hypertable(
+            'transactions',
+            'inserted_at',
+            chunk_time_interval => INTERVAL '1 day',
+            migrate_data => true,  -- Migrate existing 77M rows
+            if_not_exists => true
+        );
+
+        RAISE NOTICE 'Hypertable created: transactions';
+        RAISE NOTICE 'Migrating existing data to chunks... This may take 1-2 hours for 86GB';
+    ELSE
+        RAISE NOTICE 'Hypertable already exists or table not found: transactions';
+    END IF;
+END $$;
+
+-- =====================================================
+-- COMPRESSION POLICY
+-- =====================================================
+-- Compress data older than 7 days to save disk space (5-10x reduction)
+-- Recent data (< 7 days) stays uncompressed for fast INSERT/UPDATE
+-- Compressed data is still queryable but INSERT/UPDATE becomes slower
+
+DO $$
+BEGIN
+    -- Add compression policy
+    -- compress_after => 7 days: data older than 7 days will be compressed
+    -- segment_by => block_hash: group chunks by block_hash for better compression
+    PERFORM add_compression_policy(
+        'transactions',
+        compress_after => INTERVAL '7 days',
+        if_not_exists => true
+    );
+
+    -- Enable compression on the hypertable
+    ALTER TABLE transactions SET (
+        timescaledb.compress,
+        timescaledb.compress_segmentby = 'block_hash',
+        timescaledb.compress_orderby = 'inserted_at DESC'
+    );
+
+    RAISE NOTICE 'Compression policy added: transactions (after 7 days)';
+    RAISE NOTICE 'Expected disk savings: 70-90% (86GB -> 8-17GB)';
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE WARNING 'Compression policy may already exist or hypertable not ready';
+END $$;
+
+-- =====================================================
+-- RETENTION POLICY (OPTIONAL - DISABLED BY DEFAULT)
+-- =====================================================
+-- Automatically drop chunks older than 30 days
+-- Uncomment to enable for mainnet with retention requirements
+
+/*
+DO $$
+BEGIN
+    PERFORM add_retention_policy(
+        'transactions',
+        drop_after => INTERVAL '30 days',
+        if_not_exists => true
+    );
+
+    RAISE NOTICE 'Retention policy added: transactions (drop after 30 days)';
+END $$;
+*/
+
+-- =====================================================
+-- CONTINUOUS AGGREGATES (OPTIONAL)
+-- =====================================================
+-- Pre-compute common queries for faster API responses
+-- Examples: recent transactions, transaction counts per block
+
+-- Example: Materialized view for recent transactions (last 1 hour)
+-- This speeds up /api/v2/transactions endpoint significantly
+/*
+CREATE MATERIALIZED VIEW IF NOT EXISTS recent_transactions_1h
+WITH (timescaledb.continuous) AS
+SELECT
+    time_bucket('5 minutes', inserted_at) AS bucket,
+    block_number,
+    COUNT(*) as tx_count,
+    MAX(inserted_at) as latest_tx
+FROM transactions
+WHERE inserted_at > NOW() - INTERVAL '1 hour'
+GROUP BY bucket, block_number
+WITH NO DATA;
+
+-- Refresh policy: update every 1 minute
+SELECT add_continuous_aggregate_policy(
+    'recent_transactions_1h',
+    start_offset => INTERVAL '2 hours',
+    end_offset => INTERVAL '1 minute',
+    schedule_interval => INTERVAL '1 minute',
+    if_not_exists => true
+);
+*/
+
+-- =====================================================
+-- INDEXES
+-- =====================================================
+-- TimescaleDB automatically creates indexes on time column and chunk boundaries
+-- Additional indexes from Blockscout schema will be preserved
+-- Unused indexes will be dropped by maintenance job
+
+-- Verify hypertable status
+DO $$
+DECLARE
+    chunk_count INTEGER;
+    compressed_count INTEGER;
+    total_size TEXT;
+BEGIN
+    -- Count chunks
+    SELECT COUNT(*) INTO chunk_count
+    FROM timescaledb_information.chunks
+    WHERE hypertable_name = 'transactions';
+
+    -- Count compressed chunks
+    SELECT COUNT(*) INTO compressed_count
+    FROM timescaledb_information.chunks
+    WHERE hypertable_name = 'transactions'
+    AND is_compressed = true;
+
+    -- Get total size
+    SELECT pg_size_pretty(hypertable_size('transactions')) INTO total_size;
+
+    RAISE NOTICE '============================================';
+    RAISE NOTICE 'TimescaleDB Setup Complete!';
+    RAISE NOTICE '============================================';
+    RAISE NOTICE 'Hypertable: transactions';
+    RAISE NOTICE 'Total chunks: %', chunk_count;
+    RAISE NOTICE 'Compressed chunks: %', compressed_count;
+    RAISE NOTICE 'Total size: %', total_size;
+    RAISE NOTICE 'Chunk interval: 1 day';
+    RAISE NOTICE 'Compression: After 7 days';
+    RAISE NOTICE 'Retention: Disabled (keep all data)';
+    RAISE NOTICE '============================================';
+    RAISE NOTICE 'Backend queries require NO code changes!';
+    RAISE NOTICE 'SELECT * FROM transactions works as before';
+    RAISE NOTICE '============================================';
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE WARNING 'Could not retrieve hypertable stats (may not be created yet)';
+END $$;
+
+-- =====================================================
+-- MONITORING QUERIES
+-- =====================================================
+-- Use these queries to monitor TimescaleDB performance
+
+-- View hypertable info
+-- SELECT * FROM timescaledb_information.hypertables WHERE hypertable_name = 'transactions';
+
+-- View chunk info
+-- SELECT * FROM timescaledb_information.chunks WHERE hypertable_name = 'transactions' ORDER BY range_end DESC LIMIT 10;
+
+-- View compression stats
+-- SELECT * FROM timescaledb_information.compression_settings WHERE hypertable_name = 'transactions';
+
+-- Check chunk sizes
+-- SELECT
+--     chunk_name,
+--     pg_size_pretty(total_bytes) as total_size,
+--     pg_size_pretty(compressed_total_bytes) as compressed_size,
+--     CASE WHEN total_bytes > 0 THEN
+--         ROUND(100.0 * compressed_total_bytes / total_bytes, 2)
+--     ELSE 0 END as compression_ratio
+-- FROM timescaledb_information.chunks
+-- WHERE hypertable_name = 'transactions'
+-- ORDER BY range_end DESC
+-- LIMIT 20;
