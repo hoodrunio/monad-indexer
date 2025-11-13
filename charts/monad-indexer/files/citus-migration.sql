@@ -783,7 +783,40 @@ BEGIN
 END $$;
 
 -- ============================================================================
--- SECTION 8: Verification and Summary
+-- SECTION 8: Fix Blockscout Background Migrator Compatibility
+-- ============================================================================
+-- Blockscout's heavy_indexes_create_internal_transactions_block_hash_transaction_index_index_index
+-- migrator tries to create a UNIQUE index without the distribution column, which fails in Citus.
+-- Mark this migration as completed to prevent backend crashes during startup.
+
+DO $$
+BEGIN
+    RAISE NOTICE '';
+    RAISE NOTICE '========================================';
+    RAISE NOTICE 'Fixing Blockscout Background Migrator';
+    RAISE NOTICE '========================================';
+    RAISE NOTICE '';
+
+    RAISE NOTICE '[FIX] Marking incompatible migration as completed...';
+    INSERT INTO migrations_status (migration_name, status, inserted_at, updated_at, meta)
+    VALUES (
+        'heavy_indexes_create_internal_transactions_block_hash_transaction_index_index_index',
+        'completed',
+        NOW(),
+        NOW(),
+        '{"skipped_for_citus": true, "reason": "Citus does not support UNIQUE indexes without distribution column"}'::jsonb
+    )
+    ON CONFLICT (migration_name)
+    DO UPDATE SET
+        status = 'completed',
+        updated_at = NOW(),
+        meta = '{"skipped_for_citus": true, "reason": "Citus does not support UNIQUE indexes without distribution column"}'::jsonb;
+
+    RAISE NOTICE '[FIX] Migration marked as completed to prevent startup crashes';
+END $$;
+
+-- ============================================================================
+-- SECTION 9: Verification and Summary
 -- ============================================================================
 
 DO $$
