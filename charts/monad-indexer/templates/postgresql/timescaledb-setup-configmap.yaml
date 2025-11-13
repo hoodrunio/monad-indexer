@@ -76,7 +76,7 @@ data:
         );
 
         RAISE NOTICE 'Compression policy added: transactions (after 7 days)';
-        RAISE NOTICE 'Expected disk savings: 70-90% (86GB -> 8-17GB)';
+        RAISE NOTICE 'Expected disk savings: 70-90%% (86GB to 8-17GB)';
     EXCEPTION
         WHEN OTHERS THEN
             RAISE WARNING 'Compression policy may already exist or hypertable not ready';
