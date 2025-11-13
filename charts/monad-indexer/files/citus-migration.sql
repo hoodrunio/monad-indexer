@@ -45,67 +45,54 @@ BEGIN
 END $$;
 
 -- ============================================================================
--- SECTION 2: Drop Incompatible UNIQUE Constraints
+-- SECTION 2: Drop Incompatible UNIQUE Indexes
 -- ============================================================================
--- Citus requires UNIQUE constraints to include the distribution column.
--- These constraints are not used by Blockscout application logic and are
+-- Citus requires UNIQUE constraints/indexes to include the distribution column.
+-- These UNIQUE indexes are not used by Blockscout application logic and are
 -- redundant with blockchain-level guarantees. Safe to drop.
 --
 -- Reference: blockscout/apps/explorer/lib/explorer/chain/import/runner/transactions.ex:114-123
 --            Uses conflict_target: [:hash, :inserted_at], NOT [:block_hash, :index]
+--
+-- Indexes to drop:
+--   - transactions_block_hash_index_index: UNIQUE (block_hash, index)
+--   - internal_transactions_block_hash_transaction_index_index_index: UNIQUE (block_hash, transaction_index, index)
 -- ============================================================================
 
 DO $$
 DECLARE
-    v_constraint_name TEXT;
-    v_table_name TEXT;
-    v_constraints TEXT[][] := ARRAY[
-        ARRAY['transactions', 'transactions_block_hash_index_index'],
-        ARRAY['logs', 'logs_transaction_hash_index_index'],
-        ARRAY['token_transfers', 'token_transfers_transaction_hash_log_index_index'],
-        ARRAY['internal_transactions', 'internal_transactions_transaction_hash_index_index']
+    v_index_name TEXT;
+    v_indexes TEXT[] := ARRAY[
+        'transactions_block_hash_index_index',
+        'internal_transactions_block_hash_transaction_index_index_index'
     ];
-    v_config TEXT[];
 BEGIN
     RAISE NOTICE '';
     RAISE NOTICE '========================================';
-    RAISE NOTICE 'Dropping UNIQUE Constraints (Citus Incompatible)';
+    RAISE NOTICE 'Dropping UNIQUE Indexes (Citus Incompatible)';
     RAISE NOTICE '========================================';
 
-    FOREACH v_config SLICE 1 IN ARRAY v_constraints
+    FOREACH v_index_name IN ARRAY v_indexes
     LOOP
-        v_table_name := v_config[1];
-        v_constraint_name := v_config[2];
-
-        -- Check if table exists
+        -- Check if index exists
         IF NOT EXISTS (
-            SELECT 1 FROM information_schema.tables
-            WHERE table_schema = 'public'
-            AND table_name = v_table_name
+            SELECT 1 FROM pg_indexes
+            WHERE indexname = v_index_name
         ) THEN
-            RAISE NOTICE '[SKIP] Table % does not exist yet', v_table_name;
+            RAISE NOTICE '[SKIP] Index % does not exist', v_index_name;
             CONTINUE;
         END IF;
 
-        -- Check if constraint exists
-        IF NOT EXISTS (
-            SELECT 1 FROM pg_constraint
-            WHERE conname = v_constraint_name
-        ) THEN
-            RAISE NOTICE '[SKIP] Constraint % on table % does not exist', v_constraint_name, v_table_name;
-            CONTINUE;
-        END IF;
-
-        -- Drop the constraint
-        RAISE NOTICE '[DROP] Dropping constraint % from table %', v_constraint_name, v_table_name;
-        EXECUTE format('ALTER TABLE %I DROP CONSTRAINT IF EXISTS %I', v_table_name, v_constraint_name);
-        RAISE NOTICE '[OK] Constraint % dropped successfully', v_constraint_name;
+        -- Drop the index
+        RAISE NOTICE '[DROP] Dropping index %', v_index_name;
+        EXECUTE format('DROP INDEX IF EXISTS %I', v_index_name);
+        RAISE NOTICE '[OK] Index % dropped successfully', v_index_name;
     END LOOP;
 
     RAISE NOTICE '';
-    RAISE NOTICE 'Rationale: These constraints enforce (block_hash, index) or (transaction_hash, index) uniqueness';
-    RAISE NOTICE '           but Citus requires UNIQUE constraints to include the distribution column.';
-    RAISE NOTICE '           Application uses hash-based conflict resolution, not these constraints.';
+    RAISE NOTICE 'Rationale: These UNIQUE indexes enforce (block_hash, index) uniqueness';
+    RAISE NOTICE '           but Citus requires UNIQUE indexes to include the distribution column.';
+    RAISE NOTICE '           Application uses hash-based conflict resolution via PRIMARY KEY (hash).';
     RAISE NOTICE '           Blockchain consensus already guarantees transaction ordering within blocks.';
 END $$;
 
