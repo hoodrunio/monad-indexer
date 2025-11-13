@@ -272,10 +272,10 @@ BEGIN
             CONTINUE;
         END IF;
 
-        -- Check if already distributed
+        -- Check if already distributed (use pg_dist_partition metadata table)
         IF EXISTS (
-            SELECT 1 FROM citus_tables
-            WHERE table_name::text = v_table_name
+            SELECT 1 FROM pg_dist_partition
+            WHERE logicalrelid = (v_table_name)::regclass
         ) THEN
             RAISE NOTICE '[OK] Table % already distributed', v_table_name;
             CONTINUE;
@@ -585,25 +585,25 @@ BEGIN
     RAISE NOTICE '========================================';
 
     -- Create 3 months of monthly partitions for transactions
-    IF EXISTS (SELECT 1 FROM citus_tables WHERE table_name::text = 'transactions') THEN
+    IF EXISTS (SELECT 1 FROM pg_dist_partition WHERE logicalrelid = 'transactions'::regclass) THEN
         RAISE NOTICE 'Creating monthly partitions for transactions (3 months ahead)';
         PERFORM create_time_partitions('transactions', '1 month', NOW() + INTERVAL '3 months');
     END IF;
 
     -- Create 1 month of weekly partitions for logs
-    IF EXISTS (SELECT 1 FROM citus_tables WHERE table_name::text = 'logs') THEN
+    IF EXISTS (SELECT 1 FROM pg_dist_partition WHERE logicalrelid = 'logs'::regclass) THEN
         RAISE NOTICE 'Creating weekly partitions for logs (1 month ahead)';
         PERFORM create_time_partitions('logs', '1 week', NOW() + INTERVAL '1 month');
     END IF;
 
     -- Create 3 months of monthly partitions for token_transfers
-    IF EXISTS (SELECT 1 FROM citus_tables WHERE table_name::text = 'token_transfers') THEN
+    IF EXISTS (SELECT 1 FROM pg_dist_partition WHERE logicalrelid = 'token_transfers'::regclass) THEN
         RAISE NOTICE 'Creating monthly partitions for token_transfers (3 months ahead)';
         PERFORM create_time_partitions('token_transfers', '1 month', NOW() + INTERVAL '3 months');
     END IF;
 
     -- Create 3 months of monthly partitions for internal_transactions
-    IF EXISTS (SELECT 1 FROM citus_tables WHERE table_name::text = 'internal_transactions') THEN
+    IF EXISTS (SELECT 1 FROM pg_dist_partition WHERE logicalrelid = 'internal_transactions'::regclass) THEN
         RAISE NOTICE 'Creating monthly partitions for internal_transactions (3 months ahead)';
         PERFORM create_time_partitions('internal_transactions', '1 month', NOW() + INTERVAL '3 months');
     END IF;
@@ -628,7 +628,7 @@ BEGIN
 
     -- Count distributed tables
     SELECT COUNT(*) INTO v_distributed_count
-    FROM citus_tables;
+    FROM pg_dist_partition;
 
     -- Count pg_cron jobs
     SELECT COUNT(*) INTO v_cron_job_count
