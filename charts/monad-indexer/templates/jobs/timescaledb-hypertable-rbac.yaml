@@ -36,6 +36,12 @@ rules:
   resources: ["pods"]
   verbs: ["get", "list", "watch"]
 
+# Allow managing HPA for maintenance mode
+- apiGroups: ["autoscaling"]
+  resources: ["horizontalpodautoscalers"]
+  verbs: ["get", "patch"]
+  resourceNames: ["{{ include "monad-indexer.fullname" . }}-backend"]
+
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
