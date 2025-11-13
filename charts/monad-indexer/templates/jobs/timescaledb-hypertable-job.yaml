@@ -30,6 +30,45 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      initContainers:
+      # Enable maintenance mode: scale down backend to prevent deadlocks
+      - name: enable-maintenance-mode
+        image: bitnami/kubectl:latest
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          echo "================================================"
+          echo "ENABLING MAINTENANCE MODE"
+          echo "================================================"
+          echo "Scaling down backend deployment to prevent database locks..."
+
+          # Get current replica count for later restoration
+          CURRENT_REPLICAS=$(kubectl get deployment {{ include "monad-indexer.fullname" . }}-backend -n {{ .Release.Namespace }} -o jsonpath='{.spec.replicas}')
+          echo "Current backend replicas: ${CURRENT_REPLICAS}"
+
+          # Save original replica count as annotation for restoration
+          kubectl annotate deployment {{ include "monad-indexer.fullname" . }}-backend \
+            -n {{ .Release.Namespace }} \
+            timescaledb.migration/original-replicas="${CURRENT_REPLICAS}" \
+            --overwrite
+
+          # Scale down to 0
+          kubectl scale deployment {{ include "monad-indexer.fullname" . }}-backend \
+            -n {{ .Release.Namespace }} \
+            --replicas=0
+
+          # Wait for pods to terminate (max 60 seconds)
+          echo "Waiting for backend pods to terminate..."
+          kubectl wait --for=delete pod \
+            -l app.kubernetes.io/name={{ include "monad-indexer.name" . }},app.kubernetes.io/component=backend \
+            -n {{ .Release.Namespace }} \
+            --timeout=60s || true
+
+          echo "Maintenance mode enabled successfully"
+          echo "================================================"
       containers:
       - name: setup-timescaledb-hypertable
         image: {{ .Values.postgresql.image.registry }}/{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}
@@ -189,6 +228,51 @@ spec:
         resources:
           {{- toYaml . | nindent 10 }}
         {{- end }}
+      # Restore maintenance mode: scale backend back to original replicas
+      - name: restore-maintenance-mode
+        image: bitnami/kubectl:latest
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          echo "================================================"
+          echo "RESTORING MAINTENANCE MODE"
+          echo "================================================"
+          echo "Scaling backend deployment back to original replicas..."
+
+          # Get saved replica count from annotation
+          ORIGINAL_REPLICAS=$(kubectl get deployment {{ include "monad-indexer.fullname" . }}-backend -n {{ .Release.Namespace }} -o jsonpath='{.metadata.annotations.timescaledb\.migration/original-replicas}')
+
+          if [ -z "$ORIGINAL_REPLICAS" ]; then
+            echo "WARNING: No saved replica count found in annotations"
+            echo "Defaulting to 1 replica"
+            ORIGINAL_REPLICAS=1
+          fi
+
+          echo "Restoring backend to ${ORIGINAL_REPLICAS} replicas..."
+
+          # Scale back up to original count
+          kubectl scale deployment {{ include "monad-indexer.fullname" . }}-backend \
+            -n {{ .Release.Namespace }} \
+            --replicas=${ORIGINAL_REPLICAS}
+
+          # Wait for pods to become ready (max 120 seconds)
+          echo "Waiting for backend pods to become ready..."
+          kubectl wait --for=condition=ready pod \
+            -l app.kubernetes.io/name={{ include "monad-indexer.name" . }},app.kubernetes.io/component=backend \
+            -n {{ .Release.Namespace }} \
+            --timeout=120s || true
+
+          # Clean up annotation
+          kubectl annotate deployment {{ include "monad-indexer.fullname" . }}-backend \
+            -n {{ .Release.Namespace }} \
+            timescaledb.migration/original-replicas- || true
+
+          echo "Maintenance mode restored successfully"
+          echo "Backend scaled to ${ORIGINAL_REPLICAS} replicas"
+          echo "================================================"
       volumes:
       - name: timescaledb-setup-sql
         configMap:
