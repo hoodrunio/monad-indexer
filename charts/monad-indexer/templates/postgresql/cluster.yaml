@@ -59,6 +59,16 @@ spec:
     shared_preload_libraries:
       - citus
       - pg_cron
+
+    # pg_hba rules for Citus worker node connections
+    # Allow localhost connections without password (for coordinator self-connection)
+    # This is required for single-node Citus setup where coordinator = worker
+    # When scaling to multi-node, add worker IPs with md5 authentication
+    pg_hba:
+      # Trust localhost connections for Citus coordinator-to-self
+      - host all all 127.0.0.1/32 trust
+      - host all all ::1/128 trust
+      # Standard application connections (CloudNativePG default rules will be appended)
     {{- end }}
     parameters:
       {{- if .Values.postgresql.citus.enabled }}
@@ -67,6 +77,12 @@ spec:
       # ============================================================
       # pg_cron: Configure to use blockscout database instead of postgres
       cron.database_name: {{ .Values.postgresql.auth.database | quote }}
+
+      # Citus node-to-node connection parameters
+      # For single-node clusters, coordinator connects to itself as worker
+      # Use host authentication (trust for localhost, password for remote workers)
+      # This allows seamless scaling: add workers by updating pg_hba.conf only
+      citus.node_conninfo: "sslmode=prefer"
       {{- end }}
 
       # ============================================================
