@@ -40,8 +40,10 @@ data:
             RAISE NOTICE 'Dropping PRIMARY KEY constraint: transactions_pkey (CASCADE)';
             ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_pkey CASCADE;
 
-            RAISE NOTICE 'Dropping UNIQUE constraint: transactions_block_hash_index_index';
+            RAISE NOTICE 'Dropping UNIQUE constraint/index: transactions_block_hash_index_index';
+            -- Drop as constraint first, then as index (in case it exists as either)
             ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_block_hash_index_index;
+            DROP INDEX IF EXISTS transactions_block_hash_index_index;
 
             -- Recreate constraints with inserted_at included
             RAISE NOTICE 'Creating composite PRIMARY KEY: (hash, inserted_at)';
