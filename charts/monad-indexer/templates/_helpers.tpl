@@ -293,10 +293,10 @@ monad-indexer: RPC Configuration
 {{- end -}}
 
 {{/*
-PostgreSQL primary fullname
+PostgreSQL primary fullname (CNPG read-write service)
 */}}
 {{- define "monad-indexer.postgresql.primary.fullname" -}}
-{{- printf "%s-postgresql-1" (include "monad-indexer.fullname" .) -}}
+{{- printf "%s-postgresql-rw" (include "monad-indexer.fullname" .) -}}
 {{- end -}}
 
 {{/*
