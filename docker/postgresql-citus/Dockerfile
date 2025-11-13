@@ -14,7 +14,8 @@ RUN set -eux; \
     ; \
     rm -rf /var/lib/apt/lists/*
 
-USER postgres
+# Don't override USER - inherit from base image (postgres user)
+# This ensures proper UID/GID for CloudNativePG compatibility
 
 # Verify extensions are available (optional - remove to speed up build)
 RUN echo "Installed extensions:" && \

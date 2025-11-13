@@ -257,7 +257,7 @@ postgresql:
       postgres-role: primary
 
   backup:
-    enabled: true  # Enable automated backups to S3
+    enabled: false  # Temporarily disabled - S3 bucket being cleaned
     retentionPolicy: "7d"
     secretName: "postgres-backup-creds"
     schedule: "0 3 * * *"  # Daily at 3 AM UTC
