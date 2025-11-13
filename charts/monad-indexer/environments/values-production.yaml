@@ -73,6 +73,7 @@ backend:
     INDEXER_DISABLE_NFT_MEDIA_HANDLER: "true"  # Disable nft media handler
     NFT_MEDIA_HANDLER_ENABLED: "false"
     NFT_MEDIA_HANDLER_REMOTE_DISPATCHER_NODE_MODE_ENABLED: "false"
+    INDEXER_DISABLE_EMPTY_BLOCKS_SANITIZER: "true"  # Disable empty blocks sanitizer
   # Extra environment variables from ExternalSecret
   extraEnv:
     - name: DATABASE_READ_ONLY_API_URL
