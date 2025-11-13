@@ -9,7 +9,17 @@ metadata:
 spec:
   instances: {{ .Values.postgresql.replicaCount }}
 
-  imageName: {{ .Values.postgresql.image.registry }}/{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}
+  # TimescaleDB image via ImageCatalog (required for proper version detection)
+  imageCatalogRef:
+    apiGroup: postgresql.cnpg.io
+    kind: ImageCatalog
+    name: {{ include "monad-indexer.fullname" . }}-timescaledb-catalog
+    major: 16
+
+  # TimescaleDB image uses UID/GID 1000 (not CNPG default 26)
+  # See: https://blog.devops.dev/how-to-run-timescaledb-on-a-kubernetes-cluster-with-automated-backups-and-point-in-time-recovery-b71e3ca303d6
+  postgresUID: 1000
+  postgresGID: 1000
 
   # Enable superuser access for maintenance tasks (TimescaleDB setup, backups)
   # Creates <cluster-name>-superuser secret automatically
@@ -33,13 +43,23 @@ spec:
       owner: {{ .Values.postgresql.auth.username }}
       secret:
         name: {{ .Values.postgresql.auth.existingSecret | default (printf "%s-postgresql-app" (include "monad-indexer.fullname" .)) }}
-      {{- if and .Values.postgresql.initdb (hasKey .Values.postgresql.initdb "postInitSQL") }}
-      postInitSQL:
-        {{- toYaml .Values.postgresql.initdb.postInitSQL | nindent 8 }}
+      {{- if .Values.postgresql.timescaledb.enabled }}
+      # TimescaleDB setup via ConfigMap (CNPG native method)
+      # Runs automatically during cluster bootstrap
+      postInitApplicationSQLRefs:
+        configMapRefs:
+          - name: {{ include "monad-indexer.fullname" . }}-timescaledb-setup
+            key: timescaledb_setup.sql
       {{- end }}
 
   # PostgreSQL configuration optimized for high-throughput blockchain indexing (5000+ TPS)
   postgresql:
+    {{- if .Values.postgresql.timescaledb.enabled }}
+    # TimescaleDB requires preloading the extension library
+    shared_preload_libraries:
+      - timescaledb
+    {{- end }}
+
     parameters:
       # ============================================================
       # MEMORY CONFIGURATION

@@ -1,0 +1,15 @@
+{{- if .Values.postgresql.enabled }}
+apiVersion: postgresql.cnpg.io/v1
+kind: ImageCatalog
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-timescaledb-catalog
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  images:
+    # TimescaleDB with PostgreSQL 16
+    # Using official timescale/timescaledb-ha image
+    - major: 16
+      image: {{ .Values.postgresql.image.registry }}/{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}
+{{- end }}
