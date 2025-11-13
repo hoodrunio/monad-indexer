@@ -47,11 +47,14 @@ spec:
 
   # PostgreSQL configuration optimized for high-throughput blockchain indexing (10K+ TPS)
   postgresql:
+    {{- if .Values.postgresql.citus.enabled }}
+    # Citus requires preloading the extension library
+    # NOTE: This is a spec-level array, not a parameter
+    shared_preload_libraries:
+      - citus
+      - pg_cron
+    {{- end }}
     parameters:
-      {{- if .Values.postgresql.citus.enabled }}
-      # Citus requires preloading the extension library
-      shared_preload_libraries: "citus,pg_cron"
-      {{- end }}
       # ============================================================
       # MEMORY CONFIGURATION
       # ============================================================
