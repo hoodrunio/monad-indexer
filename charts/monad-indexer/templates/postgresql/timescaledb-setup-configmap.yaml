@@ -32,6 +32,26 @@ data:
             SELECT 1 FROM timescaledb_information.hypertables
             WHERE hypertable_schema = 'public' AND hypertable_name = 'transactions'
         ) THEN
+            RAISE NOTICE 'Preparing transactions table for hypertable conversion...';
+
+            -- TimescaleDB requires partitioning column (inserted_at) to be part of all unique indexes
+            -- Drop existing constraints that don't include inserted_at
+            RAISE NOTICE 'Dropping PRIMARY KEY constraint: transactions_pkey';
+            ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_pkey;
+
+            RAISE NOTICE 'Dropping UNIQUE constraint: transactions_block_hash_index_index';
+            ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_block_hash_index_index;
+
+            -- Recreate constraints with inserted_at included
+            RAISE NOTICE 'Creating composite PRIMARY KEY: (hash, inserted_at)';
+            ALTER TABLE transactions ADD PRIMARY KEY (hash, inserted_at);
+
+            RAISE NOTICE 'Creating composite UNIQUE constraint: (block_hash, index, inserted_at)';
+            ALTER TABLE transactions ADD CONSTRAINT transactions_block_hash_index_index
+                UNIQUE (block_hash, index, inserted_at);
+
+            RAISE NOTICE 'Constraints updated successfully. Proceeding with hypertable conversion...';
+
             -- Create hypertable
             -- migrate_data => true: converts existing data to chunks (may take 1-2 hours)
             -- chunk_time_interval => 1 day: creates daily partitions
