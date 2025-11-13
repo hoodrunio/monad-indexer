@@ -25,12 +25,12 @@ BEGIN
     RAISE NOTICE '========================================';
     RAISE NOTICE 'Timestamp: %', NOW();
 
-    -- Verify Citus extension exists
+    -- Verify Citus extension exists (in current database: blockscout)
     IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'citus') THEN
         RAISE EXCEPTION 'Citus extension not found. Please install Citus first.';
     END IF;
 
-    -- Verify pg_cron extension exists
+    -- Verify pg_cron extension exists (in current database: blockscout)
     IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
         RAISE EXCEPTION 'pg_cron extension not found. Please install pg_cron first.';
     END IF;

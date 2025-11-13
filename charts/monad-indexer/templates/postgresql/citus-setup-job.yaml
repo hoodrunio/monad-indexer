@@ -111,10 +111,10 @@ spec:
                 exit 1
               }
 
-              # Verify pg_cron extension is available
+              # Verify pg_cron extension is available (in blockscout database)
               echo "Verifying pg_cron extension..."
-              psql -d postgres -c "SELECT * FROM pg_extension WHERE extname = 'pg_cron';" || {
-                echo "ERROR: pg_cron extension not found!"
+              psql -c "SELECT * FROM pg_extension WHERE extname = 'pg_cron';" || {
+                echo "ERROR: pg_cron extension not found in blockscout database!"
                 echo "Please verify that pg_cron is properly configured in the cluster."
                 exit 1
               }

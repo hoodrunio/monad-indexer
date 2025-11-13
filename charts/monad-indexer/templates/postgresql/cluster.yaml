@@ -43,11 +43,11 @@ spec:
       secret:
         name: {{ .Values.postgresql.auth.existingSecret | default (printf "%s-postgresql-app" (include "monad-indexer.fullname" .)) }}
       {{- if .Values.postgresql.citus.enabled }}
-      # Auto-create Citus extension in application database
-      # pg_cron must be created in postgres database (done via postInitSQL)
+      # Auto-create extensions in application database (blockscout)
       postInitApplicationSQL:
         - CREATE EXTENSION IF NOT EXISTS citus;
-      # Create pg_cron in postgres database (default for pg_cron)
+        - CREATE EXTENSION IF NOT EXISTS pg_cron;
+      # Create pg_cron in postgres database as well (for system-wide scheduling)
       postInitSQL:
         - CREATE EXTENSION IF NOT EXISTS pg_cron;
       {{- end }}
