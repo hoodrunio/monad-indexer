@@ -315,7 +315,7 @@ postgresql:
   maintenance:
     # One-time job: Drop unused indexes (runs during helm upgrade/install)
     dropUnusedIndexes:
-      enabled: true  # Set to false after first successful run
+      enabled: false  # Disabled during TimescaleDB migration
 
     # Recurring job: Index maintenance (monitors and drops unused indexes)
     indexMaintenance:
