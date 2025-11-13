@@ -1,0 +1,12 @@
+{{- if .Values.postgresql.citus.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-citus-migration
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql-citus-migration
+data:
+  citus-migration.sql: |
+{{ .Files.Get "files/citus-migration.sql" | indent 4 }}
+{{- end }}

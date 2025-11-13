@@ -1,0 +1,203 @@
+{{- if and .Values.postgresql.enabled .Values.postgresql.citus.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-citus-setup
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql-citus-setup
+  annotations:
+    # ArgoCD hook: Run after all resources are synced
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    # Helm hook: Run after install/upgrade
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "5"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  # Keep completed jobs for 7 days for debugging
+  ttlSecondsAfterFinished: 604800
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "monad-indexer.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: postgresql-citus-setup
+    spec:
+      restartPolicy: OnFailure
+      {{- with .Values.postgresql.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      # Wait for Blockscout migrations to complete first
+      initContainers:
+        - name: wait-for-blockscout-migrations
+          image: {{ .Values.postgresql.image.registry }}/{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}
+          imagePullPolicy: {{ .Values.postgresql.image.pullPolicy | default "IfNotPresent" }}
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              echo "Waiting for Blockscout database migrations to complete..."
+              echo "Checking for essential tables: transactions, logs, blocks..."
+
+              MAX_ATTEMPTS=60
+              ATTEMPT=0
+
+              while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+                ATTEMPT=$((ATTEMPT+1))
+                echo "Attempt $ATTEMPT/$MAX_ATTEMPTS: Checking if tables exist..."
+
+                # Check if transactions table exists (created by Blockscout migrations)
+                if psql -c "\dt transactions" | grep -q "transactions"; then
+                  echo "✓ Transactions table found"
+
+                  # Verify other essential tables
+                  if psql -c "\dt logs" | grep -q "logs" && \
+                     psql -c "\dt blocks" | grep -q "blocks"; then
+                    echo "✓ All essential tables found"
+                    echo "Blockscout migrations complete. Ready to setup Citus."
+                    exit 0
+                  fi
+                fi
+
+                echo "Tables not ready yet. Waiting 10 seconds..."
+                sleep 10
+              done
+
+              echo "ERROR: Timeout waiting for Blockscout migrations after $MAX_ATTEMPTS attempts"
+              echo "This may indicate that Blockscout is not running or migrations failed."
+              exit 1
+          env:
+            - name: PGHOST
+              value: {{ include "monad-indexer.fullname" . }}-postgresql-rw
+            - name: PGPORT
+              value: "5432"
+            - name: PGDATABASE
+              value: {{ .Values.postgresql.auth.database }}
+            - name: PGUSER
+              value: postgres
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "monad-indexer.fullname" . }}-postgresql-superuser
+                  key: password
+
+      containers:
+        - name: citus-setup
+          image: {{ .Values.postgresql.image.registry }}/{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}
+          imagePullPolicy: {{ .Values.postgresql.image.pullPolicy | default "IfNotPresent" }}
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+
+              echo "============================================"
+              echo "Citus Setup Job - Starting"
+              echo "============================================"
+              echo "Timestamp: $(date)"
+              echo "PostgreSQL Host: $PGHOST"
+              echo "Database: $PGDATABASE"
+              echo ""
+
+              # Verify Citus extension is available
+              echo "Verifying Citus extension..."
+              psql -c "SELECT * FROM pg_extension WHERE extname = 'citus';" || {
+                echo "ERROR: Citus extension not found!"
+                echo "Please verify that Citus is properly configured in the cluster."
+                exit 1
+              }
+
+              # Verify pg_cron extension is available
+              echo "Verifying pg_cron extension..."
+              psql -d postgres -c "SELECT * FROM pg_extension WHERE extname = 'pg_cron';" || {
+                echo "ERROR: pg_cron extension not found!"
+                echo "Please verify that pg_cron is properly configured in the cluster."
+                exit 1
+              }
+
+              echo ""
+              echo "✓ Extensions verified. Running migration script..."
+              echo ""
+
+              # Run the migration script
+              psql -f /scripts/citus-migration.sql
+
+              EXIT_CODE=$?
+
+              if [ $EXIT_CODE -eq 0 ]; then
+                echo ""
+                echo "============================================"
+                echo "Citus Setup Job - SUCCESS"
+                echo "============================================"
+                echo "Timestamp: $(date)"
+                echo ""
+                echo "Next Steps:"
+                echo "  1. Verify distributed tables:"
+                echo "     kubectl exec -it {{ include "monad-indexer.fullname" . }}-postgresql-1 -- psql -d {{ .Values.postgresql.auth.database }} -c 'SELECT * FROM citus_tables;'"
+                echo ""
+                echo "  2. Check pg_cron jobs:"
+                echo "     kubectl exec -it {{ include "monad-indexer.fullname" . }}-postgresql-1 -- psql -d postgres -c 'SELECT * FROM cron.job;'"
+                echo ""
+                echo "  3. Monitor Blockscout indexing progress:"
+                echo "     kubectl logs -f deployment/{{ include "monad-indexer.fullname" . }}-backend"
+                echo ""
+                echo "Expected Results After 3 Months:"
+                echo "  - 54-70% disk savings with columnar compression"
+                echo "  - Automated partition management via pg_cron"
+                echo "  - Ready for horizontal scaling (add worker nodes)"
+                echo "============================================"
+              else
+                echo ""
+                echo "============================================"
+                echo "Citus Setup Job - FAILED"
+                echo "============================================"
+                echo "Exit code: $EXIT_CODE"
+                echo ""
+                echo "Troubleshooting:"
+                echo "  1. Check job logs:"
+                echo "     kubectl logs job/{{ include "monad-indexer.fullname" . }}-citus-setup"
+                echo ""
+                echo "  2. Verify cluster status:"
+                echo "     kubectl get cluster {{ include "monad-indexer.fullname" . }}-postgresql"
+                echo ""
+                echo "  3. Check if extensions are loaded:"
+                echo "     kubectl exec -it {{ include "monad-indexer.fullname" . }}-postgresql-1 -- psql -d {{ .Values.postgresql.auth.database }} -c 'SHOW shared_preload_libraries;'"
+                echo "============================================"
+                exit $EXIT_CODE
+              fi
+          env:
+            - name: PGHOST
+              value: {{ include "monad-indexer.fullname" . }}-postgresql-rw
+            - name: PGPORT
+              value: "5432"
+            - name: PGDATABASE
+              value: {{ .Values.postgresql.auth.database }}
+            - name: PGUSER
+              value: postgres
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "monad-indexer.fullname" . }}-postgresql-superuser
+                  key: password
+          volumeMounts:
+            - name: migration-script
+              mountPath: /scripts
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+      volumes:
+        - name: migration-script
+          configMap:
+            name: {{ include "monad-indexer.fullname" . }}-citus-migration
+            defaultMode: 0755
+{{- end }}
