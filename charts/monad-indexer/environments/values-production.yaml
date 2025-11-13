@@ -209,7 +209,7 @@ postgresql:
     sharedBuffers: "7GB"  # Increased from 4GB - 8GB caused OOM, 7GB is safe compromise for 86GB transactions table
     effectiveCacheSize: "20GB"  # Adjusted for 7GB shared + ~13GB OS cache (total 24GB RAM available)
     maintenanceWorkMem: "2GB"  # Reduced from 8GB (maintenance operations)
-    workMem: "512MB"  # Increased from 256MB - large table sorts need more memory (transactions 77M rows)
+    workMem: "512MB"  # Increased from 256MB - large table sorts need more memory
     maxConnections: "1000"  # Increased from 800 for more connections
 
     # Shared memory type - use mmap for Kubernetes containers

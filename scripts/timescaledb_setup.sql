@@ -29,7 +29,7 @@ BEGIN
             'transactions',
             'inserted_at',
             chunk_time_interval => INTERVAL '1 day',
-            migrate_data => true,  -- Migrate existing 77M rows
+            migrate_data => true,
             if_not_exists => true
         );
 
