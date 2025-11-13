@@ -124,12 +124,17 @@ BEGIN
         RAISE NOTICE '[DROP] Dropping PRIMARY KEY internal_transactions_pkey';
         ALTER TABLE internal_transactions DROP CONSTRAINT IF EXISTS internal_transactions_pkey;
 
+        -- Drop existing UNIQUE index on (block_hash, block_index) if it exists
+        -- Citus requires all UNIQUE constraints to include distribution column
+        RAISE NOTICE '[DROP] Dropping UNIQUE INDEX internal_transactions_block_hash_block_index_index';
+        DROP INDEX IF EXISTS internal_transactions_block_hash_block_index_index;
+
         RAISE NOTICE '[CREATE] Creating new PRIMARY KEY (transaction_hash, index)';
         ALTER TABLE internal_transactions ADD PRIMARY KEY (transaction_hash, index);
 
         -- Create regular (non-unique) index for block-based queries
         -- Cannot be UNIQUE because it doesn't include distribution column (transaction_hash)
-        RAISE NOTICE '[CREATE] Creating INDEX for (block_hash, block_index)';
+        RAISE NOTICE '[CREATE] Creating regular INDEX for (block_hash, block_index)';
         CREATE INDEX IF NOT EXISTS internal_transactions_block_hash_block_index_index
             ON internal_transactions (block_hash, block_index);
 
