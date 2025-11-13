@@ -45,7 +45,72 @@ BEGIN
 END $$;
 
 -- ============================================================================
--- SECTION 2: Create Distributed Tables
+-- SECTION 2: Drop Incompatible UNIQUE Constraints
+-- ============================================================================
+-- Citus requires UNIQUE constraints to include the distribution column.
+-- These constraints are not used by Blockscout application logic and are
+-- redundant with blockchain-level guarantees. Safe to drop.
+--
+-- Reference: blockscout/apps/explorer/lib/explorer/chain/import/runner/transactions.ex:114-123
+--            Uses conflict_target: [:hash, :inserted_at], NOT [:block_hash, :index]
+-- ============================================================================
+
+DO $$
+DECLARE
+    v_constraint_name TEXT;
+    v_table_name TEXT;
+    v_constraints TEXT[][] := ARRAY[
+        ARRAY['transactions', 'transactions_block_hash_index_index'],
+        ARRAY['logs', 'logs_transaction_hash_index_index'],
+        ARRAY['token_transfers', 'token_transfers_transaction_hash_log_index_index'],
+        ARRAY['internal_transactions', 'internal_transactions_transaction_hash_index_index']
+    ];
+    v_config TEXT[];
+BEGIN
+    RAISE NOTICE '';
+    RAISE NOTICE '========================================';
+    RAISE NOTICE 'Dropping UNIQUE Constraints (Citus Incompatible)';
+    RAISE NOTICE '========================================';
+
+    FOREACH v_config SLICE 1 IN ARRAY v_constraints
+    LOOP
+        v_table_name := v_config[1];
+        v_constraint_name := v_config[2];
+
+        -- Check if table exists
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public'
+            AND table_name = v_table_name
+        ) THEN
+            RAISE NOTICE '[SKIP] Table % does not exist yet', v_table_name;
+            CONTINUE;
+        END IF;
+
+        -- Check if constraint exists
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = v_constraint_name
+        ) THEN
+            RAISE NOTICE '[SKIP] Constraint % on table % does not exist', v_constraint_name, v_table_name;
+            CONTINUE;
+        END IF;
+
+        -- Drop the constraint
+        RAISE NOTICE '[DROP] Dropping constraint % from table %', v_constraint_name, v_table_name;
+        EXECUTE format('ALTER TABLE %I DROP CONSTRAINT IF EXISTS %I', v_table_name, v_constraint_name);
+        RAISE NOTICE '[OK] Constraint % dropped successfully', v_constraint_name;
+    END LOOP;
+
+    RAISE NOTICE '';
+    RAISE NOTICE 'Rationale: These constraints enforce (block_hash, index) or (transaction_hash, index) uniqueness';
+    RAISE NOTICE '           but Citus requires UNIQUE constraints to include the distribution column.';
+    RAISE NOTICE '           Application uses hash-based conflict resolution, not these constraints.';
+    RAISE NOTICE '           Blockchain consensus already guarantees transaction ordering within blocks.';
+END $$;
+
+-- ============================================================================
+-- SECTION 3: Create Distributed Tables
 -- ============================================================================
 
 DO $$
@@ -117,7 +182,7 @@ BEGIN
 END $$;
 
 -- ============================================================================
--- SECTION 3: Helper Functions for Partition Management
+-- SECTION 4: Helper Functions for Partition Management
 -- ============================================================================
 
 -- Function: Create time-based partitions for a table
@@ -249,7 +314,7 @@ $$ LANGUAGE plpgsql;
 RAISE NOTICE '[OK] Partition management functions created';
 
 -- ============================================================================
--- SECTION 4: Setup pg_cron Jobs for Automation
+-- SECTION 5: Setup pg_cron Jobs for Automation
 -- ============================================================================
 
 DO $$
@@ -327,7 +392,7 @@ BEGIN
 END $$;
 
 -- ============================================================================
--- SECTION 5: Initial Partition Creation
+-- SECTION 6: Initial Partition Creation
 -- ============================================================================
 
 DO $$
@@ -365,7 +430,7 @@ BEGIN
 END $$;
 
 -- ============================================================================
--- SECTION 6: Verification and Summary
+-- SECTION 7: Verification and Summary
 -- ============================================================================
 
 DO $$
