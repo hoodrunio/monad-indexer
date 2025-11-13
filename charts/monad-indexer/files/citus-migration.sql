@@ -493,7 +493,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-RAISE NOTICE '[OK] Partition management functions created';
+DO $$
+BEGIN
+    RAISE NOTICE '[OK] Partition management functions created';
+END $$;
 
 -- ============================================================================
 -- SECTION 6: Setup pg_cron Jobs for Automation
