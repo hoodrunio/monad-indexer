@@ -619,45 +619,30 @@ DECLARE
         -- Note: create_time_partitions will skip tables that aren't partitioned
         ARRAY['citus-create-partitions-daily', '0 2 * * *',
               $CMD$
-              DO $$
-              BEGIN
-                  PERFORM create_time_partitions('transactions', '1 month', NOW() + INTERVAL '3 months');
-                  PERFORM create_time_partitions('logs', '1 week', NOW() + INTERVAL '1 month');
-                  PERFORM create_time_partitions('token_transfers', '1 month', NOW() + INTERVAL '3 months');
-                  PERFORM create_time_partitions('internal_transactions', '1 month', NOW() + INTERVAL '3 months');
-              EXCEPTION WHEN OTHERS THEN
-                  RAISE WARNING 'Error in partition creation: %', SQLERRM;
-              END $$;
+              SELECT create_time_partitions('transactions', '1 month', NOW() + INTERVAL '3 months');
+              SELECT create_time_partitions('logs', '1 week', NOW() + INTERVAL '1 month');
+              SELECT create_time_partitions('token_transfers', '1 month', NOW() + INTERVAL '3 months');
+              SELECT create_time_partitions('internal_transactions', '1 month', NOW() + INTERVAL '3 months');
               $CMD$],
 
         -- Job 2: Compress old partitions weekly (Sundays 3 AM)
         -- Note: Only runs if partitions exist
         ARRAY['citus-compress-old-partitions', '0 3 * * 0',
               $CMD$
-              DO $$
-              BEGIN
-                  PERFORM alter_old_partitions_set_access_method('transactions', NOW() - INTERVAL '7 days', 'columnar');
-                  PERFORM alter_old_partitions_set_access_method('logs', NOW() - INTERVAL '7 days', 'columnar');
-                  PERFORM alter_old_partitions_set_access_method('token_transfers', NOW() - INTERVAL '7 days', 'columnar');
-                  PERFORM alter_old_partitions_set_access_method('internal_transactions', NOW() - INTERVAL '7 days', 'columnar');
-              EXCEPTION WHEN OTHERS THEN
-                  RAISE WARNING 'Error in partition compression: %', SQLERRM;
-              END $$;
+              SELECT alter_old_partitions_set_access_method('transactions', NOW() - INTERVAL '7 days', 'columnar');
+              SELECT alter_old_partitions_set_access_method('logs', NOW() - INTERVAL '7 days', 'columnar');
+              SELECT alter_old_partitions_set_access_method('token_transfers', NOW() - INTERVAL '7 days', 'columnar');
+              SELECT alter_old_partitions_set_access_method('internal_transactions', NOW() - INTERVAL '7 days', 'columnar');
               $CMD$],
 
         -- Job 3: Drop old partitions monthly (1st of month, 4 AM)
         -- Note: Only runs if partitions exist
         ARRAY['citus-drop-old-partitions', '0 4 1 * *',
               $CMD$
-              DO $$
-              BEGIN
-                  PERFORM drop_old_time_partitions('logs', NOW() - INTERVAL '90 days');
-                  PERFORM drop_old_time_partitions('token_transfers', NOW() - INTERVAL '90 days');
-                  PERFORM drop_old_time_partitions('internal_transactions', NOW() - INTERVAL '90 days');
-                  PERFORM drop_old_time_partitions('transactions', NOW() - INTERVAL '90 days');
-              EXCEPTION WHEN OTHERS THEN
-                  RAISE WARNING 'Error in partition cleanup: %', SQLERRM;
-              END $$;
+              SELECT drop_old_time_partitions('logs', NOW() - INTERVAL '90 days');
+              SELECT drop_old_time_partitions('token_transfers', NOW() - INTERVAL '90 days');
+              SELECT drop_old_time_partitions('internal_transactions', NOW() - INTERVAL '90 days');
+              SELECT drop_old_time_partitions('transactions', NOW() - INTERVAL '90 days');
               $CMD$],
 
         -- Job 4: Vacuum analyze weekly (Saturdays 2 AM)
