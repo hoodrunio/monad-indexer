@@ -42,6 +42,15 @@ spec:
       owner: {{ .Values.postgresql.auth.username }}
       secret:
         name: {{ .Values.postgresql.auth.existingSecret | default (printf "%s-postgresql-app" (include "monad-indexer.fullname" .)) }}
+      {{- if .Values.postgresql.citus.enabled }}
+      # Auto-create Citus extension in application database
+      # pg_cron must be created in postgres database (done via postInitSQL)
+      postInitApplicationSQL:
+        - CREATE EXTENSION IF NOT EXISTS citus;
+      # Create pg_cron in postgres database (default for pg_cron)
+      postInitSQL:
+        - CREATE EXTENSION IF NOT EXISTS pg_cron;
+      {{- end }}
       # Note: Citus distributed table setup handled by post-install Job
       # This ensures setup runs AFTER Blockscout creates base tables
 
