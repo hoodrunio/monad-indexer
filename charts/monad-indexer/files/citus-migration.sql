@@ -97,6 +97,76 @@ BEGIN
 END $$;
 
 -- ============================================================================
+-- SECTION 2.5: Drop Foreign Key Constraints Temporarily
+-- ============================================================================
+-- Citus does not allow foreign keys from LOCAL tables to DISTRIBUTED tables.
+-- Child tables (logs, token_transfers, etc.) are still local when we distribute
+-- transactions, causing: "cannot create foreign key constraint from local tables
+-- to distributed tables"
+--
+-- Solution: Drop all FK constraints before distribution, recreate after all
+-- tables are distributed.
+-- ============================================================================
+
+DO $$
+DECLARE
+    v_fk_name TEXT;
+    v_fks TEXT[][] := ARRAY[
+        ARRAY['transactions', 'transactions_block_hash_fkey'],
+        ARRAY['logs', 'logs_block_hash_fkey'],
+        ARRAY['logs', 'logs_transaction_hash_fkey'],
+        ARRAY['internal_transactions', 'internal_transactions_block_hash_fkey'],
+        ARRAY['internal_transactions', 'internal_transactions_transaction_hash_fkey'],
+        ARRAY['token_transfers', 'token_transfers_block_hash_fkey'],
+        ARRAY['token_transfers', 'token_transfers_transaction_hash_fkey'],
+        ARRAY['transaction_forks', 'transaction_forks_hash_fkey'],
+        ARRAY['transaction_actions', 'transaction_actions_hash_fkey'],
+        ARRAY['signed_authorizations', 'signed_authorizations_transaction_hash_fkey'],
+        ARRAY['pending_transaction_operations', 'pending_transaction_operations_transaction_hash_fkey']
+    ];
+    v_config TEXT[];
+    v_table_name TEXT;
+BEGIN
+    RAISE NOTICE '';
+    RAISE NOTICE '========================================';
+    RAISE NOTICE 'Dropping Foreign Keys (Temporarily)';
+    RAISE NOTICE '========================================';
+
+    FOREACH v_config SLICE 1 IN ARRAY v_fks
+    LOOP
+        v_table_name := v_config[1];
+        v_fk_name := v_config[2];
+
+        -- Check if table exists
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = v_table_name
+        ) THEN
+            RAISE NOTICE '[SKIP] Table % does not exist', v_table_name;
+            CONTINUE;
+        END IF;
+
+        -- Check if FK exists
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = v_fk_name AND contype = 'f'
+        ) THEN
+            RAISE NOTICE '[SKIP] FK % does not exist', v_fk_name;
+            CONTINUE;
+        END IF;
+
+        -- Drop the FK
+        RAISE NOTICE '[DROP] Dropping FK % from table %', v_fk_name, v_table_name;
+        EXECUTE format('ALTER TABLE %I DROP CONSTRAINT IF EXISTS %I', v_table_name, v_fk_name);
+        RAISE NOTICE '[OK] FK % dropped successfully', v_fk_name;
+    END LOOP;
+
+    RAISE NOTICE '';
+    RAISE NOTICE 'Rationale: Citus does not allow FK from local tables to distributed tables.';
+    RAISE NOTICE '           FKs will be recreated after all tables are distributed.';
+END $$;
+
+-- ============================================================================
 -- SECTION 3: Create Distributed Tables
 -- ============================================================================
 
@@ -169,7 +239,75 @@ BEGIN
 END $$;
 
 -- ============================================================================
--- SECTION 4: Helper Functions for Partition Management
+-- SECTION 3.5: Recreate Foreign Key Constraints
+-- ============================================================================
+-- Now that all tables are distributed, recreate the foreign keys.
+-- Foreign keys are now valid:
+--   - Distributed table → Reference table ✓
+--   - Distributed table → Distributed table (co-located) ✓
+-- ============================================================================
+
+DO $$
+DECLARE
+    v_fks TEXT[][] := ARRAY[
+        ARRAY['transactions', 'transactions_block_hash_fkey', 'FOREIGN KEY (block_hash) REFERENCES blocks(hash) ON DELETE CASCADE'],
+        ARRAY['logs', 'logs_block_hash_fkey', 'FOREIGN KEY (block_hash) REFERENCES blocks(hash)'],
+        ARRAY['logs', 'logs_transaction_hash_fkey', 'FOREIGN KEY (transaction_hash) REFERENCES transactions(hash) ON DELETE CASCADE'],
+        ARRAY['internal_transactions', 'internal_transactions_block_hash_fkey', 'FOREIGN KEY (block_hash) REFERENCES blocks(hash)'],
+        ARRAY['internal_transactions', 'internal_transactions_transaction_hash_fkey', 'FOREIGN KEY (transaction_hash) REFERENCES transactions(hash) ON DELETE CASCADE'],
+        ARRAY['token_transfers', 'token_transfers_block_hash_fkey', 'FOREIGN KEY (block_hash) REFERENCES blocks(hash)'],
+        ARRAY['token_transfers', 'token_transfers_transaction_hash_fkey', 'FOREIGN KEY (transaction_hash) REFERENCES transactions(hash) ON DELETE CASCADE'],
+        ARRAY['transaction_forks', 'transaction_forks_hash_fkey', 'FOREIGN KEY (hash) REFERENCES transactions(hash) ON DELETE CASCADE'],
+        ARRAY['transaction_actions', 'transaction_actions_hash_fkey', 'FOREIGN KEY (hash) REFERENCES transactions(hash) ON UPDATE CASCADE ON DELETE CASCADE'],
+        ARRAY['signed_authorizations', 'signed_authorizations_transaction_hash_fkey', 'FOREIGN KEY (transaction_hash) REFERENCES transactions(hash) ON DELETE CASCADE'],
+        ARRAY['pending_transaction_operations', 'pending_transaction_operations_transaction_hash_fkey', 'FOREIGN KEY (transaction_hash) REFERENCES transactions(hash) ON DELETE CASCADE']
+    ];
+    v_config TEXT[];
+    v_table_name TEXT;
+    v_fk_name TEXT;
+    v_fk_def TEXT;
+BEGIN
+    RAISE NOTICE '';
+    RAISE NOTICE '========================================';
+    RAISE NOTICE 'Recreating Foreign Keys';
+    RAISE NOTICE '========================================';
+
+    FOREACH v_config SLICE 1 IN ARRAY v_fks
+    LOOP
+        v_table_name := v_config[1];
+        v_fk_name := v_config[2];
+        v_fk_def := v_config[3];
+
+        -- Check if table exists
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = v_table_name
+        ) THEN
+            RAISE NOTICE '[SKIP] Table % does not exist', v_table_name;
+            CONTINUE;
+        END IF;
+
+        -- Check if FK already exists
+        IF EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = v_fk_name AND contype = 'f'
+        ) THEN
+            RAISE NOTICE '[SKIP] FK % already exists', v_fk_name;
+            CONTINUE;
+        END IF;
+
+        -- Recreate the FK
+        RAISE NOTICE '[CREATE] Adding FK % to table %', v_fk_name, v_table_name;
+        EXECUTE format('ALTER TABLE %I ADD CONSTRAINT %I %s', v_table_name, v_fk_name, v_fk_def);
+        RAISE NOTICE '[OK] FK % created successfully', v_fk_name;
+    END LOOP;
+
+    RAISE NOTICE '';
+    RAISE NOTICE 'All foreign keys recreated successfully!';
+END $$;
+
+-- ============================================================================
+-- SECTION 5: Helper Functions for Partition Management
 -- ============================================================================
 
 -- Function: Create time-based partitions for a table
@@ -301,7 +439,7 @@ $$ LANGUAGE plpgsql;
 RAISE NOTICE '[OK] Partition management functions created';
 
 -- ============================================================================
--- SECTION 5: Setup pg_cron Jobs for Automation
+-- SECTION 6: Setup pg_cron Jobs for Automation
 -- ============================================================================
 
 DO $$
@@ -379,7 +517,7 @@ BEGIN
 END $$;
 
 -- ============================================================================
--- SECTION 6: Initial Partition Creation
+-- SECTION 7: Initial Partition Creation
 -- ============================================================================
 
 DO $$
@@ -417,7 +555,7 @@ BEGIN
 END $$;
 
 -- ============================================================================
--- SECTION 7: Verification and Summary
+-- SECTION 8: Verification and Summary
 -- ============================================================================
 
 DO $$
