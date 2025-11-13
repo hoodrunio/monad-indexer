@@ -176,6 +176,8 @@ DECLARE
         ARRAY['transaction_actions', 'transaction_actions_hash_fkey'],
         ARRAY['signed_authorizations', 'signed_authorizations_transaction_hash_fkey'],
         ARRAY['pending_transaction_operations', 'pending_transaction_operations_transaction_hash_fkey']
+        -- Note: Local tables' FKs to distributed tables must be dropped
+        -- Citus does not allow FK from local table to distributed table
     ];
     v_config TEXT[];
     v_table_name TEXT;
@@ -216,7 +218,8 @@ BEGIN
 
     RAISE NOTICE '';
     RAISE NOTICE 'Rationale: Citus does not allow FK from local tables to distributed tables.';
-    RAISE NOTICE '           FKs will be recreated after all tables are distributed.';
+    RAISE NOTICE '           FKs for distributed tables will be recreated after distribution.';
+    RAISE NOTICE '           FKs for local tables (transaction_forks, etc.) will remain dropped.';
 END $$;
 
 -- ============================================================================
@@ -302,6 +305,9 @@ END $$;
 
 DO $$
 DECLARE
+    -- Only recreate FKs for tables that ARE distributed
+    -- Exclude: transaction_forks, transaction_actions, signed_authorizations, pending_transaction_operations
+    -- (these remain local tables)
     v_fks TEXT[][] := ARRAY[
         ARRAY['transactions', 'transactions_block_hash_fkey', 'FOREIGN KEY (block_hash) REFERENCES blocks(hash) ON DELETE CASCADE'],
         ARRAY['logs', 'logs_block_hash_fkey', 'FOREIGN KEY (block_hash) REFERENCES blocks(hash)'],
@@ -309,11 +315,9 @@ DECLARE
         ARRAY['internal_transactions', 'internal_transactions_block_hash_fkey', 'FOREIGN KEY (block_hash) REFERENCES blocks(hash)'],
         ARRAY['internal_transactions', 'internal_transactions_transaction_hash_fkey', 'FOREIGN KEY (transaction_hash) REFERENCES transactions(hash) ON DELETE CASCADE'],
         ARRAY['token_transfers', 'token_transfers_block_hash_fkey', 'FOREIGN KEY (block_hash) REFERENCES blocks(hash)'],
-        ARRAY['token_transfers', 'token_transfers_transaction_hash_fkey', 'FOREIGN KEY (transaction_hash) REFERENCES transactions(hash) ON DELETE CASCADE'],
-        ARRAY['transaction_forks', 'transaction_forks_hash_fkey', 'FOREIGN KEY (hash) REFERENCES transactions(hash) ON DELETE CASCADE'],
-        ARRAY['transaction_actions', 'transaction_actions_hash_fkey', 'FOREIGN KEY (hash) REFERENCES transactions(hash) ON UPDATE CASCADE ON DELETE CASCADE'],
-        ARRAY['signed_authorizations', 'signed_authorizations_transaction_hash_fkey', 'FOREIGN KEY (transaction_hash) REFERENCES transactions(hash) ON DELETE CASCADE'],
-        ARRAY['pending_transaction_operations', 'pending_transaction_operations_transaction_hash_fkey', 'FOREIGN KEY (transaction_hash) REFERENCES transactions(hash) ON DELETE CASCADE']
+        ARRAY['token_transfers', 'token_transfers_transaction_hash_fkey', 'FOREIGN KEY (transaction_hash) REFERENCES transactions(hash) ON DELETE CASCADE']
+        -- Note: FKs for local tables (transaction_forks, etc.) remain dropped
+        -- Citus does not allow FK from local table to distributed table
     ];
     v_config TEXT[];
     v_table_name TEXT;
