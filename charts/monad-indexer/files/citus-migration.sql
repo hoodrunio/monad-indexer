@@ -401,7 +401,38 @@ BEGIN
             SELECT 1 FROM pg_dist_partition
             WHERE logicalrelid = (v_table_name)::regclass
         ) THEN
-            RAISE NOTICE '[OK] Table % already distributed', v_table_name;
+            -- Table is distributed, check if it needs colocation fix
+            IF v_table_name IN ('transaction_forks', 'transaction_actions', 'signed_authorizations', 'pending_transaction_operations') THEN
+                -- Check if already colocated with transactions
+                DECLARE
+                    v_current_colocation_id INT;
+                    v_transactions_colocation_id INT;
+                BEGIN
+                    SELECT colocationid INTO v_current_colocation_id
+                    FROM pg_dist_partition WHERE logicalrelid = (v_table_name)::regclass;
+
+                    SELECT colocationid INTO v_transactions_colocation_id
+                    FROM pg_dist_partition WHERE logicalrelid = 'transactions'::regclass;
+
+                    IF v_current_colocation_id IS DISTINCT FROM v_transactions_colocation_id THEN
+                        RAISE NOTICE '[FIX] Table % distributed but NOT colocated with transactions (colocation % vs %), fixing...',
+                            v_table_name, v_current_colocation_id, v_transactions_colocation_id;
+
+                        -- Undistribute and redistribute with correct colocation
+                        RAISE NOTICE '[UNDISTRIBUTE] Undistributing % to fix colocation', v_table_name;
+                        EXECUTE format('SELECT undistribute_table(%L)', v_table_name);
+
+                        RAISE NOTICE '[REDISTRIBUTE] Redistributing % with colocation to transactions', v_table_name;
+                        EXECUTE format('SELECT create_distributed_table(%L, %L, colocate_with => %L)', v_table_name, v_distribution_column, 'transactions');
+
+                        RAISE NOTICE '[OK] Table % colocation fixed', v_table_name;
+                    ELSE
+                        RAISE NOTICE '[OK] Table % already distributed and correctly colocated', v_table_name;
+                    END IF;
+                END;
+            ELSE
+                RAISE NOTICE '[OK] Table % already distributed', v_table_name;
+            END IF;
             CONTINUE;
         END IF;
 
