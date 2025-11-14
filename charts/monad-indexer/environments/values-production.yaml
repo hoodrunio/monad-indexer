@@ -84,9 +84,9 @@ backend:
           key: DATABASE_READ_ONLY_API_URL
 
   config:
-    # Database configuration - OPTIMIZED FOR LOCK CONTENTION
+    # Database configuration - PROPERLY BALANCED FOR CONNECTION POOL
     database:
-      poolSize: 80  # Reduced from 100 to prevent connection exhaustion (per backend pod)
+      poolSize: 50  # PHASE 1 FIX: Reduced from 80 (2 pods × 50 = 100 connections needed)
       poolSizeApi: 50  # For API reads (will use read replica via DATABASE_READ_ONLY_API_URL)
       replicaMaxLag: "5m"  # Max lag before failback to primary
       queueTarget: "100"  # Increased from 50ms default to reduce connection pressure
@@ -224,10 +224,10 @@ postgresql:
     # posix uses shm_open() which has issues in containers
     dynamicSharedMemoryType: "mmap"
 
-    # Timeout optimizations for high TPS - OPTIMIZED FOR LOCK CONTENTION
-    idle_in_transaction_session_timeout: "10s"  # Aggressive: terminate idle transactions quickly to prevent lock holding
+    # Timeout optimizations for high TPS
+    idle_in_transaction_session_timeout: "30s"
     statement_timeout: "30s"  # Allow complex queries while preventing runaway queries
-    lock_timeout: "3s"  # Reduced: fail fast on lock contention to prevent cascading waits
+    lock_timeout: "10s"
 
     # Performance tuning for high TPS
     synchronous_commit: "off"  # Trade durability for performance (safe with WAL archiving)
@@ -325,16 +325,16 @@ postgresql:
     replicaCount: 3  # High availability
     poolMode: "transaction"  # Release connection after each transaction
     maxClientConn: 10000  # High - allows many client connections
-    defaultPoolSize: 25  # OPTIMIZED: Reduced from 30 (3 poolers × 25 = 75 total to primary)
-    maxDbConnections: 50  # OPTIMIZED: Reduced from 60 (3 poolers × 50 = 150 max to primary)
-    reservePoolSize: 5   # OPTIMIZED: Reduced from 10 - minimal emergency buffer
+    defaultPoolSize: 40
+    maxDbConnections: 60
+    reservePoolSize: 5   # Minimal emergency buffer
 
-    # Timeouts - OPTIMIZED FOR LOCK CONTENTION
-    serverIdleTimeout: 300        # Reduced from 600 - recycle idle connections faster
-    serverLifetime: 1800          # Reduced from 3600 - refresh connections more frequently
-    serverConnectTimeout: 10      # Reduced from 15 - fail fast on connection issues
-    queryTimeout: 300             # Keep at 300 - allow complex queries
-    queryWaitTimeout: 60          # CRITICAL: Reduced from 120 - fail fast if pool exhausted
+    # Timeouts
+    serverIdleTimeout: 300        # Recycle idle connections
+    serverLifetime: 1800          # Refresh connections every 30 minutes
+    serverConnectTimeout: 10      # Fail fast on connection issues
+    queryTimeout: 300             # Allow complex queries
+    queryWaitTimeout: 120         # PHASE 1 FIX: Restored to 120s from 60s - was causing retry storms
     logConnections: 1
     logDisconnections: 1
 
