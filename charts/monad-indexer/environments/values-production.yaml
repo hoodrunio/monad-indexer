@@ -224,9 +224,9 @@ postgresql:
     # posix uses shm_open() which has issues in containers
     dynamicSharedMemoryType: "mmap"
 
-    # Timeout optimizations for high TPS
+    # Timeout optimizations for high TPS with Citus
     idle_in_transaction_session_timeout: "30s"
-    statement_timeout: "30s"  # Allow complex queries while preventing runaway queries
+    statement_timeout: "60s"  # Increased for Citus distributed queries
     lock_timeout: "10s"
 
     # Performance tuning for high TPS
