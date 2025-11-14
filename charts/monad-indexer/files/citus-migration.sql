@@ -408,7 +408,20 @@ BEGIN
         -- Distribute the table
         IF v_distribution_type = 'distributed' THEN
             RAISE NOTICE '[CREATE] Distributing table % by column %', v_table_name, v_distribution_column;
-            EXECUTE format('SELECT create_distributed_table(%L, %L)', v_table_name, v_distribution_column);
+
+            -- Colocate transaction-related tables with transactions for foreign keys
+            IF v_table_name IN ('transaction_forks', 'transaction_actions', 'signed_authorizations', 'pending_transaction_operations') THEN
+                -- Check if transactions table is already distributed
+                IF EXISTS (SELECT 1 FROM pg_dist_partition WHERE logicalrelid = 'transactions'::regclass) THEN
+                    RAISE NOTICE '[COLOCATE] Colocating % with transactions table', v_table_name;
+                    EXECUTE format('SELECT create_distributed_table(%L, %L, colocate_with => %L)', v_table_name, v_distribution_column, 'transactions');
+                ELSE
+                    RAISE NOTICE '[WARNING] transactions table not yet distributed, creating % without colocation', v_table_name;
+                    EXECUTE format('SELECT create_distributed_table(%L, %L)', v_table_name, v_distribution_column);
+                END IF;
+            ELSE
+                EXECUTE format('SELECT create_distributed_table(%L, %L)', v_table_name, v_distribution_column);
+            END IF;
         ELSE
             RAISE NOTICE '[CREATE] Creating reference table % (replicated to all nodes)', v_table_name;
             EXECUTE format('SELECT create_reference_table(%L)', v_table_name);
