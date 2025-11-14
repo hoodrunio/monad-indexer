@@ -172,10 +172,20 @@ BEGIN
         SELECT 1 FROM information_schema.tables
         WHERE table_schema = 'public' AND table_name = 'transaction_forks'
     ) THEN
-        -- Table was created with primary_key: false, only has UNIQUE (uncle_hash, index)
-        -- For Citus, we need PK that includes distribution column (hash)
-        RAISE NOTICE '[CREATE] Adding PRIMARY KEY (hash, index) to transaction_forks';
-        ALTER TABLE transaction_forks ADD PRIMARY KEY (hash, index);
+        -- Check if PK already exists
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conrelid = 'transaction_forks'::regclass
+            AND contype = 'p'
+        ) THEN
+            -- Table was created with primary_key: false, only has UNIQUE (uncle_hash, index)
+            -- For Citus, we need PK that includes distribution column (hash)
+            RAISE NOTICE '[CREATE] Adding PRIMARY KEY (hash, index) to transaction_forks';
+            ALTER TABLE transaction_forks ADD PRIMARY KEY (hash, index);
+            RAISE NOTICE '[OK] transaction_forks PRIMARY KEY added';
+        ELSE
+            RAISE NOTICE '[SKIP] transaction_forks already has PRIMARY KEY';
+        END IF;
 
         -- Drop the UNIQUE index that doesn't include distribution column
         RAISE NOTICE '[DROP] Dropping UNIQUE INDEX transaction_forks_uncle_hash_index_index';
@@ -185,8 +195,6 @@ BEGIN
         RAISE NOTICE '[CREATE] Creating regular INDEX for (uncle_hash, index)';
         CREATE INDEX IF NOT EXISTS transaction_forks_uncle_hash_index_idx
             ON transaction_forks (uncle_hash, index);
-
-        RAISE NOTICE '[OK] transaction_forks PRIMARY KEY added';
     END IF;
 
     RAISE NOTICE '';
