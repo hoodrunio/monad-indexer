@@ -419,11 +419,11 @@ DECLARE
     v_distribution_column TEXT;
     v_distribution_type TEXT; -- 'distributed' or 'reference'
     v_tables_config TEXT[][] := ARRAY[
-        -- Reference tables FIRST (replicated, required for foreign keys)
-        ARRAY['blocks', 'hash', 'reference'],
-        ARRAY['addresses', 'hash', 'reference'],
-        ARRAY['tokens', 'contract_address_hash', 'reference'],
-        ARRAY['smart_contracts', 'address_hash', 'reference'],
+        -- Core blockchain tables (high-growth, distributed for scalability)
+        ARRAY['blocks', 'hash', 'distributed'],
+        ARRAY['addresses', 'hash', 'distributed'],
+        ARRAY['tokens', 'contract_address_hash', 'distributed'],
+        ARRAY['smart_contracts', 'address_hash', 'distributed'],
 
         -- Core blockchain tables (high-growth, co-located)
         ARRAY['transactions', 'hash', 'distributed'],
