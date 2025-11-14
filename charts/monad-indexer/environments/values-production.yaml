@@ -233,7 +233,9 @@ postgresql:
     # Performance tuning for high TPS
     synchronous_commit: "off"  # Trade durability for performance (safe with WAL archiving)
     wal_buffers: "64MB"  # Increased for high write throughput
+    wal_sync_method: "fdatasync"  # Faster than fsync on Linux
     checkpoint_timeout: "15min"  # Increased for less frequent checkpoints
+    checkpoint_completion_target: "0.9"  # Spread checkpoint I/O over 90% of checkpoint_timeout
     max_wal_size: "8GB"  # Increased for high write load
     random_page_cost: "1.1"  # Optimized for SSD storage
     effective_io_concurrency: "200"  # Optimized for NVMe storage
