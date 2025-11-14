@@ -75,6 +75,7 @@ backend:
     NFT_MEDIA_HANDLER_ENABLED: "false"
     NFT_MEDIA_HANDLER_REMOTE_DISPATCHER_NODE_MODE_ENABLED: "false"
     INDEXER_DISABLE_EMPTY_BLOCKS_SANITIZER: "true"  # Disable empty blocks sanitizer
+    INDEXER_DISABLE_REPLACED_TRANSACTION_FETCHER: "true"  # Disable for Citus compatibility (FOR UPDATE not supported)
   # Extra environment variables from ExternalSecret
   extraEnv:
     - name: DATABASE_READ_ONLY_API_URL
