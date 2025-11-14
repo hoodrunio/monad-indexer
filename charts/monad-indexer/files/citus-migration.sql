@@ -209,6 +209,78 @@ BEGIN
         END IF;
     END IF;
 
+    -- Fix token_transfers PRIMARY KEY
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'token_transfers'
+    ) THEN
+        -- Check if current PK is correct (transaction_hash, log_index)
+        IF EXISTS (
+            SELECT 1 FROM pg_constraint c
+            JOIN pg_class t ON c.conrelid = t.oid
+            WHERE t.relname = 'token_transfers'
+            AND c.contype = 'p'
+            AND array_length(c.conkey, 1) = 2
+            AND EXISTS (
+                SELECT 1 FROM pg_attribute
+                WHERE attrelid = t.oid AND attname = 'transaction_hash' AND attnum = ANY(c.conkey)
+            )
+            AND EXISTS (
+                SELECT 1 FROM pg_attribute
+                WHERE attrelid = t.oid AND attname = 'log_index' AND attnum = ANY(c.conkey)
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM pg_attribute
+                WHERE attrelid = t.oid AND attname = 'block_hash' AND attnum = ANY(c.conkey)
+            )
+        ) THEN
+            RAISE NOTICE '[SKIP] token_transfers PRIMARY KEY already correct (transaction_hash, log_index)';
+        ELSE
+            RAISE NOTICE '[FIX] token_transfers has incorrect PRIMARY KEY, fixing...';
+            ALTER TABLE token_transfers DROP CONSTRAINT IF EXISTS token_transfers_pkey;
+
+            RAISE NOTICE '[CREATE] Creating new PRIMARY KEY (transaction_hash, log_index)';
+            ALTER TABLE token_transfers ADD PRIMARY KEY (transaction_hash, log_index);
+            RAISE NOTICE '[OK] token_transfers PRIMARY KEY fixed';
+        END IF;
+    END IF;
+
+    -- Fix logs PRIMARY KEY
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'logs'
+    ) THEN
+        -- Check if current PK is correct (transaction_hash, index)
+        IF EXISTS (
+            SELECT 1 FROM pg_constraint c
+            JOIN pg_class t ON c.conrelid = t.oid
+            WHERE t.relname = 'logs'
+            AND c.contype = 'p'
+            AND array_length(c.conkey, 1) = 2
+            AND EXISTS (
+                SELECT 1 FROM pg_attribute
+                WHERE attrelid = t.oid AND attname = 'transaction_hash' AND attnum = ANY(c.conkey)
+            )
+            AND EXISTS (
+                SELECT 1 FROM pg_attribute
+                WHERE attrelid = t.oid AND attname = 'index' AND attnum = ANY(c.conkey)
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM pg_attribute
+                WHERE attrelid = t.oid AND attname = 'block_hash' AND attnum = ANY(c.conkey)
+            )
+        ) THEN
+            RAISE NOTICE '[SKIP] logs PRIMARY KEY already correct (transaction_hash, index)';
+        ELSE
+            RAISE NOTICE '[FIX] logs has incorrect PRIMARY KEY, fixing...';
+            ALTER TABLE logs DROP CONSTRAINT IF EXISTS logs_pkey;
+
+            RAISE NOTICE '[CREATE] Creating new PRIMARY KEY (transaction_hash, index)';
+            ALTER TABLE logs ADD PRIMARY KEY (transaction_hash, index);
+            RAISE NOTICE '[OK] logs PRIMARY KEY fixed';
+        END IF;
+    END IF;
+
     -- Fix transaction_forks PRIMARY KEY (table created without PK or with wrong PK)
     IF EXISTS (
         SELECT 1 FROM information_schema.tables
