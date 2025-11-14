@@ -209,24 +209,41 @@ BEGIN
         END IF;
     END IF;
 
-    -- Fix transaction_forks PRIMARY KEY (table created without PK)
+    -- Fix transaction_forks PRIMARY KEY (table created without PK or with wrong PK)
     IF EXISTS (
         SELECT 1 FROM information_schema.tables
         WHERE table_schema = 'public' AND table_name = 'transaction_forks'
     ) THEN
-        -- Check if PK already exists
-        IF NOT EXISTS (
+        -- Check if table has a PRIMARY KEY
+        IF EXISTS (
             SELECT 1 FROM pg_constraint
             WHERE conrelid = 'transaction_forks'::regclass
             AND contype = 'p'
         ) THEN
+            -- Check if the existing PK is wrong (uncle_hash, index)
+            -- Blockscout migration 20220706102504 adds wrong PK for Citus
+            IF EXISTS (
+                SELECT 1 FROM pg_constraint c
+                JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY(c.conkey)
+                WHERE c.conrelid = 'transaction_forks'::regclass
+                AND c.contype = 'p'
+                AND a.attname = 'uncle_hash'
+            ) THEN
+                RAISE NOTICE '[FIX] Dropping incorrect PRIMARY KEY (uncle_hash, index) added by Blockscout migration 20220706102504';
+                ALTER TABLE transaction_forks DROP CONSTRAINT transaction_forks_pkey;
+
+                RAISE NOTICE '[CREATE] Adding correct PRIMARY KEY (hash, index) for Citus distribution';
+                ALTER TABLE transaction_forks ADD PRIMARY KEY (hash, index);
+                RAISE NOTICE '[OK] transaction_forks PRIMARY KEY fixed for Citus compatibility';
+            ELSE
+                RAISE NOTICE '[SKIP] transaction_forks already has correct PRIMARY KEY (hash, index)';
+            END IF;
+        ELSE
             -- Table was created with primary_key: false, only has UNIQUE (uncle_hash, index)
             -- For Citus, we need PK that includes distribution column (hash)
             RAISE NOTICE '[CREATE] Adding PRIMARY KEY (hash, index) to transaction_forks';
             ALTER TABLE transaction_forks ADD PRIMARY KEY (hash, index);
             RAISE NOTICE '[OK] transaction_forks PRIMARY KEY added';
-        ELSE
-            RAISE NOTICE '[SKIP] transaction_forks already has PRIMARY KEY';
         END IF;
 
         -- Drop the UNIQUE index that doesn't include distribution column
