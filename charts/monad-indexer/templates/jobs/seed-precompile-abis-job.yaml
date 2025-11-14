@@ -115,6 +115,9 @@ spec:
             precompile_address BYTEA := decode('${PRECOMPILE_ADDRESS#0x}', 'hex');
             abi_json JSONB := '${ABI_CONTENT}'::jsonb;
             code_md5 VARCHAR(255) := '${CONTRACT_CODE_MD5}';
+            -- Citus-compatible: Capture timestamp at transaction start to use IMMUTABLE value
+            -- NOW() is VOLATILE and cannot be used in ON CONFLICT DO UPDATE on distributed tables
+            current_timestamp TIMESTAMP := CURRENT_TIMESTAMP;
           BEGIN
             -- Insert or update the precompile contract
             INSERT INTO smart_contracts (
@@ -147,8 +150,8 @@ spec:
               false,
               false,
               false,
-              NOW(),
-              NOW()
+              current_timestamp,
+              current_timestamp
             )
             ON CONFLICT (address_hash)
             DO UPDATE SET
@@ -158,7 +161,7 @@ spec:
               contract_source_code = EXCLUDED.contract_source_code,
               contract_code_md5 = EXCLUDED.contract_code_md5,
               license_type = EXCLUDED.license_type,
-              updated_at = NOW();
+              updated_at = EXCLUDED.updated_at;
 
             RAISE NOTICE 'Successfully seeded precompile ABI for address: ${PRECOMPILE_ADDRESS}';
           END \$\$;
