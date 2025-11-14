@@ -167,11 +167,34 @@ BEGIN
         RAISE NOTICE '[OK] address_current_token_balances PRIMARY KEY updated';
     END IF;
 
+    -- Fix transaction_forks PRIMARY KEY (table created without PK)
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'transaction_forks'
+    ) THEN
+        -- Table was created with primary_key: false, only has UNIQUE (uncle_hash, index)
+        -- For Citus, we need PK that includes distribution column (hash)
+        RAISE NOTICE '[CREATE] Adding PRIMARY KEY (hash, index) to transaction_forks';
+        ALTER TABLE transaction_forks ADD PRIMARY KEY (hash, index);
+
+        -- Drop the UNIQUE index that doesn't include distribution column
+        RAISE NOTICE '[DROP] Dropping UNIQUE INDEX transaction_forks_uncle_hash_index_index';
+        DROP INDEX IF EXISTS transaction_forks_uncle_hash_index_index;
+
+        -- Create regular (non-unique) index for uncle-based queries
+        RAISE NOTICE '[CREATE] Creating regular INDEX for (uncle_hash, index)';
+        CREATE INDEX IF NOT EXISTS transaction_forks_uncle_hash_index_idx
+            ON transaction_forks (uncle_hash, index);
+
+        RAISE NOTICE '[OK] transaction_forks PRIMARY KEY added';
+    END IF;
+
     RAISE NOTICE '';
     RAISE NOTICE 'Rationale: Citus requires PRIMARY KEYs to include distribution column.';
     RAISE NOTICE '           - internal_transactions: PK (transaction_hash, index), dist by transaction_hash';
     RAISE NOTICE '           - internal_transactions: UNIQUE INDEX (block_hash, block_index) for block queries';
     RAISE NOTICE '           - address_*: PK (address_hash, id), dist by address_hash';
+    RAISE NOTICE '           - transaction_forks: PK (hash, index), dist by hash';
 END $$;
 
 -- ============================================================================
@@ -244,7 +267,7 @@ BEGIN
     RAISE NOTICE '';
     RAISE NOTICE 'Rationale: Citus does not allow FK from local tables to distributed tables.';
     RAISE NOTICE '           FKs for distributed tables will be recreated after distribution.';
-    RAISE NOTICE '           FKs for local tables (transaction_forks, etc.) will remain dropped.';
+    RAISE NOTICE '           All tables (including transaction_forks, transaction_actions, etc.) will be distributed.';
 END $$;
 
 -- ============================================================================
@@ -272,7 +295,16 @@ DECLARE
         -- Address-based tables (distributed by address_hash)
         ARRAY['address_coin_balances', 'address_hash', 'distributed'],
         ARRAY['address_token_balances', 'address_hash', 'distributed'],
-        ARRAY['address_current_token_balances', 'address_hash', 'distributed']
+        ARRAY['address_current_token_balances', 'address_hash', 'distributed'],
+
+        -- Transaction-related auxiliary tables (distributed by transaction hash for co-location)
+        ARRAY['transaction_forks', 'hash', 'distributed'],
+        ARRAY['transaction_actions', 'hash', 'distributed'],
+        ARRAY['signed_authorizations', 'transaction_hash', 'distributed'],
+        ARRAY['pending_transaction_operations', 'transaction_hash', 'distributed'],
+
+        -- Block rewards (distributed by block_hash for block-based queries)
+        ARRAY['block_rewards', 'block_hash', 'distributed']
     ];
     v_config TEXT[];
 BEGIN
@@ -330,9 +362,7 @@ END $$;
 
 DO $$
 DECLARE
-    -- Only recreate FKs for tables that ARE distributed
-    -- Exclude: transaction_forks, transaction_actions, signed_authorizations, pending_transaction_operations
-    -- (these remain local tables)
+    -- Recreate FKs for all distributed tables
     v_fks TEXT[][] := ARRAY[
         ARRAY['transactions', 'transactions_block_hash_fkey', 'FOREIGN KEY (block_hash) REFERENCES blocks(hash) ON DELETE CASCADE'],
         ARRAY['logs', 'logs_block_hash_fkey', 'FOREIGN KEY (block_hash) REFERENCES blocks(hash)'],
@@ -340,9 +370,18 @@ DECLARE
         ARRAY['internal_transactions', 'internal_transactions_block_hash_fkey', 'FOREIGN KEY (block_hash) REFERENCES blocks(hash)'],
         ARRAY['internal_transactions', 'internal_transactions_transaction_hash_fkey', 'FOREIGN KEY (transaction_hash) REFERENCES transactions(hash) ON DELETE CASCADE'],
         ARRAY['token_transfers', 'token_transfers_block_hash_fkey', 'FOREIGN KEY (block_hash) REFERENCES blocks(hash)'],
-        ARRAY['token_transfers', 'token_transfers_transaction_hash_fkey', 'FOREIGN KEY (transaction_hash) REFERENCES transactions(hash) ON DELETE CASCADE']
-        -- Note: FKs for local tables (transaction_forks, etc.) remain dropped
-        -- Citus does not allow FK from local table to distributed table
+        ARRAY['token_transfers', 'token_transfers_transaction_hash_fkey', 'FOREIGN KEY (transaction_hash) REFERENCES transactions(hash) ON DELETE CASCADE'],
+
+        -- Transaction-related auxiliary tables (now distributed, can have FKs)
+        ARRAY['transaction_forks', 'transaction_forks_hash_fkey', 'FOREIGN KEY (hash) REFERENCES transactions(hash) ON DELETE CASCADE'],
+        ARRAY['transaction_forks', 'transaction_forks_uncle_hash_fkey', 'FOREIGN KEY (uncle_hash) REFERENCES blocks(hash) ON DELETE CASCADE'],
+        ARRAY['transaction_actions', 'transaction_actions_hash_fkey', 'FOREIGN KEY (hash) REFERENCES transactions(hash) ON DELETE CASCADE'],
+        ARRAY['signed_authorizations', 'signed_authorizations_transaction_hash_fkey', 'FOREIGN KEY (transaction_hash) REFERENCES transactions(hash) ON DELETE CASCADE'],
+        ARRAY['pending_transaction_operations', 'pending_transaction_operations_transaction_hash_fkey', 'FOREIGN KEY (transaction_hash) REFERENCES transactions(hash) ON DELETE CASCADE'],
+
+        -- Block rewards (distributed, can have FKs to reference tables)
+        ARRAY['block_rewards', 'block_rewards_address_hash_fkey', 'FOREIGN KEY (address_hash) REFERENCES addresses(hash) ON DELETE CASCADE'],
+        ARRAY['block_rewards', 'block_rewards_block_hash_fkey', 'FOREIGN KEY (block_hash) REFERENCES blocks(hash) ON DELETE CASCADE']
     ];
     v_config TEXT[];
     v_table_name TEXT;
