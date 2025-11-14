@@ -418,14 +418,30 @@ BEGIN
                         RAISE NOTICE '[FIX] Table % distributed but NOT colocated with transactions (colocation % vs %), fixing...',
                             v_table_name, v_current_colocation_id, v_transactions_colocation_id;
 
+                        -- Drop FKs temporarily to allow undistribute
+                        RAISE NOTICE '[DROP FKs] Temporarily dropping foreign keys from %', v_table_name;
+                        DECLARE
+                            v_fk_record RECORD;
+                        BEGIN
+                            FOR v_fk_record IN
+                                SELECT conname
+                                FROM pg_constraint
+                                WHERE conrelid = (v_table_name)::regclass
+                                AND contype = 'f'
+                            LOOP
+                                RAISE NOTICE '[DROP FK] Dropping FK % from %', v_fk_record.conname, v_table_name;
+                                EXECUTE format('ALTER TABLE %I DROP CONSTRAINT %I', v_table_name, v_fk_record.conname);
+                            END LOOP;
+                        END;
+
                         -- Undistribute and redistribute with correct colocation
-                        RAISE NOTICE '[UNDISTRIBUTE] Undistributing % to fix colocation (with cascade)', v_table_name;
-                        EXECUTE format('SELECT undistribute_table(%L, cascade_via_foreign_keys => true)', v_table_name);
+                        RAISE NOTICE '[UNDISTRIBUTE] Undistributing % to fix colocation', v_table_name;
+                        EXECUTE format('SELECT undistribute_table(%L)', v_table_name);
 
                         RAISE NOTICE '[REDISTRIBUTE] Redistributing % with colocation to transactions', v_table_name;
                         EXECUTE format('SELECT create_distributed_table(%L, %L, colocate_with => %L)', v_table_name, v_distribution_column, 'transactions');
 
-                        RAISE NOTICE '[OK] Table % colocation fixed', v_table_name;
+                        RAISE NOTICE '[OK] Table % colocation fixed (FKs will be recreated in Section 3.5)', v_table_name;
                     ELSE
                         RAISE NOTICE '[OK] Table % already distributed and correctly colocated', v_table_name;
                     END IF;
