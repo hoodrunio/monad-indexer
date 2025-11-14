@@ -419,8 +419,8 @@ BEGIN
                             v_table_name, v_current_colocation_id, v_transactions_colocation_id;
 
                         -- Undistribute and redistribute with correct colocation
-                        RAISE NOTICE '[UNDISTRIBUTE] Undistributing % to fix colocation', v_table_name;
-                        EXECUTE format('SELECT undistribute_table(%L)', v_table_name);
+                        RAISE NOTICE '[UNDISTRIBUTE] Undistributing % to fix colocation (with cascade)', v_table_name;
+                        EXECUTE format('SELECT undistribute_table(%L, cascade_via_foreign_keys => true)', v_table_name);
 
                         RAISE NOTICE '[REDISTRIBUTE] Redistributing % with colocation to transactions', v_table_name;
                         EXECUTE format('SELECT create_distributed_table(%L, %L, colocate_with => %L)', v_table_name, v_distribution_column, 'transactions');
