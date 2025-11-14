@@ -588,7 +588,9 @@ DECLARE
         ARRAY['pending_transaction_operations', 'pending_transaction_operations_transaction_hash_fkey', 'FOREIGN KEY (transaction_hash) REFERENCES transactions(hash) ON DELETE CASCADE'],
 
         -- Block rewards (distributed, can have FKs to reference tables)
-        ARRAY['block_rewards', 'block_rewards_address_hash_fkey', 'FOREIGN KEY (address_hash) REFERENCES addresses(hash) ON DELETE CASCADE'],
+        -- NOTE: block_rewards.address_hash FK to addresses removed due to Citus limitations
+        -- (distributed by block_hash cannot FK to addresses distributed by hash)
+        -- ARRAY['block_rewards', 'block_rewards_address_hash_fkey', 'FOREIGN KEY (address_hash) REFERENCES addresses(hash) ON DELETE CASCADE'],
         ARRAY['block_rewards', 'block_rewards_block_hash_fkey', 'FOREIGN KEY (block_hash) REFERENCES blocks(hash) ON DELETE CASCADE']
     ];
     v_config TEXT[];
