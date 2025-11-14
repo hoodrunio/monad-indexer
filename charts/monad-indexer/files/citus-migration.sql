@@ -434,9 +434,16 @@ BEGIN
                             END LOOP;
                         END;
 
-                        -- Undistribute and redistribute with correct colocation
-                        RAISE NOTICE '[UNDISTRIBUTE] Undistributing % to fix colocation', v_table_name;
-                        EXECUTE format('SELECT undistribute_table(%L)', v_table_name);
+                        -- Undistribute if still distributed (FK drop may have auto-undistributed it)
+                        IF EXISTS (
+                            SELECT 1 FROM pg_dist_partition
+                            WHERE logicalrelid = (v_table_name)::regclass
+                        ) THEN
+                            RAISE NOTICE '[UNDISTRIBUTE] Undistributing % to fix colocation', v_table_name;
+                            EXECUTE format('SELECT undistribute_table(%L)', v_table_name);
+                        ELSE
+                            RAISE NOTICE '[INFO] Table % already undistributed (auto-removed from Citus after FK drop)', v_table_name;
+                        END IF;
 
                         RAISE NOTICE '[REDISTRIBUTE] Redistributing % with colocation to transactions', v_table_name;
                         EXECUTE format('SELECT create_distributed_table(%L, %L, colocate_with => %L)', v_table_name, v_distribution_column, 'transactions');
