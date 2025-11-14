@@ -419,12 +419,12 @@ DECLARE
     v_distribution_column TEXT;
     v_distribution_type TEXT; -- 'distributed' or 'reference'
     v_tables_config TEXT[][] := ARRAY[
-        -- Reference tables (lookup tables or PK conflicts with distribution column)
+        -- Reference tables (lookup tables, FK dependencies, or PK conflicts)
         ARRAY['blocks', 'hash', 'reference'],
+        ARRAY['addresses', 'hash', 'reference'],
         ARRAY['smart_contracts', 'address_hash', 'reference'],
 
-        -- Distributed tables (high-growth, scalable)
-        ARRAY['addresses', 'hash', 'distributed'],
+        -- Distributed tables (high-growth, no FK conflicts)
         ARRAY['tokens', 'contract_address_hash', 'distributed'],
 
         -- Core blockchain tables (high-growth, co-located)
