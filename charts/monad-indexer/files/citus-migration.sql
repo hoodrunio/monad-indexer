@@ -121,24 +121,44 @@ BEGIN
         SELECT 1 FROM information_schema.tables
         WHERE table_schema = 'public' AND table_name = 'internal_transactions'
     ) THEN
-        RAISE NOTICE '[DROP] Dropping PRIMARY KEY internal_transactions_pkey';
-        ALTER TABLE internal_transactions DROP CONSTRAINT IF EXISTS internal_transactions_pkey;
+        -- Check if current PK is already correct
+        IF EXISTS (
+            SELECT 1 FROM pg_constraint c
+            JOIN pg_class t ON c.conrelid = t.oid
+            JOIN pg_attribute a1 ON a1.attrelid = t.oid AND a1.attnum = ANY(c.conkey)
+            WHERE t.relname = 'internal_transactions'
+            AND c.contype = 'p'
+            AND array_length(c.conkey, 1) = 2
+            AND EXISTS (
+                SELECT 1 FROM pg_attribute
+                WHERE attrelid = t.oid AND attname = 'transaction_hash' AND attnum = ANY(c.conkey)
+            )
+            AND EXISTS (
+                SELECT 1 FROM pg_attribute
+                WHERE attrelid = t.oid AND attname = 'index' AND attnum = ANY(c.conkey)
+            )
+        ) THEN
+            RAISE NOTICE '[SKIP] internal_transactions PRIMARY KEY already correct (transaction_hash, index)';
+        ELSE
+            RAISE NOTICE '[DROP] Dropping PRIMARY KEY internal_transactions_pkey';
+            ALTER TABLE internal_transactions DROP CONSTRAINT IF EXISTS internal_transactions_pkey;
 
-        -- Drop existing UNIQUE index on (block_hash, block_index) if it exists
-        -- Citus requires all UNIQUE constraints to include distribution column
-        RAISE NOTICE '[DROP] Dropping UNIQUE INDEX internal_transactions_block_hash_block_index_index';
-        DROP INDEX IF EXISTS internal_transactions_block_hash_block_index_index;
+            -- Drop existing UNIQUE index on (block_hash, block_index) if it exists
+            -- Citus requires all UNIQUE constraints to include distribution column
+            RAISE NOTICE '[DROP] Dropping UNIQUE INDEX internal_transactions_block_hash_block_index_index';
+            DROP INDEX IF EXISTS internal_transactions_block_hash_block_index_index;
 
-        RAISE NOTICE '[CREATE] Creating new PRIMARY KEY (transaction_hash, index)';
-        ALTER TABLE internal_transactions ADD PRIMARY KEY (transaction_hash, index);
+            RAISE NOTICE '[CREATE] Creating new PRIMARY KEY (transaction_hash, index)';
+            ALTER TABLE internal_transactions ADD PRIMARY KEY (transaction_hash, index);
+
+            RAISE NOTICE '[OK] internal_transactions PRIMARY KEY updated';
+        END IF;
 
         -- Create regular (non-unique) index for block-based queries
         -- Cannot be UNIQUE because it doesn't include distribution column (transaction_hash)
         RAISE NOTICE '[CREATE] Creating regular INDEX for (block_hash, block_index)';
         CREATE INDEX IF NOT EXISTS internal_transactions_block_hash_block_index_index
             ON internal_transactions (block_hash, block_index);
-
-        RAISE NOTICE '[OK] internal_transactions PRIMARY KEY updated';
     END IF;
 
     -- Fix address_token_balances PRIMARY KEY
@@ -146,12 +166,23 @@ BEGIN
         SELECT 1 FROM information_schema.tables
         WHERE table_schema = 'public' AND table_name = 'address_token_balances'
     ) THEN
-        RAISE NOTICE '[DROP] Dropping PRIMARY KEY address_token_balances_pkey';
-        ALTER TABLE address_token_balances DROP CONSTRAINT IF EXISTS address_token_balances_pkey;
+        -- Check if PK includes address_hash (Citus-compatible PK)
+        IF EXISTS (
+            SELECT 1 FROM pg_constraint c
+            JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY(c.conkey)
+            WHERE c.conrelid = 'address_token_balances'::regclass
+            AND c.contype = 'p'
+            AND a.attname = 'address_hash'
+        ) THEN
+            RAISE NOTICE '[SKIP] address_token_balances PRIMARY KEY already includes address_hash';
+        ELSE
+            RAISE NOTICE '[DROP] Dropping PRIMARY KEY address_token_balances_pkey';
+            ALTER TABLE address_token_balances DROP CONSTRAINT IF EXISTS address_token_balances_pkey;
 
-        RAISE NOTICE '[CREATE] Creating new PRIMARY KEY (address_hash, id)';
-        ALTER TABLE address_token_balances ADD PRIMARY KEY (address_hash, id);
-        RAISE NOTICE '[OK] address_token_balances PRIMARY KEY updated';
+            RAISE NOTICE '[CREATE] Creating new PRIMARY KEY (address_hash, id)';
+            ALTER TABLE address_token_balances ADD PRIMARY KEY (address_hash, id);
+            RAISE NOTICE '[OK] address_token_balances PRIMARY KEY updated';
+        END IF;
     END IF;
 
     -- Fix address_current_token_balances PRIMARY KEY
@@ -159,12 +190,23 @@ BEGIN
         SELECT 1 FROM information_schema.tables
         WHERE table_schema = 'public' AND table_name = 'address_current_token_balances'
     ) THEN
-        RAISE NOTICE '[DROP] Dropping PRIMARY KEY address_current_token_balances_pkey';
-        ALTER TABLE address_current_token_balances DROP CONSTRAINT IF EXISTS address_current_token_balances_pkey;
+        -- Check if PK includes address_hash (Citus-compatible PK)
+        IF EXISTS (
+            SELECT 1 FROM pg_constraint c
+            JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY(c.conkey)
+            WHERE c.conrelid = 'address_current_token_balances'::regclass
+            AND c.contype = 'p'
+            AND a.attname = 'address_hash'
+        ) THEN
+            RAISE NOTICE '[SKIP] address_current_token_balances PRIMARY KEY already includes address_hash';
+        ELSE
+            RAISE NOTICE '[DROP] Dropping PRIMARY KEY address_current_token_balances_pkey';
+            ALTER TABLE address_current_token_balances DROP CONSTRAINT IF EXISTS address_current_token_balances_pkey;
 
-        RAISE NOTICE '[CREATE] Creating new PRIMARY KEY (address_hash, id)';
-        ALTER TABLE address_current_token_balances ADD PRIMARY KEY (address_hash, id);
-        RAISE NOTICE '[OK] address_current_token_balances PRIMARY KEY updated';
+            RAISE NOTICE '[CREATE] Creating new PRIMARY KEY (address_hash, id)';
+            ALTER TABLE address_current_token_balances ADD PRIMARY KEY (address_hash, id);
+            RAISE NOTICE '[OK] address_current_token_balances PRIMARY KEY updated';
+        END IF;
     END IF;
 
     -- Fix transaction_forks PRIMARY KEY (table created without PK)
