@@ -1,0 +1,81 @@
+{{- if and .Values.postgresql.enabled .Values.postgresql.citusWorker.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-citus-worker-registration
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: citus-worker-registration
+data:
+  citus-add-worker.sql: |
+    -- Citus Worker Registration Script
+    -- This script registers Citus worker nodes to the coordinator cluster
+    -- Run this on the COORDINATOR node after worker nodes are ready
+
+    \echo '=========================================='
+    \echo 'Citus Worker Registration'
+    \echo '=========================================='
+
+    -- Step 1: Verify Citus extension is loaded
+    \echo 'Verifying Citus extension...'
+    SELECT extname, extversion FROM pg_extension WHERE extname = 'citus';
+
+    -- Step 2: Check existing worker nodes (should be empty for first run or show localhost only)
+    \echo ''
+    \echo 'Current worker nodes:'
+    SELECT nodeid, nodename, nodeport, isactive
+    FROM pg_dist_node
+    ORDER BY nodeid;
+
+    -- Step 3: Add coordinator itself as a worker (localhost)
+    -- This allows the coordinator to store shards locally
+    \echo ''
+    \echo 'Adding coordinator as local worker (localhost)...'
+    DO $$
+    BEGIN
+        -- Check if localhost is already registered
+        IF NOT EXISTS (SELECT 1 FROM pg_dist_node WHERE nodename = 'localhost' AND nodeport = 5432) THEN
+            PERFORM citus_add_node('localhost', 5432);
+            RAISE NOTICE 'Coordinator (localhost) registered successfully';
+        ELSE
+            RAISE NOTICE 'Coordinator (localhost) already registered, skipping';
+        END IF;
+    END $$;
+
+    -- Step 4: Add remote worker node (ubuntu node)
+    \echo ''
+    \echo 'Adding remote worker node...'
+    DO $$
+    BEGIN
+        -- Check if worker is already registered
+        IF NOT EXISTS (SELECT 1 FROM pg_dist_node WHERE nodename = '{{ include "monad-indexer.fullname" . }}-citus-worker-0.{{ include "monad-indexer.fullname" . }}-citus-worker.{{ .Release.Namespace }}.svc.cluster.local' AND nodeport = 5432) THEN
+            PERFORM citus_add_node('{{ include "monad-indexer.fullname" . }}-citus-worker-0.{{ include "monad-indexer.fullname" . }}-citus-worker.{{ .Release.Namespace }}.svc.cluster.local', 5432);
+            RAISE NOTICE 'Remote worker registered successfully';
+        ELSE
+            RAISE NOTICE 'Remote worker already registered, skipping';
+        END IF;
+    END $$;
+
+    -- Step 5: Verify all workers are registered
+    \echo ''
+    \echo 'Registered worker nodes:'
+    SELECT nodeid, nodename, nodeport, isactive, noderole
+    FROM pg_dist_node
+    ORDER BY nodeid;
+
+    -- Step 6: Check worker health
+    \echo ''
+    \echo 'Checking worker node health...'
+    SELECT * FROM citus_check_cluster_node_health();
+
+    -- Step 7: Get active worker nodes
+    \echo ''
+    \echo 'Active worker nodes:'
+    SELECT * FROM citus_get_active_worker_nodes();
+
+    \echo ''
+    \echo '=========================================='
+    \echo 'Worker registration complete!'
+    \echo 'You can now proceed with shard rebalancing.'
+    \echo '=========================================='
+{{- end }}

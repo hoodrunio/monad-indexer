@@ -382,6 +382,48 @@ postgresql:
     nodeSelector:
       postgres-role: replica  # Schedule on node2 with replica
 
+  # Citus Worker Configuration - Distributed PostgreSQL Worker Node
+  # This worker runs on ubuntu node (64GB RAM) to distribute data load
+  citusWorker:
+    enabled: true
+    replicaCount: 1  # Single worker on ubuntu node
+
+    # Worker persistence
+    persistence:
+      size: 200Gi  # Smaller than primary (will hold ~50% of shards)
+      storageClass: "fast-ssd"  # Same as primary for consistency
+
+    # Worker resources - optimized for ubuntu node (64GB RAM)
+    resources:
+      requests:
+        cpu: "2000m"  # 2 cores baseline
+        memory: "16Gi"  # Conservative for shared node with backend
+      limits:
+        cpu: "6000m"  # Can burst up to 6 cores
+        memory: "32Gi"  # Leave room for backend and indexer pods
+
+    # Ephemeral volumes size limit - shared memory configuration
+    ephemeralVolumesSizeLimit:
+      shm: "8Gi"  # Shared memory for 6GB shared_buffers + headroom
+
+    # Worker-specific PostgreSQL configuration
+    config:
+      sharedBuffers: "6GB"  # Smaller than coordinator (16GB RAM request)
+      effectiveCacheSize: "18GB"  # Estimated OS cache + shared buffers
+      maintenanceWorkMem: "2GB"  # Same as coordinator
+      workMem: "512MB"  # Same as coordinator
+      maxConnections: "300"  # Fewer than coordinator (enough for shard queries)
+
+    # Node selector - schedule on ubuntu node
+    nodeSelector:
+      postgres-role: worker  # ubuntu-2204-jammy-amd64-base node
+
+    # No tolerations needed (standard node)
+    tolerations: []
+
+    # Pod anti-affinity - not needed (single worker)
+    affinity: {}
+
   # Disable pod anti-affinity for local storage compatibility
   affinity:
     enablePodAntiAffinity: false  # Disabled to avoid conflicts with local storage PVC node affinity

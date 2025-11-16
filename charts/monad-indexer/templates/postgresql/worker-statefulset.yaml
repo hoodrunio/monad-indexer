@@ -1,0 +1,119 @@
+{{- if and .Values.postgresql.enabled .Values.postgresql.citusWorker.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-citus-worker
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: citus-worker
+spec:
+  serviceName: {{ include "monad-indexer.fullname" . }}-citus-worker
+  replicas: {{ .Values.postgresql.citusWorker.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "monad-indexer.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: citus-worker
+  template:
+    metadata:
+      labels:
+        {{- include "monad-indexer.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: citus-worker
+    spec:
+      {{- if .Values.postgresql.citusWorker.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.postgresql.citusWorker.nodeSelector | nindent 8 }}
+      {{- end }}
+      {{- if .Values.postgresql.citusWorker.tolerations }}
+      tolerations:
+        {{- toYaml .Values.postgresql.citusWorker.tolerations | nindent 8 }}
+      {{- end }}
+      {{- if .Values.postgresql.citusWorker.affinity }}
+      affinity:
+        {{- toYaml .Values.postgresql.citusWorker.affinity | nindent 8 }}
+      {{- end }}
+      securityContext:
+        fsGroup: 999  # postgres group
+        runAsUser: 999  # postgres user
+        runAsNonRoot: true
+      containers:
+      - name: postgres
+        image: "{{ .Values.postgresql.image.registry }}/{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
+        imagePullPolicy: {{ .Values.postgresql.image.pullPolicy | default "IfNotPresent" }}
+        env:
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "monad-indexer.fullname" . }}-postgresql-superuser
+              key: password
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        # Citus worker configuration
+        - name: CITUS_MODE
+          value: "worker"
+        ports:
+        - name: postgresql
+          containerPort: 5432
+          protocol: TCP
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - pg_isready -U postgres
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - pg_isready -U postgres
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+        - name: dshm
+          mountPath: /dev/shm
+        {{- if .Values.postgresql.citusWorker.config }}
+        - name: worker-config
+          mountPath: /docker-entrypoint-initdb.d/
+        {{- end }}
+        resources:
+          {{- toYaml .Values.postgresql.citusWorker.resources | nindent 10 }}
+      volumes:
+      - name: dshm
+        emptyDir:
+          medium: Memory
+          {{- if .Values.postgresql.citusWorker.ephemeralVolumesSizeLimit }}
+          {{- if .Values.postgresql.citusWorker.ephemeralVolumesSizeLimit.shm }}
+          sizeLimit: {{ .Values.postgresql.citusWorker.ephemeralVolumesSizeLimit.shm }}
+          {{- end }}
+          {{- end }}
+      {{- if .Values.postgresql.citusWorker.config }}
+      - name: worker-config
+        configMap:
+          name: {{ include "monad-indexer.fullname" . }}-citus-worker-config
+      {{- end }}
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+      labels:
+        {{- include "monad-indexer.labels" . | nindent 8 }}
+        app.kubernetes.io/component: citus-worker
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      {{- if .Values.postgresql.citusWorker.persistence.storageClass }}
+      storageClassName: {{ .Values.postgresql.citusWorker.persistence.storageClass }}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.postgresql.citusWorker.persistence.size }}
+{{- end }}

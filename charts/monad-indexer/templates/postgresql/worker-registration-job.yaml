@@ -1,0 +1,94 @@
+{{- if and .Values.postgresql.enabled .Values.postgresql.citusWorker.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-citus-worker-registration
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: citus-worker-registration
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "2"  # Run after worker init (wave 1)
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        {{- include "monad-indexer.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: citus-worker-registration
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: register-workers
+        image: ghcr.io/cloudnative-pg/postgresql:17
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+
+          echo "============================================"
+          echo "Citus Worker Registration Job"
+          echo "============================================"
+
+          # Get password from secret
+          export PGPASSWORD=$(cat /run/secrets/postgres-password/password)
+
+          # Wait for coordinator to be ready
+          echo ""
+          echo "Waiting for coordinator to be ready..."
+          until pg_isready -h {{ include "monad-indexer.fullname" . }}-postgresql-rw.{{ .Release.Namespace }}.svc.cluster.local -U postgres; do
+            echo "Coordinator not ready yet, waiting..."
+            sleep 5
+          done
+          echo "Coordinator is ready!"
+
+          # Wait for worker to be ready
+          echo ""
+          echo "Waiting for worker to be ready..."
+          until pg_isready -h {{ include "monad-indexer.fullname" . }}-citus-worker-0.{{ include "monad-indexer.fullname" . }}-citus-worker.{{ .Release.Namespace }}.svc.cluster.local -U postgres; do
+            echo "Worker not ready yet, waiting..."
+            sleep 5
+          done
+          echo "Worker is ready!"
+
+          # Wait for Citus extension in coordinator
+          echo ""
+          echo "Verifying Citus extension on coordinator..."
+          until psql -h {{ include "monad-indexer.fullname" . }}-postgresql-rw.{{ .Release.Namespace }}.svc.cluster.local \
+                     -U postgres \
+                     -d {{ .Values.postgresql.auth.database }} \
+                     -tAc "SELECT 1 FROM pg_extension WHERE extname = 'citus'" | grep -q 1; do
+            echo "Citus extension not ready yet, waiting..."
+            sleep 5
+          done
+          echo "Citus extension is ready!"
+
+          # Run worker registration script
+          echo ""
+          echo "Registering Citus workers..."
+          psql -h {{ include "monad-indexer.fullname" . }}-postgresql-rw.{{ .Release.Namespace }}.svc.cluster.local \
+               -U postgres \
+               -d {{ .Values.postgresql.auth.database }} \
+               -f /scripts/citus-add-worker.sql
+
+          echo ""
+          echo "============================================"
+          echo "Worker registration complete!"
+          echo "============================================"
+        volumeMounts:
+        - name: postgres-password
+          mountPath: /run/secrets/postgres-password
+          readOnly: true
+        - name: registration-script
+          mountPath: /scripts
+          readOnly: true
+      volumes:
+      - name: postgres-password
+        secret:
+          secretName: {{ include "monad-indexer.fullname" . }}-postgresql-superuser
+      - name: registration-script
+        configMap:
+          name: {{ include "monad-indexer.fullname" . }}-citus-worker-registration
+{{- end }}

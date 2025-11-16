@@ -1,0 +1,64 @@
+{{- if and .Values.postgresql.enabled .Values.postgresql.citusWorker.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-citus-worker-init
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: citus-worker-init
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        {{- include "monad-indexer.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: citus-worker-init
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: init-worker
+        image: ghcr.io/cloudnative-pg/postgresql:17
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          echo "Waiting for Citus worker to be ready..."
+          until pg_isready -h {{ include "monad-indexer.fullname" . }}-citus-worker-0.{{ include "monad-indexer.fullname" . }}-citus-worker.{{ .Release.Namespace }}.svc.cluster.local -U postgres; do
+            echo "Worker not ready yet, waiting..."
+            sleep 5
+          done
+
+          echo "Worker is ready! Creating extensions..."
+
+          # Get password from secret
+          export PGPASSWORD=$(cat /run/secrets/postgres-password/password)
+
+          psql -h {{ include "monad-indexer.fullname" . }}-citus-worker-0.{{ include "monad-indexer.fullname" . }}-citus-worker.{{ .Release.Namespace }}.svc.cluster.local \
+               -U postgres \
+               -d postgres \
+               <<-EOSQL
+            -- Create Citus extension
+            CREATE EXTENSION IF NOT EXISTS citus;
+
+            -- Create pg_cron extension
+            CREATE EXTENSION IF NOT EXISTS pg_cron;
+
+            -- Verify extensions
+            SELECT extname, extversion FROM pg_extension WHERE extname IN ('citus', 'pg_cron');
+          EOSQL
+
+          echo "Citus worker initialization complete!"
+          echo "Extensions created successfully."
+        volumeMounts:
+        - name: postgres-password
+          mountPath: /run/secrets/postgres-password
+          readOnly: true
+      volumes:
+      - name: postgres-password
+        secret:
+          secretName: {{ include "monad-indexer.fullname" . }}-postgresql-superuser
+{{- end }}
