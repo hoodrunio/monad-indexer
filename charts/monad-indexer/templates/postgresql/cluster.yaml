@@ -92,7 +92,8 @@ spec:
       # For single-node clusters, coordinator connects to itself as worker
       # Use host authentication (trust for localhost, password for remote workers)
       # This allows seamless scaling: add workers by updating pg_hba.conf only
-      citus.node_conninfo: "sslmode=prefer"
+      # SSL disabled for internal Kubernetes network communication (no overhead, simpler config)
+      citus.node_conninfo: "sslmode=disable"
       {{- end }}
 
       # ============================================================

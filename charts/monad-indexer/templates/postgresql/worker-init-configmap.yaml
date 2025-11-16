@@ -40,7 +40,8 @@ data:
     listen_addresses = '*'
 
     # Citus configuration
-    citus.node_conninfo = 'sslmode=prefer'
+    # SSL disabled for internal Kubernetes network communication (no overhead, simpler config)
+    citus.node_conninfo = 'sslmode=disable'
     cron.database_name = 'blockscout'
 
     # ============================================================

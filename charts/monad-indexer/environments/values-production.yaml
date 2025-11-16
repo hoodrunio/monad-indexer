@@ -340,9 +340,9 @@ postgresql:
     replicaCount: 3  # High availability
     poolMode: "transaction"  # Release connection after each transaction
     maxClientConn: 10000  # High - allows many client connections
-    defaultPoolSize: 40
-    maxDbConnections: 60
-    reservePoolSize: 5   # Minimal emergency buffer
+    defaultPoolSize: 100  # Increased from 40 - blockchain indexer needs high concurrency (50+ connections per backend)
+    maxDbConnections: 150  # Increased from 60 - total capacity: 3×150=450 connections
+    reservePoolSize: 10   # Increased emergency buffer from 5
 
     # Timeouts
     serverIdleTimeout: 300        # Recycle idle connections
@@ -355,10 +355,10 @@ postgresql:
 
     resources:
       requests:
-        cpu: "200m"
-        memory: "512Mi"
+        cpu: "500m"  # Increased from 200m - higher pool size needs more CPU
+        memory: "1Gi"  # Increased from 512Mi - more connections need more memory
       limits:
-        memory: "1Gi"
+        memory: "2Gi"  # Increased from 1Gi - safety margin for connection overhead
 
     # Node selector to place pooler pods on node1 (now safe with fixed anti-affinity)
     nodeSelector:
