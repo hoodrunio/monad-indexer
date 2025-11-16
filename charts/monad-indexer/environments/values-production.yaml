@@ -15,7 +15,7 @@ backend:
     tag: "9.2.2"
     pullPolicy: Always
 
-  replicaCount: 2  # Reduced from 3 - fewer, more powerful pods
+  replicaCount: 1  # Reduced from 3 - fewer, more powerful pods
 
   resources:
     requests:
