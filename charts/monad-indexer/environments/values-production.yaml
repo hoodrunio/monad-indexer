@@ -424,6 +424,10 @@ postgresql:
     # Pod anti-affinity - not needed (single worker)
     affinity: {}
 
+  # Node selector for PostgreSQL pods - schedule on node2 (128GB RAM)
+  nodeSelector:
+    postgres-role: primary
+
   # Disable pod anti-affinity for local storage compatibility
   affinity:
     enablePodAntiAffinity: false  # Disabled to avoid conflicts with local storage PVC node affinity
