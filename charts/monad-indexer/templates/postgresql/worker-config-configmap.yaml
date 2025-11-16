@@ -20,7 +20,6 @@ data:
     echo "Creating Citus extension..."
     psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
       CREATE EXTENSION IF NOT EXISTS citus;
-      CREATE EXTENSION IF NOT EXISTS pg_cron;
     EOSQL
 
     echo "Citus worker initialization complete!"
@@ -32,7 +31,7 @@ data:
     # PostgreSQL configuration for Citus worker
     cat >> ${PGDATA}/postgresql.conf <<-EOF
     # Citus worker configuration
-    shared_preload_libraries = 'citus,pg_cron'
+    shared_preload_libraries = 'citus'
     citus.node_conninfo = 'sslmode=prefer'
 
     # Memory configuration

@@ -41,18 +41,15 @@ spec:
                -U postgres \
                -d postgres \
                <<-EOSQL
-            -- Create Citus extension
+            -- Create Citus extension (pg_cron not needed on worker)
             CREATE EXTENSION IF NOT EXISTS citus;
 
-            -- Create pg_cron extension
-            CREATE EXTENSION IF NOT EXISTS pg_cron;
-
-            -- Verify extensions
-            SELECT extname, extversion FROM pg_extension WHERE extname IN ('citus', 'pg_cron');
+            -- Verify extension
+            SELECT extname, extversion FROM pg_extension WHERE extname = 'citus';
           EOSQL
 
           echo "Citus worker initialization complete!"
-          echo "Extensions created successfully."
+          echo "Citus extension created successfully."
         volumeMounts:
         - name: postgres-password
           mountPath: /run/secrets/postgres-password
