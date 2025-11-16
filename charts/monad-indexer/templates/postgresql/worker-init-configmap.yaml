@@ -106,9 +106,13 @@ data:
 
     # Citus node-to-node communication (MUST be before catch-all)
     # Trust internal Kubernetes networks for coordinator-worker communication
+    # Allow both postgres (admin) and blockscout (app) users
     host    all             postgres        10.0.0.0/8              trust
     host    all             postgres        172.16.0.0/12           trust
     host    all             postgres        192.168.0.0/16          trust
+    host    all             blockscout      10.0.0.0/8              trust
+    host    all             blockscout      172.16.0.0/12           trust
+    host    all             blockscout      192.168.0.0/16          trust
 
     # Application connections
     host    all             all             all                     scram-sha-256
