@@ -49,10 +49,11 @@ backend:
     enabled: true
     minAvailable: 1  # Reduced from 2 - minimum 1 pod must be available (2 total pods)
 
-  # Node selector to place backend pods on node2 (read-heavy, close to replica)
-  # Node2: 125GB RAM worker node with PostgreSQL replica for optimal read performance
+  # Node selector to place backend pods on ubuntu node (worker + backend)
+  # ubuntu: 64GB RAM - Worker node with lighter workload
+  # node2: 128GB RAM - Coordinator with heavier workload (query planning, routing, aggregation)
   nodeSelector:
-    postgres-role: replica  # node2 (worker)
+    postgres-role: worker  # ubuntu (64GB) - worker + backend
 
   # Pod affinity to distribute across nodes (optional - since we prefer node2)
   affinity:
