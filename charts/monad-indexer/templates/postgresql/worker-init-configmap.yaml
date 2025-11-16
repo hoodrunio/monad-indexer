@@ -1,0 +1,117 @@
+{{- if and .Values.postgresql.enabled .Values.postgresql.citusWorker.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-citus-worker-init
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: citus-worker-init
+data:
+  # Init script runs during database initialization (before PostgreSQL starts)
+  01-init-citus.sh: |
+    #!/bin/bash
+    set -e
+
+    echo "Initializing Citus worker database..."
+
+    # Create blockscout database if not exists
+    psql -v ON_ERROR_STOP=0 --username "$POSTGRES_USER" --dbname postgres <<-EOSQL
+      SELECT 'CREATE DATABASE blockscout'
+      WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'blockscout')\gexec
+    EOSQL
+
+    # Create Citus extension
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname blockscout <<-EOSQL
+      CREATE EXTENSION IF NOT EXISTS citus;
+      CREATE EXTENSION IF NOT EXISTS pg_cron;
+    EOSQL
+
+    echo "Citus worker initialization complete!"
+
+  # Custom postgresql.conf - appended to auto-generated config
+  postgresql.conf: |
+    # ============================================================
+    # CITUS WORKER CONFIGURATION
+    # ============================================================
+    # IMPORTANT: shared_preload_libraries must be set via POSTGRES_INITDB_ARGS or command
+    # We set it via environment variable in the StatefulSet
+
+    # Citus configuration
+    citus.node_conninfo = 'sslmode=prefer'
+    cron.database_name = 'blockscout'
+
+    # ============================================================
+    # MEMORY CONFIGURATION
+    # ============================================================
+    shared_buffers = {{ .Values.postgresql.citusWorker.config.sharedBuffers | default "6GB" }}
+    effective_cache_size = {{ .Values.postgresql.citusWorker.config.effectiveCacheSize | default "18GB" }}
+    maintenance_work_mem = {{ .Values.postgresql.citusWorker.config.maintenanceWorkMem | default "2GB" }}
+    work_mem = {{ .Values.postgresql.citusWorker.config.workMem | default "512MB" }}
+
+    # ============================================================
+    # CONNECTION SETTINGS
+    # ============================================================
+    max_connections = {{ .Values.postgresql.citusWorker.config.maxConnections | default "300" }}
+
+    # ============================================================
+    # WAL CONFIGURATION
+    # ============================================================
+    wal_buffers = 64MB
+    max_wal_size = 4GB
+    min_wal_size = 512MB
+    checkpoint_timeout = 15min
+    checkpoint_completion_target = 0.9
+
+    # ============================================================
+    # PERFORMANCE TUNING
+    # ============================================================
+    random_page_cost = 1.1
+    effective_io_concurrency = 200
+    synchronous_commit = off
+
+    # ============================================================
+    # LOGGING
+    # ============================================================
+    log_line_prefix = '%t [%p]: [%l-1] user=%u,db=%d,app=%a,client=%h '
+    log_connections = on
+    log_disconnections = on
+    log_checkpoints = on
+    log_lock_waits = on
+
+    # ============================================================
+    # PARALLEL QUERY
+    # ============================================================
+    max_worker_processes = 8
+    max_parallel_workers_per_gather = 4
+    max_parallel_workers = 8
+
+    # ============================================================
+    # AUTOVACUUM
+    # ============================================================
+    autovacuum = on
+    autovacuum_max_workers = 4
+    autovacuum_naptime = 10s
+
+  # Custom pg_hba.conf
+  pg_hba.conf: |
+    # TYPE  DATABASE        USER            ADDRESS                 METHOD
+
+    # Trust localhost
+    local   all             all                                     trust
+    host    all             all             127.0.0.1/32            trust
+    host    all             all             ::1/128                 trust
+
+    # Citus node-to-node communication (MUST be before catch-all)
+    # Trust internal Kubernetes networks for coordinator-worker communication
+    host    all             postgres        10.0.0.0/8              trust
+    host    all             postgres        172.16.0.0/12           trust
+    host    all             postgres        192.168.0.0/16          trust
+
+    # Application connections
+    host    all             all             all                     scram-sha-256
+
+    # Replication
+    local   replication     all                                     trust
+    host    replication     all             127.0.0.1/32            trust
+    host    replication     all             ::1/128                 trust
+{{- end }}

@@ -35,10 +35,54 @@ spec:
         fsGroup: 999  # postgres group
         runAsUser: 999  # postgres user
         runAsNonRoot: true
+      initContainers:
+      # Init container to merge custom config with base config
+      - name: config-init
+        image: "{{ .Values.postgresql.image.registry }}/{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+          echo "Preparing PostgreSQL configuration..."
+
+          # Copy base configs if they exist, otherwise create minimal ones
+          if [ -f /usr/share/postgresql/postgresql.conf.sample ]; then
+            cp /usr/share/postgresql/postgresql.conf.sample /config-merged/postgresql.conf
+          else
+            touch /config-merged/postgresql.conf
+          fi
+
+          # Add shared_preload_libraries at the top (must be set before other params)
+          echo "# CITUS CONFIGURATION - AUTO-GENERATED" > /config-merged/postgresql-citus.conf
+          echo "shared_preload_libraries = 'citus,pg_cron'" >> /config-merged/postgresql-citus.conf
+          echo "" >> /config-merged/postgresql-citus.conf
+
+          # Append custom config
+          cat /config-source/postgresql.conf >> /config-merged/postgresql-citus.conf
+
+          # Copy pg_hba.conf
+          cp /config-source/pg_hba.conf /config-merged/pg_hba.conf
+
+          echo "Configuration prepared successfully"
+        volumeMounts:
+        - name: config
+          mountPath: /config-source
+          readOnly: true
+        - name: config-merged
+          mountPath: /config-merged
       containers:
       - name: postgres
         image: "{{ .Values.postgresql.image.registry }}/{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
         imagePullPolicy: {{ .Values.postgresql.image.pullPolicy | default "IfNotPresent" }}
+        command:
+        - docker-entrypoint.sh
+        args:
+        - postgres
+        - -c
+        - config_file=/etc/postgresql-merged/postgresql-citus.conf
+        - -c
+        - hba_file=/etc/postgresql-merged/pg_hba.conf
         env:
         - name: POSTGRES_PASSWORD
           valueFrom:
@@ -49,9 +93,11 @@ spec:
           value: "postgres"
         - name: PGDATA
           value: /var/lib/postgresql/data/pgdata
-        # Citus worker configuration
-        - name: CITUS_MODE
-          value: "worker"
+        - name: POSTGRES_INITDB_ARGS
+          value: "--encoding=UTF8 --locale=C"
+        # Citus worker configuration via environment
+        - name: POSTGRES_DB
+          value: "blockscout"
         ports:
         - name: postgresql
           containerPort: 5432
@@ -81,10 +127,11 @@ spec:
           mountPath: /var/lib/postgresql/data
         - name: dshm
           mountPath: /dev/shm
-        {{- if .Values.postgresql.citusWorker.config }}
-        - name: worker-config
+        - name: init-scripts
           mountPath: /docker-entrypoint-initdb.d/
-        {{- end }}
+        - name: config-merged
+          mountPath: /etc/postgresql-merged/
+          readOnly: true
         resources:
           {{- toYaml .Values.postgresql.citusWorker.resources | nindent 10 }}
       volumes:
@@ -96,11 +143,23 @@ spec:
           sizeLimit: {{ .Values.postgresql.citusWorker.ephemeralVolumesSizeLimit.shm }}
           {{- end }}
           {{- end }}
-      {{- if .Values.postgresql.citusWorker.config }}
-      - name: worker-config
+      - name: init-scripts
         configMap:
-          name: {{ include "monad-indexer.fullname" . }}-citus-worker-config
-      {{- end }}
+          name: {{ include "monad-indexer.fullname" . }}-citus-worker-init
+          items:
+          - key: 01-init-citus.sh
+            path: 01-init-citus.sh
+            mode: 0755
+      - name: config
+        configMap:
+          name: {{ include "monad-indexer.fullname" . }}-citus-worker-init
+          items:
+          - key: postgresql.conf
+            path: postgresql.conf
+          - key: pg_hba.conf
+            path: pg_hba.conf
+      - name: config-merged
+        emptyDir: {}
   volumeClaimTemplates:
   - metadata:
       name: data
