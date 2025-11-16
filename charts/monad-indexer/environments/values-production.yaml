@@ -314,10 +314,10 @@ postgresql:
         cpu: "8000m"  # Can burst up to 8 cores (node2 has more resources)
         memory: "40Gi"  # Matching primary for consistency
 
-    # Node affinity to schedule on node2 (worker node with more memory)
-    # Node2: 125GB RAM, 66GB available - optimized for read-heavy workload
+    # Node affinity to schedule on node2 (primary node - 128GB RAM)
+    # Node2: 128GB RAM, optimized for read-heavy workload
     nodeSelector:
-      postgres-role: replica  # node2 (worker)
+      postgres-role: primary  # node2 (labeled as primary)
 
   # Citus configuration - distributed PostgreSQL with horizontal scaling
   citus:
@@ -390,9 +390,9 @@ postgresql:
       limits:
         memory: "512Mi"
 
-    # Co-locate with replica on node2
+    # Co-locate with replica on node2 (primary node - 128GB RAM)
     nodeSelector:
-      postgres-role: replica  # Schedule on node2 with replica
+      postgres-role: primary  # Schedule on node2 (labeled as primary)
 
   # Citus Worker Configuration - Distributed PostgreSQL Worker Node
   # This worker runs on ubuntu node (64GB RAM) to distribute data load
