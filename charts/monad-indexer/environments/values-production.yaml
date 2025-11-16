@@ -49,17 +49,16 @@ backend:
     enabled: true
     minAvailable: 1  # Reduced from 2 - minimum 1 pod must be available (2 total pods)
 
-  # Node selector to place backend pods on ubuntu node (worker + backend)
-  # ubuntu: 64GB RAM - Worker node with lighter workload
-  # node2: 128GB RAM - Coordinator with heavier workload (query planning, routing, aggregation)
-  nodeSelector:
-    postgres-role: worker  # ubuntu (64GB) - worker + backend
+  # Node selector removed - allow scheduling on any node for better distribution
+  # Backend pods will be distributed across nodes via topologySpreadConstraints below
+  # nodeSelector:
+  #   postgres-role: worker  # Removed to allow distribution
 
-  # Pod affinity to distribute across nodes (optional - since we prefer node2)
+  # Pod anti-affinity to prefer different nodes (soft requirement)
   affinity:
     podAntiAffinity:
       preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 50  # Reduced weight since we prefer node2 concentration
+        - weight: 100  # High weight to strongly prefer different nodes
           podAffinityTerm:
             topologyKey: kubernetes.io/hostname
             labelSelector:
@@ -129,14 +128,26 @@ backend:
     api:
       corsAllowedOrigin: "https://monad.hoodscan.io"
 
-  # Topology spread for multi-zone (adjusted for single-node)
+  # Topology spread to distribute backend pods across nodes
+  # Ensures balanced distribution: if 2 pods, 1 per node; if 3 pods, 2 on one node, 1 on other
   topologySpreadConstraints:
-    - maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway  # Changed from DoNotSchedule for single-node
+    - maxSkew: 1  # Max difference between node pod counts
+      topologyKey: kubernetes.io/hostname  # Spread across physical nodes
+      whenUnsatisfiable: ScheduleAnyway  # Soft requirement - schedule anyway if can't satisfy
       labelSelector:
         matchLabels:
           app.kubernetes.io/component: backend
+
+  # Init containers resource limits (override defaults)
+  initContainers:
+    dbMigration:
+      enabled: true
+      resources:
+        requests:
+          cpu: "500m"  # Increased for faster migrations
+          memory: "1Gi"  # Increased from 256Mi - was causing OOM
+        limits:
+          memory: "2Gi"  # Increased from 512Mi - migrations need more memory with Citus
 
 # Microservices - full HA
 microservices:
