@@ -87,7 +87,7 @@ backend:
   config:
     # Database configuration - PROPERLY BALANCED FOR CONNECTION POOL
     database:
-      poolSize: 50  # PHASE 1 FIX: Reduced from 80 (2 pods × 50 = 100 connections needed)
+      poolSize: 30  # PHASE 1 FIX: Reduced from 80 (2 pods × 50 = 100 connections needed)
       poolSizeApi: 50  # For API reads (will use read replica via DATABASE_READ_ONLY_API_URL)
       replicaMaxLag: "5m"  # Max lag before failback to primary
       queueTarget: "100"  # Increased from 50ms default to reduce connection pressure
