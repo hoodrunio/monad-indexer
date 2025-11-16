@@ -618,19 +618,27 @@ BEGIN
             CONTINUE;
         END IF;
 
-        -- Check if FK already exists
+        -- Check if FK already exists (check both coordinator and worker nodes for Citus)
         IF EXISTS (
-            SELECT 1 FROM pg_constraint
-            WHERE conname = v_fk_name AND contype = 'f'
+            SELECT 1 FROM pg_constraint c
+            JOIN pg_class t ON c.conrelid = t.oid
+            WHERE c.conname = v_fk_name
+              AND c.contype = 'f'
+              AND t.relname = v_table_name
         ) THEN
-            RAISE NOTICE '[SKIP] FK % already exists', v_fk_name;
+            RAISE NOTICE '[SKIP] FK % already exists on table %', v_fk_name, v_table_name;
             CONTINUE;
         END IF;
 
-        -- Recreate the FK
-        RAISE NOTICE '[CREATE] Adding FK % to table %', v_fk_name, v_table_name;
-        EXECUTE format('ALTER TABLE %I ADD CONSTRAINT %I %s', v_table_name, v_fk_name, v_fk_def);
-        RAISE NOTICE '[OK] FK % created successfully', v_fk_name;
+        -- Recreate the FK (use BEGIN/EXCEPTION to handle already exists errors)
+        BEGIN
+            RAISE NOTICE '[CREATE] Adding FK % to table %', v_fk_name, v_table_name;
+            EXECUTE format('ALTER TABLE %I ADD CONSTRAINT %I %s', v_table_name, v_fk_name, v_fk_def);
+            RAISE NOTICE '[OK] FK % created successfully', v_fk_name;
+        EXCEPTION
+            WHEN duplicate_object THEN
+                RAISE NOTICE '[SKIP] FK % already exists (caught duplicate)', v_fk_name;
+        END;
     END LOOP;
 
     RAISE NOTICE '';
