@@ -77,12 +77,14 @@ backend:
     INDEXER_DISABLE_EMPTY_BLOCKS_SANITIZER: "true"  # Disable empty blocks sanitizer
     INDEXER_DISABLE_REPLACED_TRANSACTION_FETCHER: "true"  # Disable for Citus compatibility (FOR UPDATE not supported)
   # Extra environment variables from ExternalSecret
-  extraEnv:
-    - name: DATABASE_READ_ONLY_API_URL
-      valueFrom:
-        secretKeyRef:
-          name: monad-indexer-production-backend-secret  # ExternalSecret will create this
-          key: DATABASE_READ_ONLY_API_URL
+  # Temporarily disable read-only DB URL until replica is healthy.
+  extraEnv: []
+  #extraEnv:
+   # - name: DATABASE_READ_ONLY_API_URL
+    #  valueFrom:
+    #    secretKeyRef:
+    #      name: monad-indexer-production-backend-secret  # ExternalSecret will create this
+    #      key: DATABASE_READ_ONLY_API_URL
 
   config:
     # Database configuration - PROPERLY BALANCED FOR CONNECTION POOL
@@ -366,7 +368,7 @@ postgresql:
 
   # Read-Only Pooler - NEW: For API read queries to use replica
   readOnlyPooler:
-    enabled: true  # Enable RO pooler for read replica
+    enabled: false  # Enable RO pooler for read replica
     replicaCount: 1  # Fewer instances than RW (reads are lighter)
     poolMode: "transaction"  # Connection multiplexing for API queries
     maxClientConn: 5000  # High - API generates many short-lived connections
