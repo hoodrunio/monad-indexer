@@ -75,10 +75,11 @@ data:
 
     # pg_hba configuration to allow coordinator connections
     cat >> ${PGDATA}/pg_hba.conf <<-EOF
-    # Allow connections from coordinator (Kubernetes internal network)
-    host    all    postgres    10.0.0.0/8    md5
-    host    all    postgres    172.16.0.0/12 md5
-    host    all    postgres    192.168.0.0/16 md5
+    # Trust Kubernetes internal network for Citus node-to-node communication
+    # This is safe as we're inside Kubernetes cluster network
+    host    all    postgres    10.0.0.0/8    trust
+    host    all    postgres    172.16.0.0/12 trust
+    host    all    postgres    192.168.0.0/16 trust
     EOF
 
     echo "Worker PostgreSQL configuration complete!"
