@@ -36,6 +36,9 @@ data:
     # IMPORTANT: shared_preload_libraries must be set via POSTGRES_INITDB_ARGS or command
     # We set it via environment variable in the StatefulSet
 
+    # Network configuration
+    listen_addresses = '*'
+
     # Citus configuration
     citus.node_conninfo = 'sslmode=prefer'
     cron.database_name = 'blockscout'
