@@ -552,7 +552,7 @@ statsPostgresql:
   # Node2: 125GB RAM worker node - analytics database co-located with stats microservice
   primary:
     nodeSelector:
-      postgres-role: replica  # node2 (worker)
+      postgres-role: primary  # node2 (worker)
 
 # External Secrets configuration for production environment
 externalSecrets:
