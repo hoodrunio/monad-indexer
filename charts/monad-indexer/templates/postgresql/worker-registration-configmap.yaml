@@ -27,22 +27,28 @@ data:
     FROM pg_dist_node
     ORDER BY nodeid;
 
-    -- Step 3: Add coordinator itself as a worker (localhost)
+    -- Step 3: Set coordinator hostname (required for multi-node setup)
+    -- Citus needs to know the coordinator's hostname for worker-to-coordinator communication
+    \echo ''
+    \echo 'Setting coordinator hostname...'
+    SELECT citus_set_coordinator_host('{{ include "monad-indexer.fullname" . }}-postgresql-rw.{{ .Release.Namespace }}.svc.cluster.local', 5432);
+
+    -- Step 4: Add coordinator itself as a worker (using service DNS name, not localhost)
     -- This allows the coordinator to store shards locally
     \echo ''
-    \echo 'Adding coordinator as local worker (localhost)...'
+    \echo 'Adding coordinator as local worker...'
     DO $$
     BEGIN
-        -- Check if localhost is already registered
-        IF NOT EXISTS (SELECT 1 FROM pg_dist_node WHERE nodename = 'localhost' AND nodeport = 5432) THEN
-            PERFORM citus_add_node('localhost', 5432);
-            RAISE NOTICE 'Coordinator (localhost) registered successfully';
+        -- Check if coordinator is already registered
+        IF NOT EXISTS (SELECT 1 FROM pg_dist_node WHERE nodename = '{{ include "monad-indexer.fullname" . }}-postgresql-rw.{{ .Release.Namespace }}.svc.cluster.local' AND nodeport = 5432) THEN
+            PERFORM citus_add_node('{{ include "monad-indexer.fullname" . }}-postgresql-rw.{{ .Release.Namespace }}.svc.cluster.local', 5432);
+            RAISE NOTICE 'Coordinator registered successfully as worker';
         ELSE
-            RAISE NOTICE 'Coordinator (localhost) already registered, skipping';
+            RAISE NOTICE 'Coordinator already registered, skipping';
         END IF;
     END $$;
 
-    -- Step 4: Add remote worker node (ubuntu node)
+    -- Step 5: Add remote worker node (ubuntu node)
     \echo ''
     \echo 'Adding remote worker node...'
     DO $$
@@ -56,19 +62,19 @@ data:
         END IF;
     END $$;
 
-    -- Step 5: Verify all workers are registered
+    -- Step 6: Verify all workers are registered
     \echo ''
     \echo 'Registered worker nodes:'
     SELECT nodeid, nodename, nodeport, isactive, noderole
     FROM pg_dist_node
     ORDER BY nodeid;
 
-    -- Step 6: Check worker health
+    -- Step 7: Check worker health
     \echo ''
     \echo 'Checking worker node health...'
     SELECT * FROM citus_check_cluster_node_health();
 
-    -- Step 7: Get active worker nodes
+    -- Step 8: Get active worker nodes
     \echo ''
     \echo 'Active worker nodes:'
     SELECT * FROM citus_get_active_worker_nodes();
