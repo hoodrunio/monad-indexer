@@ -1,6 +1,6 @@
 # Gateway for Production Environment
 # Public IP: 65.109.80.235
-# Domains: cd.hoodscan.io, monad-tn1-indexer.hoodscan.io
+# Domains: cd.hoodscan.io, monad-mainnet-indexer.hoodscan.io
 
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
@@ -42,11 +42,11 @@ spec:
           - name: argocd-tls
             namespace: argocd
 
-    # HTTPS listener for Monad Indexer (monad-tn1-indexer.hoodscan.io)
+    # HTTPS listener for Monad Indexer (monad-mainnet-indexer.hoodscan.io)
     - name: https-monad-indexer
       protocol: HTTPS
       port: 443
-      hostname: monad-tn1-indexer.hoodscan.io
+      hostname: monad-mainnet-indexer.hoodscan.io
       allowedRoutes:
         namespaces:
           from: Same  # App is in same namespace

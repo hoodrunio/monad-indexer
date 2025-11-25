@@ -167,7 +167,7 @@ gateway:
   annotations:
     prometheus.io/scrape: "true"
   hosts:
-    - host: monad-tn1-indexer.hoodscan.io
+    - host: monad-mainnet-indexer.hoodscan.io
       paths:
         - path: /
           pathType: PathPrefix

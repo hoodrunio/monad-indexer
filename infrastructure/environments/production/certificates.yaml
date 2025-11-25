@@ -24,7 +24,7 @@ spec:
     - key encipherment
 
 ---
-# Certificate for Monad Indexer Backend (monad-tn1-indexer.hoodscan.io)
+# Certificate for Monad Indexer Backend (monad-mainnet-indexer.hoodscan.io)
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -40,7 +40,7 @@ spec:
     name: letsencrypt-prod
     kind: ClusterIssuer
   dnsNames:
-    - monad-tn1-indexer.hoodscan.io
+    - monad-mainnet-indexer.hoodscan.io
   usages:
     - digital signature
     - key encipherment

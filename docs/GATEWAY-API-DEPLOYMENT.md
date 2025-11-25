@@ -17,7 +17,7 @@ argocd version
 kubectl get pods -n cert-manager
 
 # 4. DNS A record is configured
-dig monad-tn1-indexer.hoodscan.io +short
+dig monad-mainnet-indexer.hoodscan.io +short
 # Should return: 95.216.177.23
 ```
 
@@ -222,7 +222,7 @@ kubectl get endpoints monad-indexer-backend -n monad-indexer-dev
 kubectl get httproute -n monad-indexer-dev
 # Expected:
 # NAME                        HOSTNAMES                            PARENT REFS
-# monad-indexer-backend       ["monad-tn1-indexer.hoodscan.io"]   monad-indexer-gateway
+# monad-indexer-backend       ["monad-mainnet-indexer.hoodscan.io"]   monad-indexer-gateway
 
 # 6. Check HTTPRoute status
 kubectl describe httproute monad-indexer-backend -n monad-indexer-dev
@@ -263,20 +263,20 @@ kubectl get gateway monad-indexer-gateway -n monad-indexer-dev \
 # Expected: 95.216.177.23
 
 # 2. Test HTTP (should redirect to HTTPS)
-curl -I http://monad-tn1-indexer.hoodscan.io
+curl -I http://monad-mainnet-indexer.hoodscan.io
 # Expected: HTTP/1.1 301 Moved Permanently or 308 Permanent Redirect
 
 # 3. Test HTTPS
-curl -I https://monad-tn1-indexer.hoodscan.io
+curl -I https://monad-mainnet-indexer.hoodscan.io
 # Expected: HTTP/2 200
 
 # 4. Test API health endpoint
-curl https://monad-tn1-indexer.hoodscan.io/api/health/liveness
+curl https://monad-mainnet-indexer.hoodscan.io/api/health/liveness
 # Expected: {"healthy":true}
 
 # 5. Verify TLS certificate
-echo | openssl s_client -connect monad-tn1-indexer.hoodscan.io:443 \
-  -servername monad-tn1-indexer.hoodscan.io 2>/dev/null | \
+echo | openssl s_client -connect monad-mainnet-indexer.hoodscan.io:443 \
+  -servername monad-mainnet-indexer.hoodscan.io 2>/dev/null | \
   openssl x509 -noout -issuer -dates
 # Expected:
 # issuer=C = US, O = Let's Encrypt, CN = R12
@@ -352,17 +352,17 @@ ENDPOINTS=$(kubectl get endpoints monad-indexer-backend -n monad-indexer-dev -o 
 echo ""
 
 echo "6. Testing HTTP connectivity..."
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://monad-tn1-indexer.hoodscan.io || echo "000")
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://monad-mainnet-indexer.hoodscan.io || echo "000")
 [ "$HTTP_CODE" = "301" ] || [ "$HTTP_CODE" = "308" ] && echo "✓ HTTP redirects to HTTPS (${HTTP_CODE})" || echo "✗ HTTP unexpected response (${HTTP_CODE})"
 echo ""
 
 echo "7. Testing HTTPS connectivity..."
-HTTPS_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://monad-tn1-indexer.hoodscan.io || echo "000")
+HTTPS_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://monad-mainnet-indexer.hoodscan.io || echo "000")
 [ "$HTTPS_CODE" = "200" ] && echo "✓ HTTPS returns 200 OK" || echo "✗ HTTPS unexpected response (${HTTPS_CODE})"
 echo ""
 
 echo "8. Checking TLS certificate..."
-ISSUER=$(echo | openssl s_client -connect monad-tn1-indexer.hoodscan.io:443 -servername monad-tn1-indexer.hoodscan.io 2>/dev/null | openssl x509 -noout -issuer | grep "Let's Encrypt")
+ISSUER=$(echo | openssl s_client -connect monad-mainnet-indexer.hoodscan.io:443 -servername monad-mainnet-indexer.hoodscan.io 2>/dev/null | openssl x509 -noout -issuer | grep "Let's Encrypt")
 [ -n "$ISSUER" ] && echo "✓ TLS certificate issued by Let's Encrypt" || echo "✗ TLS certificate NOT from Let's Encrypt"
 echo ""
 

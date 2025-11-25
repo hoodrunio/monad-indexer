@@ -153,7 +153,7 @@ kubectl logs -n monad-indexer-production -l app.kubernetes.io/component=backend 
 kubectl logs -n monad-indexer-production -l app.kubernetes.io/component=backend -f | grep "Fetching"
 
 # Test API
-curl -s https://monad-tn1-indexer.hoodscan.io/api/v2/stats | jq
+curl -s https://monad-mainnet-indexer.hoodscan.io/api/v2/stats | jq
 
 # Check resource usage
 kubectl top nodes

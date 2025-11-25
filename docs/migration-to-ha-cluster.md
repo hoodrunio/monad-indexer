@@ -304,13 +304,13 @@ kubectl top pods -n monad-indexer-production
 ### 6.2 Test API Endpoints
 ```bash
 # Test backend API
-curl -s https://monad-tn1-indexer.hoodscan.io/api/v2/stats | jq
+curl -s https://monad-mainnet-indexer.hoodscan.io/api/v2/stats | jq
 
 # Test block endpoint
-curl -s https://monad-tn1-indexer.hoodscan.io/api/v2/blocks?type=block | jq
+curl -s https://monad-mainnet-indexer.hoodscan.io/api/v2/blocks?type=block | jq
 
 # Test transaction endpoint
-curl -s https://monad-tn1-indexer.hoodscan.io/api/v2/transactions | jq
+curl -s https://monad-mainnet-indexer.hoodscan.io/api/v2/transactions | jq
 ```
 
 ### 6.3 Run Verification Script

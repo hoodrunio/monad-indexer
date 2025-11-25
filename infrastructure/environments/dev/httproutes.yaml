@@ -39,7 +39,7 @@ spec:
       namespace: monad-indexer-dev
       sectionName: https-monad-indexer
   hostnames:
-    - monad-tn1-indexer.hoodscan.io
+    - monad-mainnet-indexer.hoodscan.io
   rules:
     - backendRefs:
         - name: backend

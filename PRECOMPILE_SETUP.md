@@ -119,7 +119,7 @@ WHERE address_hash = decode('0000000000000000000000000000000000001000', 'hex');
 
 ### 3. Verify in Blockscout UI
 
-1. Navigate to: `https://monad-tn1-indexer.hoodscan.io/address/0x0000000000000000000000000000000000001000`
+1. Navigate to: `https://monad-mainnet-indexer.hoodscan.io/address/0x0000000000000000000000000000000000001000`
 2. Check the **Contract** tab
 3. You should see:
    - Contract name: **Staking Precompile**

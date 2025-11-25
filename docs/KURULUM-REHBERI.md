@@ -173,7 +173,7 @@ cilium   io.cilium/gateway-controller   True       10s
 ### Environment-Specific Yaklaşım
 
 Her environment'ın kendi:
-- **Domain'leri** (cd.hoodscan.io, monad-tn1-indexer.hoodscan.io vs.)
+- **Domain'leri** (cd.hoodscan.io, monad-mainnet-indexer.hoodscan.io vs.)
 - **Public IP'si** (95.216.177.23, 88.99.11.22 vs.)
 - **Gateway'i** (listener'lar, TLS sertifikaları)
 - **HTTPRoute'ları** (routing kuralları)
@@ -231,7 +231,7 @@ Environment kurulduktan sonra, DNS kayıtlarını oluşturun:
 ```bash
 # Dev environment için
 cd.hoodscan.io                    A    95.216.177.23
-monad-tn1-indexer.hoodscan.io     A    95.216.177.23
+monad-mainnet-indexer.hoodscan.io     A    95.216.177.23
 ```
 
 ---
@@ -263,7 +263,7 @@ infrastructure/
 │   ├── dev/
 │   │   ├── config.env           # Environment config
 │   │   ├── lb-ippool.yaml       # IP: 95.216.177.23
-│   │   ├── gateway.yaml         # cd.hoodscan.io, monad-tn1-indexer.hoodscan.io
+│   │   ├── gateway.yaml         # cd.hoodscan.io, monad-mainnet-indexer.hoodscan.io
 │   │   ├── certificates.yaml    # TLS sertifikalar
 │   │   └── httproutes.yaml      # Routing kuralları
 │   │
@@ -350,12 +350,12 @@ kubectl describe ciliumloadbalancerippool monad-indexer-dev-public-pool
 
 **Erişim URL'leri (Dev):**
 - **ArgoCD**: https://cd.hoodscan.io
-- **Monad Indexer**: https://monad-tn1-indexer.hoodscan.io
+- **Monad Indexer**: https://monad-mainnet-indexer.hoodscan.io
 
 **Test:**
 ```bash
 curl -I https://cd.hoodscan.io
-curl -I https://monad-tn1-indexer.hoodscan.io
+curl -I https://monad-mainnet-indexer.hoodscan.io
 ```
 
 ---

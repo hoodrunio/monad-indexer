@@ -102,7 +102,7 @@ spec:
     - name: monad-indexer-gateway
       sectionName: https
   hostnames:
-    - monad-tn1-indexer.hoodscan.io
+    - monad-mainnet-indexer.hoodscan.io
   rules:
     - backendRefs:
         - name: monad-indexer-backend
@@ -124,7 +124,7 @@ metadata:
 spec:
   secretName: monad-tn1-indexer-tls
   dnsNames:
-    - monad-tn1-indexer.hoodscan.io
+    - monad-mainnet-indexer.hoodscan.io
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
@@ -225,7 +225,7 @@ kubectl describe gateway monad-indexer-gateway -n monad-indexer-dev
 # Check HTTPRoute
 kubectl get httproute -n monad-indexer-dev
 # NAME                        HOSTNAMES                            PARENT REFS
-# monad-indexer-backend       ["monad-tn1-indexer.hoodscan.io"]   monad-indexer-gateway
+# monad-indexer-backend       ["monad-mainnet-indexer.hoodscan.io"]   monad-indexer-gateway
 
 # Check HTTPRoute attachment to Gateway
 kubectl describe httproute monad-indexer-backend -n monad-indexer-dev
@@ -250,17 +250,17 @@ kubectl get secret monad-tn1-indexer-tls -n monad-indexer-dev
 
 ```bash
 # Test HTTP (should redirect to HTTPS)
-curl -I http://monad-tn1-indexer.hoodscan.io
+curl -I http://monad-mainnet-indexer.hoodscan.io
 
 # Test HTTPS
-curl -I https://monad-tn1-indexer.hoodscan.io
+curl -I https://monad-mainnet-indexer.hoodscan.io
 
 # Test API endpoint
-curl https://monad-tn1-indexer.hoodscan.io/api/health/liveness
+curl https://monad-mainnet-indexer.hoodscan.io/api/health/liveness
 
 # Check TLS certificate
-echo | openssl s_client -connect monad-tn1-indexer.hoodscan.io:443 \
-  -servername monad-tn1-indexer.hoodscan.io 2>/dev/null | \
+echo | openssl s_client -connect monad-mainnet-indexer.hoodscan.io:443 \
+  -servername monad-mainnet-indexer.hoodscan.io 2>/dev/null | \
   openssl x509 -noout -text
 ```
 
@@ -485,7 +485,7 @@ gateway:
   enabled: true
   name: "monad-indexer-gateway"
   hosts:
-    - host: monad-tn1-indexer.hoodscan.io
+    - host: monad-mainnet-indexer.hoodscan.io
       paths:
         - path: /
           pathType: Prefix
@@ -505,7 +505,7 @@ Each environment has its own Gateway resource:
 
 **Development**: `infrastructure/gateway/gateway-dev.yaml`
 - Namespace: `monad-indexer-dev`
-- Domain: `monad-tn1-indexer.hoodscan.io`
+- Domain: `monad-mainnet-indexer.hoodscan.io`
 
 **Production**: `infrastructure/gateway/gateway-production.yaml` (to be created)
 - Namespace: `monad-indexer-production`
@@ -519,11 +519,11 @@ To add new routes to the Gateway:
 ```yaml
 gateway:
   hosts:
-    - host: monad-tn1-indexer.hoodscan.io
+    - host: monad-mainnet-indexer.hoodscan.io
       paths:
         - path: /
           pathType: Prefix
-    - host: api.monad-tn1-indexer.hoodscan.io  # New route
+    - host: api.monad-mainnet-indexer.hoodscan.io  # New route
       paths:
         - path: /v2
           pathType: Prefix
@@ -606,7 +606,7 @@ gateway:
   enabled: true
   name: "monad-indexer-gateway"
   hosts:
-    - host: monad-tn1-indexer.hoodscan.io
+    - host: monad-mainnet-indexer.hoodscan.io
       paths:
         - path: /
           pathType: Prefix
