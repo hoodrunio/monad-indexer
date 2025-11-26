@@ -79,6 +79,10 @@ backend:
       coinName: "monad"
       coin: "MON"
       disabled: false
+      coingeckoCoinId: "monad"  # CoinGecko coin ID for native token price (e.g., "monad")
+      coingeckoPlatformId: "monad"  # CoinGecko platform ID for token prices (e.g., "monad")
+      nativeCoinHistorySource: "coin_gecko"  # Source for price history: coin_gecko, crypto_compare, mobula, coin_market_cap
+      marketCapHistorySource: "coin_gecko"  # Source for market cap history: coin_gecko, coin_market_cap
 
     # Microservices integration
     microservices:

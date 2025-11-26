@@ -95,10 +95,18 @@ backend:
       replicaMaxLag: "5m"  # Max lag before failback to primary
       queueTarget: "200"  # Increased from 100ms to reduce connection pressure
 
+    # Market data - CoinGecko integration for MON price
+    market:
+      coingeckoCoinId: "monad"  # https://www.coingecko.com/tr/coins/monad
+      coingeckoPlatformId: "monad"  # For token prices on Monad chain (chain_id: 143)
+      nativeCoinHistorySource: "coin_gecko"  # Use CoinGecko for price history (not crypto_compare)
+      marketCapHistorySource: "coin_gecko"  # Use CoinGecko for market cap history
+
     # NFT features
     nft:
       mediaHandlerEnabled: false
       remoteDispatcherEnabled: false
+
     # Indexer performance tuning - OPTIMIZED FOR LOCK CONTENTION
     indexer:
       performance:

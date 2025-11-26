@@ -75,6 +75,18 @@ data:
   COIN_NAME: {{ .Values.backend.config.market.coinName | default "" | quote }}
   COIN: {{ .Values.backend.config.market.coin | default "" | quote }}
   DISABLE_MARKET: {{ .Values.backend.config.market.disabled | quote }}
+  {{- if .Values.backend.config.market.coingeckoCoinId }}
+  MARKET_COINGECKO_COIN_ID: {{ .Values.backend.config.market.coingeckoCoinId | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.market.coingeckoPlatformId }}
+  MARKET_COINGECKO_PLATFORM_ID: {{ .Values.backend.config.market.coingeckoPlatformId | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.market.nativeCoinHistorySource }}
+  MARKET_NATIVE_COIN_HISTORY_SOURCE: {{ .Values.backend.config.market.nativeCoinHistorySource | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.market.marketCapHistorySource }}
+  MARKET_MARKET_CAP_HISTORY_SOURCE: {{ .Values.backend.config.market.marketCapHistorySource | quote }}
+  {{- end }}
 
   # ============================================
   # MICROSERVICES
