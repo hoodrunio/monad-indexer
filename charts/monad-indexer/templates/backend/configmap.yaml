@@ -87,6 +87,18 @@ data:
   {{- if .Values.backend.config.market.marketCapHistorySource }}
   MARKET_MARKET_CAP_HISTORY_SOURCE: {{ .Values.backend.config.market.marketCapHistorySource | quote }}
   {{- end }}
+  {{- if .Values.backend.config.market.tokensInterval }}
+  MARKET_TOKENS_INTERVAL: {{ .Values.backend.config.market.tokensInterval | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.market.tokensRefetchInterval }}
+  MARKET_TOKENS_REFETCH_INTERVAL: {{ .Values.backend.config.market.tokensRefetchInterval | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.market.coinCachePeriod }}
+  MARKET_COIN_CACHE_PERIOD: {{ .Values.backend.config.market.coinCachePeriod | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.market.tokensMaxBatchSize }}
+  MARKET_TOKENS_MAX_BATCH_SIZE: {{ .Values.backend.config.market.tokensMaxBatchSize | quote }}
+  {{- end }}
 
   # ============================================
   # MICROSERVICES

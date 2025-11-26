@@ -101,6 +101,11 @@ backend:
       coingeckoPlatformId: "monad"  # For token prices on Monad chain (chain_id: 143)
       nativeCoinHistorySource: "coin_gecko"  # Use CoinGecko for price history (not crypto_compare)
       marketCapHistorySource: "coin_gecko"  # Use CoinGecko for market cap history
+      # Rate limit friendly settings for CoinGecko free API
+      tokensInterval: "20s"  # 10s → 20s (slower batch requests)
+      tokensRefetchInterval: "1h"
+      coinCachePeriod: "10m"
+      tokensMaxBatchSize: "250"  # 500 → 250 (smaller batches)
 
     # NFT features
     nft:
