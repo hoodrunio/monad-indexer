@@ -420,12 +420,13 @@ DECLARE
     v_distribution_type TEXT; -- 'distributed' or 'reference'
     v_tables_config TEXT[][] := ARRAY[
         -- Reference tables (lookup tables, FK dependencies, or PK conflicts)
+        -- tokens: Small table (~7K rows), JOINed with token_transfers in advanced-filters API
+        --         Making it a reference table eliminates expensive repartition joins
+        --         and improves query latency from ~14s to ~0.5s
         ARRAY['blocks', 'hash', 'reference'],
         ARRAY['addresses', 'hash', 'reference'],
         ARRAY['smart_contracts', 'address_hash', 'reference'],
-
-        -- Distributed tables (high-growth, no FK conflicts)
-        ARRAY['tokens', 'contract_address_hash', 'distributed'],
+        ARRAY['tokens', 'contract_address_hash', 'reference'],
 
         -- Core blockchain tables (high-growth, co-located)
         ARRAY['transactions', 'hash', 'distributed'],
@@ -557,6 +558,43 @@ BEGIN
 
         RAISE NOTICE '[OK] Table % configured successfully', v_table_name;
     END LOOP;
+END $$;
+
+-- ============================================================================
+-- SECTION 3.1: Add Local Tables to Citus Metadata
+-- ============================================================================
+-- Tables with foreign keys to reference tables need to be in Citus metadata
+-- to prevent automatic conversion back to regular PostgreSQL tables.
+-- token_instances has FK to tokens (reference table), so it must be tracked.
+-- ============================================================================
+
+DO $$
+BEGIN
+    RAISE NOTICE '';
+    RAISE NOTICE '========================================';
+    RAISE NOTICE 'Adding Local Tables to Citus Metadata';
+    RAISE NOTICE '========================================';
+
+    -- token_instances: Has FK to tokens (reference table)
+    -- Must be added to metadata to maintain FK relationship
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'token_instances'
+    ) THEN
+        -- Check if already in Citus metadata
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_dist_partition
+            WHERE logicalrelid = 'token_instances'::regclass
+        ) THEN
+            RAISE NOTICE '[ADD] Adding token_instances to Citus metadata';
+            PERFORM citus_add_local_table_to_metadata('token_instances');
+            RAISE NOTICE '[OK] token_instances added to metadata';
+        ELSE
+            RAISE NOTICE '[SKIP] token_instances already in Citus metadata';
+        END IF;
+    ELSE
+        RAISE NOTICE '[SKIP] token_instances table does not exist yet';
+    END IF;
 END $$;
 
 -- ============================================================================
