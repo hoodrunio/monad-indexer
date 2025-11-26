@@ -280,6 +280,9 @@ postgresql:
       # Without this limit (default: -1/unlimited), WAL files accumulate indefinitely
       # Production issue: 1.8TB of WAL files accumulated on PRIMARY (115K files)
       max_slot_wal_keep_size: "10240"  # 10 GB (in MB) - adequate buffer for replication lag spikes
+      # Citus repartition joins - required for advanced-filters API that JOINs distributed tables
+      # (token_transfers, transactions, tokens) across different shards
+      "citus.enable_repartition_joins": "on"
 
   primary:
     persistence:
