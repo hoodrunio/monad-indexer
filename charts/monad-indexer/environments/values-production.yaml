@@ -140,6 +140,8 @@ backend:
       wsUrl: "wss://monad-rpc-mainnet.hoodscan.io/ws/"
       ethCallUrl: "https://monad-rpc-mainnet.hoodscan.io"
       fallbackEthCallUrl: "https://lb.drpc.live/monad-mainnet/AmQfj8VYakvApG0KMH--gJ_vBnxrylYR8JYxQmlfqV1j"
+      ethCallUrls: "https://monad-rpc.huginn.tech,https://monad-rpc-mainnet.hoodscan.io"  # Multiple eth_call endpoints for load balancing
+      disableArchiveBalances: true  # Disable archive balance queries - RPC doesn't support historical state
 
     api:
       corsAllowedOrigin: "https://monad.hoodscan.io"

@@ -40,6 +40,9 @@ data:
   {{- if .Values.backend.config.rpc.fallbackEthCallUrl }}
   ETHEREUM_JSONRPC_FALLBACK_ETH_CALL_URL: {{ .Values.backend.config.rpc.fallbackEthCallUrl | quote }}
   {{- end }}
+  {{- if .Values.backend.config.rpc.ethCallUrls }}
+  ETHEREUM_JSONRPC_ETH_CALL_URLS: {{ .Values.backend.config.rpc.ethCallUrls | quote }}
+  {{- end }}
   ETHEREUM_JSONRPC_WS_URL: {{ .Values.backend.config.rpc.wsUrl | quote }}
   ETHEREUM_JSONRPC_DISABLE_ARCHIVE_BALANCES: {{ .Values.backend.config.rpc.disableArchiveBalances | quote }}
 
