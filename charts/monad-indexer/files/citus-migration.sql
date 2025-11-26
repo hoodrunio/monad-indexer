@@ -362,7 +362,9 @@ DECLARE
         ARRAY['transaction_forks', 'transaction_forks_hash_fkey'],
         ARRAY['transaction_actions', 'transaction_actions_hash_fkey'],
         ARRAY['signed_authorizations', 'signed_authorizations_transaction_hash_fkey'],
-        ARRAY['pending_transaction_operations', 'pending_transaction_operations_transaction_hash_fkey']
+        ARRAY['pending_transaction_operations', 'pending_transaction_operations_transaction_hash_fkey'],
+        -- Token tables FK (must drop before distributing token_instances)
+        ARRAY['token_instances', 'token_instances_token_contract_address_hash_fkey']
         -- Note: Local tables' FKs to distributed tables must be dropped
         -- Citus does not allow FK from local table to distributed table
     ];
@@ -420,13 +422,16 @@ DECLARE
     v_distribution_type TEXT; -- 'distributed' or 'reference'
     v_tables_config TEXT[][] := ARRAY[
         -- Reference tables (lookup tables, FK dependencies, or PK conflicts)
-        -- tokens: Small table (~7K rows), JOINed with token_transfers in advanced-filters API
-        --         Making it a reference table eliminates expensive repartition joins
-        --         and improves query latency from ~14s to ~0.5s
         ARRAY['blocks', 'hash', 'reference'],
         ARRAY['addresses', 'hash', 'reference'],
         ARRAY['smart_contracts', 'address_hash', 'reference'],
-        ARRAY['tokens', 'contract_address_hash', 'reference'],
+
+        -- Token tables (distributed and colocated for FK support)
+        -- tokens and token_instances must be colocated to support FK constraint
+        -- Note: This results in ~21s advanced-filter latency (vs ~0.5s with reference)
+        -- but avoids "parallel modification on reference table" errors during indexing
+        ARRAY['tokens', 'contract_address_hash', 'distributed'],
+        ARRAY['token_instances', 'token_contract_address_hash', 'distributed'],
 
         -- Core blockchain tables (high-growth, co-located)
         ARRAY['transactions', 'hash', 'distributed'],
@@ -528,6 +533,57 @@ BEGIN
                         RAISE NOTICE '[OK] Table % already distributed and correctly colocated', v_table_name;
                     END IF;
                 END;
+            -- Check if token_instances needs colocation fix with tokens
+            ELSIF v_table_name = 'token_instances' THEN
+                DECLARE
+                    v_current_colocation_id INT;
+                    v_tokens_colocation_id INT;
+                BEGIN
+                    SELECT colocationid INTO v_current_colocation_id
+                    FROM pg_dist_partition WHERE logicalrelid = (v_table_name)::regclass;
+
+                    SELECT colocationid INTO v_tokens_colocation_id
+                    FROM pg_dist_partition WHERE logicalrelid = 'tokens'::regclass;
+
+                    IF v_current_colocation_id IS DISTINCT FROM v_tokens_colocation_id THEN
+                        RAISE NOTICE '[FIX] Table % distributed but NOT colocated with tokens (colocation % vs %), fixing...',
+                            v_table_name, v_current_colocation_id, v_tokens_colocation_id;
+
+                        -- Drop FKs temporarily to allow undistribute
+                        RAISE NOTICE '[DROP FKs] Temporarily dropping foreign keys from %', v_table_name;
+                        DECLARE
+                            v_fk_record RECORD;
+                        BEGIN
+                            FOR v_fk_record IN
+                                SELECT conname
+                                FROM pg_constraint
+                                WHERE conrelid = (v_table_name)::regclass
+                                AND contype = 'f'
+                            LOOP
+                                RAISE NOTICE '[DROP FK] Dropping FK % from %', v_fk_record.conname, v_table_name;
+                                EXECUTE format('ALTER TABLE %I DROP CONSTRAINT %I', v_table_name, v_fk_record.conname);
+                            END LOOP;
+                        END;
+
+                        -- Undistribute if still distributed (FK drop may have auto-undistributed it)
+                        IF EXISTS (
+                            SELECT 1 FROM pg_dist_partition
+                            WHERE logicalrelid = (v_table_name)::regclass
+                        ) THEN
+                            RAISE NOTICE '[UNDISTRIBUTE] Undistributing % to fix colocation', v_table_name;
+                            EXECUTE format('SELECT undistribute_table(%L)', v_table_name);
+                        ELSE
+                            RAISE NOTICE '[INFO] Table % already undistributed (auto-removed from Citus after FK drop)', v_table_name;
+                        END IF;
+
+                        RAISE NOTICE '[REDISTRIBUTE] Redistributing % with colocation to tokens', v_table_name;
+                        EXECUTE format('SELECT create_distributed_table(%L, %L, colocate_with => %L)', v_table_name, v_distribution_column, 'tokens');
+
+                        RAISE NOTICE '[OK] Table % colocation fixed (FKs will be recreated in Section 3.5)', v_table_name;
+                    ELSE
+                        RAISE NOTICE '[OK] Table % already distributed and correctly colocated', v_table_name;
+                    END IF;
+                END;
             ELSE
                 RAISE NOTICE '[OK] Table % already distributed', v_table_name;
             END IF;
@@ -548,6 +604,16 @@ BEGIN
                     RAISE NOTICE '[WARNING] transactions table not yet distributed, creating % without colocation', v_table_name;
                     EXECUTE format('SELECT create_distributed_table(%L, %L)', v_table_name, v_distribution_column);
                 END IF;
+            -- Colocate token_instances with tokens for FK support
+            ELSIF v_table_name = 'token_instances' THEN
+                -- Check if tokens table is already distributed
+                IF EXISTS (SELECT 1 FROM pg_dist_partition WHERE logicalrelid = 'tokens'::regclass) THEN
+                    RAISE NOTICE '[COLOCATE] Colocating % with tokens table', v_table_name;
+                    EXECUTE format('SELECT create_distributed_table(%L, %L, colocate_with => %L)', v_table_name, v_distribution_column, 'tokens');
+                ELSE
+                    RAISE NOTICE '[WARNING] tokens table not yet distributed, creating % without colocation', v_table_name;
+                    EXECUTE format('SELECT create_distributed_table(%L, %L)', v_table_name, v_distribution_column);
+                END IF;
             ELSE
                 EXECUTE format('SELECT create_distributed_table(%L, %L)', v_table_name, v_distribution_column);
             END IF;
@@ -560,42 +626,6 @@ BEGIN
     END LOOP;
 END $$;
 
--- ============================================================================
--- SECTION 3.1: Add Local Tables to Citus Metadata
--- ============================================================================
--- Tables with foreign keys to reference tables need to be in Citus metadata
--- to prevent automatic conversion back to regular PostgreSQL tables.
--- token_instances has FK to tokens (reference table), so it must be tracked.
--- ============================================================================
-
-DO $$
-BEGIN
-    RAISE NOTICE '';
-    RAISE NOTICE '========================================';
-    RAISE NOTICE 'Adding Local Tables to Citus Metadata';
-    RAISE NOTICE '========================================';
-
-    -- token_instances: Has FK to tokens (reference table)
-    -- Must be added to metadata to maintain FK relationship
-    IF EXISTS (
-        SELECT 1 FROM information_schema.tables
-        WHERE table_schema = 'public' AND table_name = 'token_instances'
-    ) THEN
-        -- Check if already in Citus metadata
-        IF NOT EXISTS (
-            SELECT 1 FROM pg_dist_partition
-            WHERE logicalrelid = 'token_instances'::regclass
-        ) THEN
-            RAISE NOTICE '[ADD] Adding token_instances to Citus metadata';
-            PERFORM citus_add_local_table_to_metadata('token_instances');
-            RAISE NOTICE '[OK] token_instances added to metadata';
-        ELSE
-            RAISE NOTICE '[SKIP] token_instances already in Citus metadata';
-        END IF;
-    ELSE
-        RAISE NOTICE '[SKIP] token_instances table does not exist yet';
-    END IF;
-END $$;
 
 -- ============================================================================
 -- SECTION 3.5: Recreate Foreign Key Constraints
@@ -629,7 +659,10 @@ DECLARE
         -- NOTE: block_rewards.address_hash FK to addresses removed due to Citus limitations
         -- (distributed by block_hash cannot FK to addresses distributed by hash)
         -- ARRAY['block_rewards', 'block_rewards_address_hash_fkey', 'FOREIGN KEY (address_hash) REFERENCES addresses(hash) ON DELETE CASCADE'],
-        ARRAY['block_rewards', 'block_rewards_block_hash_fkey', 'FOREIGN KEY (block_hash) REFERENCES blocks(hash) ON DELETE CASCADE']
+        ARRAY['block_rewards', 'block_rewards_block_hash_fkey', 'FOREIGN KEY (block_hash) REFERENCES blocks(hash) ON DELETE CASCADE'],
+
+        -- Token tables (colocated distributed tables can have FKs)
+        ARRAY['token_instances', 'token_instances_token_contract_address_hash_fkey', 'FOREIGN KEY (token_contract_address_hash) REFERENCES tokens(contract_address_hash)']
     ];
     v_config TEXT[];
     v_table_name TEXT;
