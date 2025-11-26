@@ -68,6 +68,7 @@ backend:
   env:
     INDEXER_MEMORY_LIMIT: "7"  # Increased from 5 for higher memory limit
     LOG_LEVEL: "warn"
+    TZDATA_AUTOUPDATE: "disabled"  # Prevent tzdata write errors in read-only container
     INDEXER_DISABLE_BLOCK_REWARD_FETCHER: "true"  # Disable block reward fetcher
     INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER: "true"  # Disable pending transactions fetcher
     INDEXER_DISABLE_INTERNAL_TRANSACTIONS_FETCHER: "true"  # Disable internal transactions fetcher
@@ -87,12 +88,12 @@ backend:
     #      key: DATABASE_READ_ONLY_API_URL
 
   config:
-    # Database configuration - PROPERLY BALANCED FOR CONNECTION POOL
+    # Database configuration - INCREASED FOR HIGH TPS
     database:
-      poolSize: 30  # PHASE 1 FIX: Reduced from 80 (2 pods × 50 = 100 connections needed)
-      poolSizeApi: 50  # For API reads (will use read replica via DATABASE_READ_ONLY_API_URL)
+      poolSize: 50  # Increased from 30 - more connections for high TPS Monad mainnet
+      poolSizeApi: 70  # Increased from 50 - more API read connections
       replicaMaxLag: "5m"  # Max lag before failback to primary
-      queueTarget: "100"  # Increased from 50ms default to reduce connection pressure
+      queueTarget: "200"  # Increased from 100ms to reduce connection pressure
 
     # NFT features
     nft:
@@ -342,8 +343,8 @@ postgresql:
     replicaCount: 3  # High availability
     poolMode: "transaction"  # Release connection after each transaction
     maxClientConn: 10000  # High - allows many client connections
-    defaultPoolSize: 100  # Increased from 40 - blockchain indexer needs high concurrency (50+ connections per backend)
-    maxDbConnections: 150  # Increased from 60 - total capacity: 3×150=450 connections
+    defaultPoolSize: 150  # Increased from 100 - high TPS Monad mainnet needs more connections
+    maxDbConnections: 200  # Increased from 150 - total capacity: 3×200=600 connections
     reservePoolSize: 10   # Increased emergency buffer from 5
 
     # Timeouts
