@@ -19,7 +19,7 @@ backend:
 
   resources:
     requests:
-      cpu: "3000m"  # Increased from 1000m (3x) for powerful indexing
+      cpu: "4000m"  # Increased from 1000m (3x) for powerful indexing
       memory: "6Gi"  # Increased from 2Gi (3x) for better performance
     limits:
       cpu: "6000m"  # Increased from 2000m (3x) for burst capacity
@@ -27,8 +27,8 @@ backend:
 
   autoscaling:
     enabled: true
-    minReplicas: 2  # Reduced from 3 - minimum 2 pods for HA
-    maxReplicas: 3  # Reduced from 6 - max 3 powerful pods
+    minReplicas: 1  # Single replica to avoid database lock contention
+    maxReplicas: 1  # Lock contention prevents effective multi-pod scaling
     targetCPUUtilizationPercentage: 70  # Lower threshold for faster scaling
     targetMemoryUtilizationPercentage: 70
     behavior:
