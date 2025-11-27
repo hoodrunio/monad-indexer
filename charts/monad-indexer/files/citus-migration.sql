@@ -425,6 +425,9 @@ DECLARE
         ARRAY['blocks', 'hash', 'reference'],
         ARRAY['addresses', 'hash', 'reference'],
         ARRAY['smart_contracts', 'address_hash', 'reference'],
+        -- Pending block operations is small and referenced from distributed tables;
+        -- keep it reference to avoid "direct joins between distributed and local tables".
+        ARRAY['pending_block_operations', 'block_hash', 'reference'],
 
         -- Token tables (distributed and colocated for FK support)
         -- tokens and token_instances must be colocated to support FK constraint
