@@ -77,6 +77,11 @@ backend:
     NFT_MEDIA_HANDLER_REMOTE_DISPATCHER_NODE_MODE_ENABLED: "false"
     INDEXER_DISABLE_EMPTY_BLOCKS_SANITIZER: "true"  # Disable empty blocks sanitizer
     INDEXER_DISABLE_REPLACED_TRANSACTION_FETCHER: "true"  # Disable for Citus compatibility (FOR UPDATE not supported)
+    # API Rate Limiting
+    API_RATE_LIMIT: "300"  # Global: 300 req/sec for all users
+    API_RATE_LIMIT_BY_IP: "30"  # Per IP: 30 requests per time interval
+    API_RATE_LIMIT_BY_IP_TIME_INTERVAL: "1m"  # Time interval for IP-based limiting
+    API_RATE_LIMIT_IS_BLOCKSCOUT_BEHIND_PROXY: "true"  # Required! Behind Cilium Gateway - get real client IP from X-Forwarded-For
   # Extra environment variables from ExternalSecret
   # Temporarily disable read-only DB URL until replica is healthy.
   extraEnv: []
