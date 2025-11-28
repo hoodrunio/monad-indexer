@@ -131,6 +131,18 @@ backend:
     # NFT features
     nft:
       mediaHandlerEnabled: false
+      remoteDispatcherEnabled: false
+
+  # NFT Media Handler - R2/S3 storage for NFT images
+  nftMediaHandler:
+    enabled: false
+    bucketHost: ""           # S3/R2 API URL (e.g., https://xxx.r2.cloudflarestorage.com)
+    bucketName: ""           # Bucket name
+    publicBucketUrl: ""      # Public CDN URL for serving images
+    bucketFolder: ""         # Optional folder prefix in bucket
+    workerConcurrency: "10"  # Parallel upload workers
+    workerBatchSize: "10"    # URLs per batch
+    backfillEnabled: false   # Process existing NFTs
 
     # Logging
     logging:

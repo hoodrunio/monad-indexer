@@ -129,6 +129,11 @@ spec:
               value: {{ $value | quote }}
             {{- end }}
             {{- end }}
+            {{- if .Values.backend.nftMediaHandler.enabled }}
+            # NFT Media Handler - API needs public bucket URL to serve NFT images
+            - name: NFT_MEDIA_HANDLER_AWS_PUBLIC_BUCKET_URL
+              value: {{ .Values.backend.nftMediaHandler.publicBucketUrl | quote }}
+            {{- end }}
             {{- if .Values.backendApi.extraEnv }}
             {{- toYaml .Values.backendApi.extraEnv | nindent 12 }}
             {{- end }}

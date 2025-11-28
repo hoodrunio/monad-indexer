@@ -114,6 +114,12 @@ backend:
       mediaHandlerEnabled: false
       remoteDispatcherEnabled: false
 
+    # Logging
+    logging:
+      consoleFormat: "json"
+      consoleLevel: "warn"
+      disableFileLogging: true
+
     # Indexer performance tuning - OPTIMIZED FOR LOCK CONTENTION
     indexer:
       performance:
@@ -148,6 +154,19 @@ backend:
     api:
       corsAllowedOrigin: "https://monad.hoodscan.io"
 
+    # reCAPTCHA (disabled)
+    recaptcha:
+      enabled: false
+      disabled: ""
+
+    # Advanced features
+    advanced:
+      cacheAddressWithBalancesUpdateInterval: "30"
+      cacheBlockCountPeriod: "7200"
+      sourcifyIntegrationEnabled: true
+      sourcifyServerUrl: "https://sourcify.dev/server"
+      sourcifyRepoUrl: "https://repo.sourcify.dev/contracts/"
+
   # Topology spread to distribute backend pods across nodes
   # Ensures balanced distribution: if 2 pods, 1 per node; if 3 pods, 2 on one node, 1 on other
   topologySpreadConstraints:
@@ -157,6 +176,17 @@ backend:
       labelSelector:
         matchLabels:
           app.kubernetes.io/component: backend
+
+  # NFT Media Handler - Cloudflare R2 storage for NFT images
+  nftMediaHandler:
+    enabled: false
+    bucketHost: "https://e314a85ae2ce2d659b7f23a3c5c5ef5b.r2.cloudflarestorage.com"  # TODO: Update with your R2 endpoint
+    bucketName: "nft-media"                                                           # TODO: Update with your bucket name
+    publicBucketUrl: "https://nft-cdn.hoodscan.io"                                    # TODO: Update with your CDN URL
+    bucketFolder: "monad-mainnet"
+    workerConcurrency: "10"
+    workerBatchSize: "10"
+    backfillEnabled: false  # Enable later to process existing NFTs
 
   # Init containers resource limits (override defaults)
   initContainers:

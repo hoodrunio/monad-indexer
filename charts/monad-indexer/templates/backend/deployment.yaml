@@ -282,6 +282,36 @@ All ConfigMap variables are loaded via envFrom - this template only handles Secr
     secretKeyRef:
       name: {{ .Values.backend.existingSecret | default (printf "%s-backend-secret" (include "monad-indexer.fullname" .)) }}
       key: secret-key-base
+{{- if .Values.backend.nftMediaHandler.enabled }}
+# NFT Media Handler - R2/S3 credentials from secret
+- name: NFT_MEDIA_HANDLER_AWS_ACCESS_KEY_ID
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.backend.existingSecret | default (printf "%s-backend-secret" (include "monad-indexer.fullname" .)) }}
+      key: NFT_MEDIA_HANDLER_AWS_ACCESS_KEY_ID
+- name: NFT_MEDIA_HANDLER_AWS_SECRET_ACCESS_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.backend.existingSecret | default (printf "%s-backend-secret" (include "monad-indexer.fullname" .)) }}
+      key: NFT_MEDIA_HANDLER_AWS_SECRET_ACCESS_KEY
+# NFT Media Handler - non-secret config
+- name: NFT_MEDIA_HANDLER_AWS_BUCKET_HOST
+  value: {{ .Values.backend.nftMediaHandler.bucketHost | quote }}
+- name: NFT_MEDIA_HANDLER_AWS_BUCKET_NAME
+  value: {{ .Values.backend.nftMediaHandler.bucketName | quote }}
+- name: NFT_MEDIA_HANDLER_AWS_PUBLIC_BUCKET_URL
+  value: {{ .Values.backend.nftMediaHandler.publicBucketUrl | quote }}
+{{- if .Values.backend.nftMediaHandler.bucketFolder }}
+- name: NFT_MEDIA_HANDLER_BUCKET_FOLDER
+  value: {{ .Values.backend.nftMediaHandler.bucketFolder | quote }}
+{{- end }}
+- name: NFT_MEDIA_HANDLER_WORKER_CONCURRENCY
+  value: {{ .Values.backend.nftMediaHandler.workerConcurrency | quote }}
+- name: NFT_MEDIA_HANDLER_WORKER_BATCH_SIZE
+  value: {{ .Values.backend.nftMediaHandler.workerBatchSize | quote }}
+- name: NFT_MEDIA_HANDLER_BACKFILL_ENABLED
+  value: {{ .Values.backend.nftMediaHandler.backfillEnabled | quote }}
+{{- end }}
 {{- if .Values.backend.extraEnv }}
 {{- toYaml .Values.backend.extraEnv }}
 {{- end }}
