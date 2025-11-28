@@ -1,0 +1,166 @@
+{{- if .Values.backendApi.enabled }}
+{{- $verifier := index .Values.microservices "smart-contract-verifier" }}
+{{- $visualizer := index .Values.microservices "visualizer" }}
+{{- $sigProvider := index .Values.microservices "sig-provider" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-backend-api-config
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend-api
+data:
+  # ============================================
+  # API-ONLY MODE
+  # ============================================
+  DISABLE_INDEXER: "true"
+
+  # ============================================
+  # DATABASE CONFIGURATION
+  # ============================================
+  ECTO_USE_SSL: {{ .Values.backend.config.database.ectoUseSsl | quote }}
+  POOL_SIZE: {{ .Values.backendApi.config.database.poolSize | default "30" | quote }}
+  POOL_SIZE_API: {{ .Values.backendApi.config.database.poolSizeApi | default "50" | quote }}
+
+  {{- if .Values.backend.config.database.replicaMaxLag }}
+  REPLICA_MAX_LAG: {{ .Values.backend.config.database.replicaMaxLag | quote }}
+  {{- end }}
+
+  # ============================================
+  # RPC CONFIGURATION (read-only, for API calls)
+  # ============================================
+  ETHEREUM_JSONRPC_VARIANT: {{ .Values.backend.config.rpc.variant | quote }}
+  ETHEREUM_JSONRPC_TRANSPORT: {{ .Values.backend.config.rpc.transport | quote }}
+  ETHEREUM_JSONRPC_HTTP_URL: {{ .Values.backend.config.rpc.httpUrl | quote }}
+  {{- if .Values.backend.config.rpc.fallbackHttpUrl }}
+  ETHEREUM_JSONRPC_FALLBACK_HTTP_URL: {{ .Values.backend.config.rpc.fallbackHttpUrl | quote }}
+  {{- end }}
+  ETHEREUM_JSONRPC_TRACE_URL: {{ .Values.backend.config.rpc.traceUrl | default .Values.backend.config.rpc.httpUrl | quote }}
+  {{- if .Values.backend.config.rpc.fallbackTraceUrl }}
+  ETHEREUM_JSONRPC_FALLBACK_TRACE_URL: {{ .Values.backend.config.rpc.fallbackTraceUrl | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.rpc.ethCallUrl }}
+  ETHEREUM_JSONRPC_ETH_CALL_URL: {{ .Values.backend.config.rpc.ethCallUrl | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.rpc.fallbackEthCallUrl }}
+  ETHEREUM_JSONRPC_FALLBACK_ETH_CALL_URL: {{ .Values.backend.config.rpc.fallbackEthCallUrl | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.rpc.ethCallUrls }}
+  ETHEREUM_JSONRPC_ETH_CALL_URLS: {{ .Values.backend.config.rpc.ethCallUrls | quote }}
+  {{- end }}
+  ETHEREUM_JSONRPC_WS_URL: {{ .Values.backend.config.rpc.wsUrl | quote }}
+  ETHEREUM_JSONRPC_DISABLE_ARCHIVE_BALANCES: {{ .Values.backend.config.rpc.disableArchiveBalances | quote }}
+
+  # ============================================
+  # CHAIN CONFIGURATION
+  # ============================================
+  CHAIN_ID: {{ .Values.backend.config.chain.id | quote }}
+
+  # ============================================
+  # API SERVER
+  # ============================================
+  PORT: {{ .Values.backendApi.service.port | quote }}
+  DISABLE_WEBAPP: {{ .Values.backend.config.api.disableWebapp | quote }}
+  DISABLE_API: "false"
+  ADMIN_PANEL_ENABLED: {{ .Values.backend.config.api.adminPanelEnabled | quote }}
+  API_V1_READ_METHODS_DISABLED: {{ .Values.backend.config.api.v1ReadMethodsDisabled | quote }}
+  API_V1_WRITE_METHODS_DISABLED: {{ .Values.backend.config.api.v1WriteMethodsDisabled | quote }}
+  API_V2_ENABLED: {{ .Values.backend.config.api.v2Enabled | quote }}
+  {{- if .Values.backend.config.api.corsAllowedOrigin }}
+  API_V2_CORS_ALLOWED_ORIGIN: {{ .Values.backend.config.api.corsAllowedOrigin | quote }}
+  {{- end }}
+
+  # ============================================
+  # API RATE LIMITING
+  # ============================================
+  {{- if .Values.backendApi.config.rateLimit }}
+  {{- if .Values.backendApi.config.rateLimit.global }}
+  API_RATE_LIMIT: {{ .Values.backendApi.config.rateLimit.global | quote }}
+  {{- end }}
+  {{- if .Values.backendApi.config.rateLimit.byIp }}
+  API_RATE_LIMIT_BY_IP: {{ .Values.backendApi.config.rateLimit.byIp | quote }}
+  {{- end }}
+  {{- if .Values.backendApi.config.rateLimit.byIpTimeInterval }}
+  API_RATE_LIMIT_BY_IP_TIME_INTERVAL: {{ .Values.backendApi.config.rateLimit.byIpTimeInterval | quote }}
+  {{- end }}
+  {{- if .Values.backendApi.config.rateLimit.behindProxy }}
+  API_RATE_LIMIT_IS_BLOCKSCOUT_BEHIND_PROXY: {{ .Values.backendApi.config.rateLimit.behindProxy | quote }}
+  {{- end }}
+  {{- end }}
+
+  # ============================================
+  # FRONTEND CONFIGURATION
+  # ============================================
+  {{- if .Values.backend.config.frontend.webappUrl }}
+  WEBAPP_URL: {{ .Values.backend.config.frontend.webappUrl | quote }}
+  {{- end }}
+  ENABLE_RUST_VERIFICATION_SERVICE: {{ .Values.backend.config.frontend.enableRustVerificationService | quote }}
+
+  # ============================================
+  # MARKET DATA
+  # ============================================
+  COIN_NAME: {{ .Values.backend.config.market.coinName | default "" | quote }}
+  COIN: {{ .Values.backend.config.market.coin | default "" | quote }}
+  DISABLE_MARKET: {{ .Values.backend.config.market.disabled | quote }}
+  {{- if .Values.backend.config.market.coingeckoCoinId }}
+  MARKET_COINGECKO_COIN_ID: {{ .Values.backend.config.market.coingeckoCoinId | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.market.coingeckoPlatformId }}
+  MARKET_COINGECKO_PLATFORM_ID: {{ .Values.backend.config.market.coingeckoPlatformId | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.market.nativeCoinHistorySource }}
+  MARKET_NATIVE_COIN_HISTORY_SOURCE: {{ .Values.backend.config.market.nativeCoinHistorySource | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.market.marketCapHistorySource }}
+  MARKET_MARKET_CAP_HISTORY_SOURCE: {{ .Values.backend.config.market.marketCapHistorySource | quote }}
+  {{- end }}
+
+  # ============================================
+  # MICROSERVICES
+  # ============================================
+  {{- if $verifier.enabled }}
+  MICROSERVICE_SC_VERIFIER_TYPE: {{ .Values.backend.config.microservices.verifier.type | quote }}
+  MICROSERVICE_SC_VERIFIER_URL: http://{{ include "monad-indexer.fullname" . }}-smart-contract-verifier:{{ $verifier.service.port }}/
+  MICROSERVICE_SC_VERIFIER_ENABLED: "true"
+  {{- else }}
+  MICROSERVICE_SC_VERIFIER_ENABLED: "false"
+  {{- end }}
+
+  {{- if $visualizer.enabled }}
+  MICROSERVICE_VISUALIZE_SOL2UML_URL: http://{{ include "monad-indexer.fullname" . }}-visualizer:{{ $visualizer.service.port }}/
+  MICROSERVICE_VISUALIZE_SOL2UML_ENABLED: "true"
+  {{- else }}
+  MICROSERVICE_VISUALIZE_SOL2UML_ENABLED: "false"
+  {{- end }}
+
+  {{- if $sigProvider.enabled }}
+  MICROSERVICE_SIG_PROVIDER_URL: http://{{ include "monad-indexer.fullname" . }}-sig-provider:{{ $sigProvider.service.port }}/
+  MICROSERVICE_SIG_PROVIDER_ENABLED: "true"
+  {{- else }}
+  MICROSERVICE_SIG_PROVIDER_ENABLED: "false"
+  {{- end }}
+
+  # ============================================
+  # REDIS CACHE
+  # ============================================
+  {{- if .Values.redis.enabled }}
+  REDIS_HOST: {{ include "monad-indexer.fullname" . }}-redis
+  REDIS_PORT: "6379"
+  {{- end }}
+
+  # ============================================
+  # ACCOUNTS
+  # ============================================
+  ACCOUNT_ENABLED: {{ .Values.backend.config.account.enabled | quote }}
+
+  # ============================================
+  # LOGGING
+  # ============================================
+  DISABLE_FILE_LOGGING: {{ .Values.backend.config.logging.disableFileLogging | quote }}
+  HEART_BEAT_TIMEOUT: {{ .Values.backend.config.logging.heartBeatTimeout | quote }}
+
+  # ============================================
+  # RECAPTCHA
+  # ============================================
+  RE_CAPTCHA_DISABLED: {{ .Values.backend.config.recaptcha.disabled | quote }}
+{{- end }}

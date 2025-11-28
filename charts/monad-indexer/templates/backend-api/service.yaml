@@ -1,0 +1,33 @@
+{{- if .Values.backendApi.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-backend-api
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend-api
+  {{- if .Values.backendApi.service.annotations }}
+  annotations:
+    {{- toYaml .Values.backendApi.service.annotations | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.backendApi.service.type }}
+  {{- if and (eq .Values.backendApi.service.type "ClusterIP") .Values.backendApi.service.clusterIP }}
+  clusterIP: {{ .Values.backendApi.service.clusterIP }}
+  {{- end }}
+  {{- if and (eq .Values.backendApi.service.type "LoadBalancer") .Values.backendApi.service.loadBalancerIP }}
+  loadBalancerIP: {{ .Values.backendApi.service.loadBalancerIP }}
+  {{- end }}
+  {{- if and (eq .Values.backendApi.service.type "LoadBalancer") .Values.backendApi.service.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+    {{- toYaml .Values.backendApi.service.loadBalancerSourceRanges | nindent 4 }}
+  {{- end }}
+  ports:
+    - port: {{ .Values.backendApi.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "monad-indexer.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: backend-api
+{{- end }}

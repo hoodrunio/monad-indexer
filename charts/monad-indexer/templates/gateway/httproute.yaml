@@ -41,9 +41,17 @@ spec:
             type: {{ .pathType }}
             value: {{ .path }}
       backendRefs:
+        {{- if $.Values.backendApi.enabled }}
+        # Route to backend-api service (API-only pods)
+        - name: {{ include "monad-indexer.fullname" $ }}-backend-api
+          port: {{ $.Values.backendApi.service.port }}
+          weight: 100
+        {{- else }}
+        # Route to backend service (combined API + Indexer)
         - name: {{ include "monad-indexer.fullname" $ }}-backend
           port: {{ $.Values.backend.service.port }}
           weight: 100
+        {{- end }}
       {{- if $.Values.gateway.timeout }}
       timeouts:
         request: {{ $.Values.gateway.timeout }}

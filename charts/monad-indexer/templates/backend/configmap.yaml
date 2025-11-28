@@ -56,6 +56,7 @@ data:
   # ============================================
   PORT: {{ .Values.backend.service.port | quote }}
   DISABLE_WEBAPP: {{ .Values.backend.config.api.disableWebapp | quote }}
+  DISABLE_API: {{ .Values.backend.config.api.disabled | default false | quote }}
   ADMIN_PANEL_ENABLED: {{ .Values.backend.config.api.adminPanelEnabled | quote }}
   API_V1_READ_METHODS_DISABLED: {{ .Values.backend.config.api.v1ReadMethodsDisabled | quote }}
   API_V1_WRITE_METHODS_DISABLED: {{ .Values.backend.config.api.v1WriteMethodsDisabled | quote }}
