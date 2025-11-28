@@ -429,12 +429,12 @@ DECLARE
         -- keep it reference to avoid "direct joins between distributed and local tables".
         ARRAY['pending_block_operations', 'block_hash', 'reference'],
 
-        -- Token tables
-        -- tokens is a reference table (replicated to all workers) for efficient JOINs
-        -- with address_current_token_balances and other distributed tables
+        -- Token tables (reference tables for efficient JOINs)
+        -- tokens and token_instances are reference tables (replicated to all workers)
+        -- This enables fast JOINs with address_current_token_balances and other distributed tables
         -- Parallel modification is handled via SET LOCAL citus.multi_shard_modify_mode in code
         ARRAY['tokens', 'contract_address_hash', 'reference'],
-        ARRAY['token_instances', 'token_contract_address_hash', 'distributed'],
+        ARRAY['token_instances', 'token_contract_address_hash', 'reference'],
 
         -- Core blockchain tables (high-growth, co-located)
         ARRAY['transactions', 'hash', 'distributed'],
