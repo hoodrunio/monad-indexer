@@ -23,7 +23,7 @@ backend:
       memory: "6Gi"  # Increased from 2Gi (3x) for better performance
     limits:
       cpu: "6000m"  # Increased from 2000m (3x) for burst capacity
-      memory: "16Gi"  # Increased from 6Gi (2.67x) for heavy workloads
+      memory: "10Gi"  # Increased from 6Gi (2.67x) for heavy workloads
 
   autoscaling:
     enabled: true
