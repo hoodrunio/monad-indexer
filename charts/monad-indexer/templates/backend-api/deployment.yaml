@@ -78,6 +78,10 @@ spec:
         - name: backend-api
           image: {{ include "monad-indexer.backend.image" . }}
           imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          command:
+            - /app/bin/blockscout
+          args:
+            - start
 
           ports:
             - name: http
