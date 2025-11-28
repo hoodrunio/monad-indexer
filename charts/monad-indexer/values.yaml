@@ -58,7 +58,7 @@ backend:
 
     # Chain configuration
     chain:
-      id: "10143"
+      id: "143"
 
     # API server configuration
     api:
