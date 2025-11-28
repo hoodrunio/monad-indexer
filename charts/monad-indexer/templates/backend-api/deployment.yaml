@@ -135,7 +135,7 @@ spec:
 
           livenessProbe:
             httpGet:
-              path: /api/v2/health/liveness
+              path: /api/v2/stats
               port: http
             initialDelaySeconds: 60
             periodSeconds: 10
@@ -144,7 +144,7 @@ spec:
 
           readinessProbe:
             httpGet:
-              path: /api/v2/health/readiness
+              path: /api/v2/stats
               port: http
             initialDelaySeconds: 30
             periodSeconds: 10
