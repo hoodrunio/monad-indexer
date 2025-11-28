@@ -595,7 +595,7 @@ backendApi:
 
     # API Rate Limiting
     rateLimit:
-      global: "300"           # Global: 300 req/sec
+      global: "2000"           # Global: 2000 req/sec
       byIp: "30"              # Per IP: 30 req/min
       byIpTimeInterval: "1m"
       behindProxy: "true"     # Behind Cilium Gateway
