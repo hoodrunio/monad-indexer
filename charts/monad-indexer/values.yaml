@@ -506,7 +506,7 @@ microservices:
           enabled: true
           cors:
             enabled: false  # Disabled by default for security
-            allowedOrigin: "*"
+            allowedOrigin: "https://monad.hoodscan.io"
         grpc:
           enabled: false
       logging:
