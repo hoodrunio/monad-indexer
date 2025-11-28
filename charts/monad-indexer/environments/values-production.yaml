@@ -79,6 +79,9 @@ backend:
     NFT_MEDIA_HANDLER_REMOTE_DISPATCHER_NODE_MODE_ENABLED: "false"
     INDEXER_DISABLE_EMPTY_BLOCKS_SANITIZER: "true"  # Disable empty blocks sanitizer
     INDEXER_DISABLE_REPLACED_TRANSACTION_FETCHER: "true"  # Disable for Citus compatibility (FOR UPDATE not supported)
+    SOURCIFY_INTEGRATION_ENABLED: "true"
+    SOURCIFY_SERVER_URL: "https://sourcify.dev/server"
+    SOURCIFY_REPO_URL: "https://repo.sourcify.dev/select-contract/"
   # Extra environment variables from ExternalSecret
   # Temporarily disable read-only DB URL until replica is healthy.
   extraEnv: []
