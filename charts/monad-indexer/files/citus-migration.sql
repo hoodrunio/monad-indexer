@@ -429,11 +429,11 @@ DECLARE
         -- keep it reference to avoid "direct joins between distributed and local tables".
         ARRAY['pending_block_operations', 'block_hash', 'reference'],
 
-        -- Token tables (distributed and colocated for FK support)
-        -- tokens and token_instances must be colocated to support FK constraint
-        -- Note: This results in ~21s advanced-filter latency (vs ~0.5s with reference)
-        -- but avoids "parallel modification on reference table" errors during indexing
-        ARRAY['tokens', 'contract_address_hash', 'distributed'],
+        -- Token tables
+        -- tokens is a reference table (replicated to all workers) for efficient JOINs
+        -- with address_current_token_balances and other distributed tables
+        -- Parallel modification is handled via SET LOCAL citus.multi_shard_modify_mode in code
+        ARRAY['tokens', 'contract_address_hash', 'reference'],
         ARRAY['token_instances', 'token_contract_address_hash', 'distributed'],
 
         -- Core blockchain tables (high-growth, co-located)
