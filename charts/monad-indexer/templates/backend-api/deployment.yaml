@@ -89,7 +89,33 @@ spec:
                 name: {{ include "monad-indexer.fullname" . }}-backend-api-config
 
           env:
-            {{- include "monad-indexer.backend.env" . | nindent 12 }}
+            # Database connection from secret
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  {{- if .Values.postgresql.auth.existingSecret }}
+                  name: {{ .Values.postgresql.auth.existingSecret }}
+                  key: uri
+                  {{- else }}
+                  name: {{ printf "%s-postgresql-app" (include "monad-indexer.fullname" .) }}
+                  key: uri
+                  {{- end }}
+            - name: SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.existingSecret | default (printf "%s-backend-secret" (include "monad-indexer.fullname" .)) }}
+                  key: secret-key-base
+            {{- if .Values.redis.enabled }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "monad-indexer.fullname" . }}-redis
+                  key: redis-password
+            - name: API_RATE_LIMIT_HAMMER_REDIS_URL
+              value: "redis://:$(REDIS_PASSWORD)@$(REDIS_HOST):$(REDIS_PORT)/1"
+            - name: ACCOUNT_REDIS_URL
+              value: "redis://:$(REDIS_PASSWORD)@$(REDIS_HOST):$(REDIS_PORT)"
+            {{- end }}
             # API-only mode - disable indexer
             - name: DISABLE_INDEXER
               value: "true"
