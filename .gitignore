@@ -26,5 +26,4 @@ pub-sealed-secrets-cert.pem
 .vscode/
 ansible/inventory.ini
 services/nft-icon-fetcher/fetcher
-services/nft-icon-fetcher/go.mod
 services/nft-icon-fetcher/go.sum
