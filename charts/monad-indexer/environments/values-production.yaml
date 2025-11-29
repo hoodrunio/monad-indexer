@@ -82,6 +82,8 @@ backend:
     SOURCIFY_INTEGRATION_ENABLED: "true"
     SOURCIFY_SERVER_URL: "https://sourcify.dev/server"
     SOURCIFY_REPO_URL: "https://repo.sourcify.dev/select-contract/"
+    DISPLAY_TOKEN_ICONS: "true"
+    CHECK_ORIGIN: "true"
   # Extra environment variables from ExternalSecret
   # Temporarily disable read-only DB URL until replica is healthy.
   extraEnv: []
@@ -636,7 +638,12 @@ backendApi:
   env:
     LOG_LEVEL: "warn"
     TZDATA_AUTOUPDATE: "disabled"
-
+    DISPLAY_TOKEN_ICONS: "true"
+    CHECK_ORIGIN: "true"
+    SOURCIFY_INTEGRATION_ENABLED: "true"
+    SOURCIFY_SERVER_URL: "https://sourcify.dev/server"
+    SOURCIFY_REPO_URL: "https://repo.sourcify.dev/select-contract/"
+    
   resources:
     requests:
       cpu: "2000m"
