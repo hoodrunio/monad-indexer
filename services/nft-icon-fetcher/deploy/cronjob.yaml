@@ -1,0 +1,62 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: nft-icon-fetcher
+  namespace: monad-indexer-production
+  labels:
+    app: nft-icon-fetcher
+spec:
+  # Run every 6 hours
+  schedule: "0 */6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      activeDeadlineSeconds: 3600  # 1 hour max
+      template:
+        metadata:
+          labels:
+            app: nft-icon-fetcher
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: fetcher
+            image: ghcr.io/hoodrunio/nft-icon-fetcher:latest
+            imagePullPolicy: Always
+            env:
+            - name: BLOCKSCOUT_API_URL
+              value: "https://monad-mainnet-indexer.hoodscan.io/api/v2"
+            - name: BLOCKSCOUT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: nft-icon-fetcher-secret
+                  key: api-key
+            - name: RPC_URL
+              value: "https://monad-rpc.huginn.tech"
+            - name: IPFS_GATEWAY
+              value: "https://ipfs.io/ipfs/"
+            - name: CONCURRENCY
+              value: "5"
+            - name: REQUEST_TIMEOUT_SECONDS
+              value: "30"
+            resources:
+              requests:
+                cpu: "100m"
+                memory: "128Mi"
+              limits:
+                cpu: "500m"
+                memory: "256Mi"
+          imagePullSecrets:
+          - name: ghcr-secret
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nft-icon-fetcher-secret
+  namespace: monad-indexer-production
+type: Opaque
+stringData:
+  # Same as API_SENSITIVE_ENDPOINTS_KEY in Blockscout backend
+  api-key: "6b8355a5fdfc224625e37adfecb66a96fd696a5d6fde72ae22a4fe255a5069ab"

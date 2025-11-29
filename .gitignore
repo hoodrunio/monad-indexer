@@ -1,7 +1,7 @@
 # Environment files
 .env*
 !.env.example
-
+!services/nft-icon-fetcher
 # Database data
 services/blockscout-db-data/
 services/stats-db-data/
@@ -11,7 +11,7 @@ data/
 logs/
 services/logs/
 services/dets/
-blockscout
+blockscout/blockscout
 node_modules/
 test-contracts/package-lock.json
 .gitignore
@@ -25,3 +25,6 @@ pub-sealed-secrets-cert.pem
 # VSCode
 .vscode/
 ansible/inventory.ini
+services/nft-icon-fetcher/fetcher
+services/nft-icon-fetcher/go.mod
+services/nft-icon-fetcher/go.sum

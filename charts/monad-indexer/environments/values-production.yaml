@@ -650,7 +650,10 @@ backendApi:
     SOURCIFY_INTEGRATION_ENABLED: "true"
     SOURCIFY_SERVER_URL: "https://sourcify.dev/server"
     SOURCIFY_REPO_URL: "https://repo.sourcify.dev/select-contract/"
-    
+    # Admin API key for token-info import endpoint
+    # TODO: Move to secret for production security
+    API_SENSITIVE_ENDPOINTS_KEY: "6b8355a5fdfc224625e37adfecb66a96fd696a5d6fde72ae22a4fe255a5069ab"
+
   resources:
     requests:
       cpu: "2000m"
