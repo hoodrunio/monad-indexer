@@ -34,6 +34,12 @@ spec:
         - path:
             type: PathPrefix
             value: /stats
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
       backendRefs:
         - name: {{ include "monad-indexer.fullname" . }}-stats
           port: {{ (index .Values.microservices "stats").service.port }}
