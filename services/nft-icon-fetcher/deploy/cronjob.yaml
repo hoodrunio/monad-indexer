@@ -35,6 +35,8 @@ spec:
                   key: api-key
             - name: RPC_URL
               value: "https://monad-rpc.huginn.tech"
+            - name: DATABASE_URL
+              value: "postgres://blockscout:blockscout@monad-indexer-production-postgresql-rw:5432/blockscout?sslmode=disable"
             - name: IPFS_GATEWAY
               value: "https://ipfs.io/ipfs/"
             - name: CONCURRENCY
