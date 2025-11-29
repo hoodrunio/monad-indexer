@@ -95,6 +95,10 @@ backend:
     #      key: DATABASE_READ_ONLY_API_URL
 
   config:
+    # API configuration - DISABLE for indexer-only mode
+    api:
+      disabled: true  # Backend is indexer-only, API handled by backendApi pods
+
     # Database configuration - INCREASED FOR HIGH TPS
     database:
       poolSize: 50  # Increased from 30 - more connections for high TPS Monad mainnet

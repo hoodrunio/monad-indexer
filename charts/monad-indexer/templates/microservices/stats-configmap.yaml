@@ -36,7 +36,13 @@ data:
   # ============================================
   # BLOCKSCOUT API CONNECTION
   # ============================================
+  {{- if .Values.backendApi.enabled }}
+  # Use backend-api service when available (read-only API pods)
+  STATS__BLOCKSCOUT_API_URL: {{ printf "http://%s-backend-api:%d" (include "monad-indexer.fullname" .) (.Values.backendApi.service.port | int) }}
+  {{- else }}
+  # Fallback to main backend service
   STATS__BLOCKSCOUT_API_URL: {{ printf "http://%s-backend:%d" (include "monad-indexer.fullname" .) (.Values.backend.service.port | int) }}
+  {{- end }}
 
   # ============================================
   # METRICS & TRACING
