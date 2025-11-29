@@ -155,6 +155,7 @@ backend:
       traceUrl: "https://monad-rpc-mainnet.hoodscan.io"
       fallbackTraceUrl: "https://lb.drpc.live/monad-mainnet/AmQfj8VYakvApG0KMH--gJ_vBnxrylYR8JYxQmlfqV1j"
       wsUrl: "wss://monad-rpc-mainnet.hoodscan.io/ws/"
+      fallbackWsUrl: "wss://wss.monad-rpc.huginn.tech"
       ethCallUrl: "https://monad-rpc-mainnet.hoodscan.io"
       fallbackEthCallUrl: "https://lb.drpc.live/monad-mainnet/AmQfj8VYakvApG0KMH--gJ_vBnxrylYR8JYxQmlfqV1j"
       ethCallUrls: "https://monad-rpc.huginn.tech,https://monad-rpc-mainnet.hoodscan.io"  # Multiple eth_call endpoints for load balancing
