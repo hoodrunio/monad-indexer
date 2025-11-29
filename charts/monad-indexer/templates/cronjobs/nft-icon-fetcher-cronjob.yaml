@@ -1,0 +1,100 @@
+{{- if .Values.nftIconFetcher.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-nft-icon-fetcher
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nft-icon-fetcher
+type: Opaque
+stringData:
+  api-key: {{ .Values.nftIconFetcher.apiKey | quote }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "monad-indexer.fullname" . }}-nft-icon-fetcher
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "monad-indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nft-icon-fetcher
+spec:
+  schedule: {{ .Values.nftIconFetcher.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  suspend: {{ not .Values.nftIconFetcher.enabled }}
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "monad-indexer.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: nft-icon-fetcher
+    spec:
+      backoffLimit: 3
+      activeDeadlineSeconds: 3600
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            {{- include "monad-indexer.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: nft-icon-fetcher
+        spec:
+          restartPolicy: OnFailure
+          {{- with .Values.nftIconFetcher.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+          - name: fetcher
+            image: "{{ .Values.nftIconFetcher.image.repository }}:{{ .Values.nftIconFetcher.image.tag }}"
+            imagePullPolicy: {{ .Values.nftIconFetcher.image.pullPolicy }}
+            env:
+            - name: BLOCKSCOUT_API_URL
+              value: {{ .Values.nftIconFetcher.blockscoutApiUrl | quote }}
+            - name: BLOCKSCOUT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "monad-indexer.fullname" . }}-nft-icon-fetcher
+                  key: api-key
+            - name: RPC_URL
+              value: {{ .Values.nftIconFetcher.rpcUrl | quote }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  {{- if .Values.postgresql.auth.existingSecret }}
+                  name: {{ .Values.postgresql.auth.existingSecret }}
+                  key: uri
+                  {{- else }}
+                  name: {{ printf "%s-postgresql-app" (include "monad-indexer.fullname" .) }}
+                  key: uri
+                  {{- end }}
+            - name: IPFS_GATEWAY
+              value: {{ .Values.nftIconFetcher.ipfsGateway | quote }}
+            - name: CONCURRENCY
+              value: {{ .Values.nftIconFetcher.concurrency | quote }}
+            - name: REQUEST_TIMEOUT_SECONDS
+              value: {{ .Values.nftIconFetcher.requestTimeoutSeconds | quote }}
+            - name: LIMIT
+              value: {{ .Values.nftIconFetcher.limit | quote }}
+            resources:
+              {{- toYaml .Values.nftIconFetcher.resources | nindent 14 }}
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 1000
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              seccompProfile:
+                type: RuntimeDefault
+          {{- with .Values.nftIconFetcher.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            fsGroup: 1000
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+{{- end }}

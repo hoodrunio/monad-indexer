@@ -669,3 +669,37 @@ backendApi:
     maxReplicas: 5
     targetCPUUtilizationPercentage: 70
     targetMemoryUtilizationPercentage: 80
+
+# NFT Icon Fetcher CronJob
+# Fetches NFT collection icons via RPC and updates Blockscout DB
+nftIconFetcher:
+  enabled: true
+  schedule: "0 */6 * * *"  # Every 6 hours
+
+  image:
+    repository: ghcr.io/hoodrunio/nft-icon-fetcher
+    tag: "v1.0.0"
+    pullPolicy: Always
+
+  # Same as API_SENSITIVE_ENDPOINTS_KEY in backend
+  apiKey: "6b8355a5fdfc224625e37adfecb66a96fd696a5d6fde72ae22a4fe255a5069ab"
+
+  blockscoutApiUrl: "https://monad-mainnet-indexer.hoodscan.io"
+  rpcUrl: "https://monad-rpc.hoodscan.io"
+  ipfsGateway: "https://ipfs.io/ipfs/"
+  concurrency: "5"
+  requestTimeoutSeconds: "30"
+  limit: "100"
+
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "256Mi"
+
+  imagePullSecrets:
+    - name: ghcr-secret
+
+  nodeSelector: {}
