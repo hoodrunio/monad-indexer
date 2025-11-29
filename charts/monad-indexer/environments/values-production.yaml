@@ -520,16 +520,19 @@ postgresql:
 redis:
   image:
     tag: "latest"  # Bitnami only supports latest tag now
+    pullPolicy: IfNotPresent  # Prevent restart on every sync
   # Override sentinel and metrics images to use latest tags
   sentinel:
     enabled: true
     quorum: 2
     image:
       tag: "latest"
+      pullPolicy: IfNotPresent
   metrics:
     enabled: true
     image:
       tag: "latest"
+      pullPolicy: IfNotPresent
   master:
     persistence:
       size: 100Gi
