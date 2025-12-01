@@ -16,6 +16,16 @@ data:
   STATS__SERVER__HTTP__MAX_BODY_SIZE: {{ $stats.config.server.http.maxBodySize | int | quote }}
 
   # ============================================
+  # CORS CONFIGURATION
+  # ============================================
+  {{- if $stats.config.server.http.cors }}
+  STATS__SERVER__HTTP__CORS__ENABLED: {{ $stats.config.server.http.cors.enabled | quote }}
+  {{- if $stats.config.server.http.cors.enabled }}
+  STATS__SERVER__HTTP__CORS__ALLOWED_ORIGIN: {{ $stats.config.server.http.cors.allowedOrigin | quote }}
+  {{- end }}
+  {{- end }}
+
+  # ============================================
   # gRPC SERVER
   # ============================================
   STATS__SERVER__GRPC__ENABLED: {{ $stats.config.server.grpc.enabled | quote }}

@@ -576,6 +576,9 @@ microservices:
         http:
           enabled: true
           maxBodySize: 2097152
+          cors:
+            enabled: false
+            allowedOrigin: ""  # Override per environment
         grpc:
           enabled: false
       database:

@@ -256,6 +256,11 @@ microservices:
     enabled: true
     replicaCount: 1
     config:
+      server:
+        http:
+          cors:
+            enabled: true
+            allowedOrigin: "https://monad-mainnet-indexer.hoodscan.io,https://monad.hoodscan.io"
       database:
         runMigrations: true  # Enable migrations on startup
     resources:
