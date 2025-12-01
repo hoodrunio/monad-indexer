@@ -8,11 +8,11 @@ backend:
   # ExternalSecret will create this secret from AWS Secrets Manager
   existingSecret: "monad-indexer-production-backend-secret"
 
-  # Custom Blockscout image with Replica1 support
+  # Custom Blockscout image with Replica1 support + On-Demand Fetching
   image:
     registry: ghcr.io
     repository: hoodrunio/blockscout
-    tag: "9.2.2"
+    tag: "9.2.2-on-demand"
     pullPolicy: Always
 
   replicaCount: 1  # Reduced from 3 - fewer, more powerful pods
@@ -636,6 +636,13 @@ backendApi:
   enabled: true
   replicaCount: 1
 
+  # Custom Blockscout image with On-Demand Fetching
+  image:
+    registry: ghcr.io
+    repository: hoodrunio/blockscout
+    tag: "9.2.2-on-demand"
+    pullPolicy: Always
+
   config:
     database:
       poolSize: 30      # Lower than indexer
@@ -659,6 +666,16 @@ backendApi:
     # Admin API key for token-info import endpoint
     # TODO: Move to secret for production security
     API_SENSITIVE_ENDPOINTS_KEY: "6b8355a5fdfc224625e37adfecb66a96fd696a5d6fde72ae22a4fe255a5069ab"
+    # On-Demand Block/Transaction Fetching
+    # Archive RPC URLs (optional - leave empty to use primary RPC)
+    ON_DEMAND_ARCHIVE_JSON_RPC_URL: ""
+    ON_DEMAND_ARCHIVE_FALLBACK_JSON_RPC_URL: ""
+    # Rate limiting: 20 requests per minute per IP
+    RATE_LIMITER_ON_DEMAND_BLOCK_FETCH_LIMIT_BY_IP: "20"
+    RATE_LIMITER_ON_DEMAND_BLOCK_FETCH_TIME_INTERVAL: "1m"
+    # Timeouts
+    ON_DEMAND_BLOCK_FETCH_TIMEOUT: "30s"
+    ON_DEMAND_TX_FETCH_TIMEOUT: "45s"
 
   resources:
     requests:
