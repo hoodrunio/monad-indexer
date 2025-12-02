@@ -7,12 +7,13 @@ metadata:
     {{- include "monad-indexer.labels" . | nindent 4 }}
     app.kubernetes.io/component: postgresql-citus-setup
   annotations:
-    # ArgoCD: Skip this resource (managed by Helm hook only)
-    argocd.argoproj.io/hook: Skip
-    # Helm hook: Run ONLY on first install (not upgrade)
-    helm.sh/hook: post-install
+    # Run on both install and upgrade (idempotent script)
+    helm.sh/hook: post-install,post-upgrade
     helm.sh/hook-weight: "5"
-    helm.sh/hook-delete-policy: hook-succeeded
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+    # ArgoCD hook to run after sync
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 spec:
   # Keep completed jobs for 7 days for debugging
   ttlSecondsAfterFinished: 604800
