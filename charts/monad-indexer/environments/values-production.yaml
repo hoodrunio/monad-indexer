@@ -667,9 +667,8 @@ backendApi:
     # TODO: Move to secret for production security
     API_SENSITIVE_ENDPOINTS_KEY: "6b8355a5fdfc224625e37adfecb66a96fd696a5d6fde72ae22a4fe255a5069ab"
     # On-Demand Block/Transaction Fetching
-    # Archive RPC URLs (optional - leave empty to use primary RPC)
-    ON_DEMAND_ARCHIVE_JSON_RPC_URL: ""
-    ON_DEMAND_ARCHIVE_FALLBACK_JSON_RPC_URL: ""
+    # Comma-separated list of archive RPC URLs for round-robin load balancing
+    ON_DEMAND_ARCHIVE_JSON_RPC_URLS: "https://rpc3.monad.xyz,https://rpc-mainnet.monadinfra.com,https://rpc.monad.xyz"
     # Rate limiting: 20 requests per minute per IP
     RATE_LIMITER_ON_DEMAND_BLOCK_FETCH_LIMIT_BY_IP: "20"
     RATE_LIMITER_ON_DEMAND_BLOCK_FETCH_TIME_INTERVAL: "1m"
