@@ -364,7 +364,10 @@ DECLARE
         ARRAY['signed_authorizations', 'signed_authorizations_transaction_hash_fkey'],
         ARRAY['pending_transaction_operations', 'pending_transaction_operations_transaction_hash_fkey'],
         -- Token tables FK (must drop before distributing token_instances)
-        ARRAY['token_instances', 'token_instances_token_contract_address_hash_fkey']
+        ARRAY['token_instances', 'token_instances_token_contract_address_hash_fkey'],
+        -- Monad staking tables FKs (must drop before distributing)
+        ARRAY['monad_staking_events', 'monad_staking_events_block_number_fkey'],
+        ARRAY['monad_staking_events', 'monad_staking_events_validator_id_fkey']
         -- Note: Local tables' FKs to distributed tables must be dropped
         -- Citus does not allow FK from local table to distributed table
     ];
@@ -454,7 +457,13 @@ DECLARE
         ARRAY['pending_transaction_operations', 'transaction_hash', 'distributed'],
 
         -- Block rewards (distributed by block_hash for block-based queries)
-        ARRAY['block_rewards', 'block_hash', 'distributed']
+        ARRAY['block_rewards', 'block_hash', 'distributed'],
+
+        -- Monad staking tables
+        -- monad_validators: Reference table (small, frequently joined)
+        ARRAY['monad_validators', 'id', 'reference'],
+        -- monad_staking_events: Distributed by delegator for address-based queries
+        ARRAY['monad_staking_events', 'delegator_address_hash', 'distributed']
     ];
     v_config TEXT[];
 BEGIN
@@ -665,7 +674,11 @@ DECLARE
         ARRAY['block_rewards', 'block_rewards_block_hash_fkey', 'FOREIGN KEY (block_hash) REFERENCES blocks(hash) ON DELETE CASCADE'],
 
         -- Token tables (colocated distributed tables can have FKs)
-        ARRAY['token_instances', 'token_instances_token_contract_address_hash_fkey', 'FOREIGN KEY (token_contract_address_hash) REFERENCES tokens(contract_address_hash)']
+        ARRAY['token_instances', 'token_instances_token_contract_address_hash_fkey', 'FOREIGN KEY (token_contract_address_hash) REFERENCES tokens(contract_address_hash)'],
+
+        -- Monad staking tables (distributed -> reference table FKs are allowed)
+        ARRAY['monad_staking_events', 'monad_staking_events_block_number_fkey', 'FOREIGN KEY (block_number) REFERENCES blocks(number) ON DELETE CASCADE'],
+        ARRAY['monad_staking_events', 'monad_staking_events_validator_id_fkey', 'FOREIGN KEY (validator_id) REFERENCES monad_validators(id)']
     ];
     v_config TEXT[];
     v_table_name TEXT;
