@@ -675,6 +675,9 @@ backendApi:
     # Timeouts
     ON_DEMAND_BLOCK_FETCH_TIMEOUT: "30s"
     ON_DEMAND_TX_FETCH_TIMEOUT: "45s"
+    # Receipt fetching settings (for RPC batch limits)
+    ON_DEMAND_RECEIPTS_BATCH_SIZE: "5"
+    ON_DEMAND_RECEIPTS_CONCURRENCY: "3"
 
   resources:
     requests:
