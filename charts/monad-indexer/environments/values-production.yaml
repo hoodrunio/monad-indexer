@@ -668,12 +668,12 @@ backendApi:
     API_SENSITIVE_ENDPOINTS_KEY: "6b8355a5fdfc224625e37adfecb66a96fd696a5d6fde72ae22a4fe255a5069ab"
     # On-Demand Block/Transaction Fetching
     # Comma-separated list of archive RPC URLs for round-robin load balancing
-    ON_DEMAND_ARCHIVE_JSON_RPC_URLS: "https://rpc3.monad.xyz,https://rpc-mainnet.monadinfra.com,https://rpc.monad.xyz"
+    ON_DEMAND_ARCHIVE_JSON_RPC_URLS: "https://rpc3.monad.xyz,https://rpc.monad.xyz"
     # Rate limiting: 20 requests per minute per IP
     RATE_LIMITER_ON_DEMAND_BLOCK_FETCH_LIMIT_BY_IP: "20"
     RATE_LIMITER_ON_DEMAND_BLOCK_FETCH_TIME_INTERVAL: "1m"
     # Timeouts
-    ON_DEMAND_BLOCK_FETCH_TIMEOUT: "30s"
+    ON_DEMAND_BLOCK_FETCH_TIMEOUT: "15s"
     ON_DEMAND_TX_FETCH_TIMEOUT: "45s"
 
   resources:
