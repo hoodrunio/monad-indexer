@@ -12,7 +12,7 @@ backend:
   image:
     registry: ghcr.io
     repository: hoodrunio/blockscout
-    tag: "9.2.2-on-demand"
+    tag: "9.2.2-staking"
     pullPolicy: Always
 
   replicaCount: 1  # Reduced from 3 - fewer, more powerful pods
@@ -67,6 +67,7 @@ backend:
 
   env:
     # Indexer-only mode - API handled by separate backend-api pods
+    CHAIN_TYPE: "monad"
     DISABLE_API: "true"
     INDEXER_MEMORY_LIMIT: "7"  # Increased from 5 for higher memory limit
     LOG_LEVEL: "warn"
@@ -84,6 +85,11 @@ backend:
     SOURCIFY_REPO_URL: "https://repo.sourcify.dev/select-contract/"
     DISPLAY_TOKEN_ICONS: "true"
     CHECK_ORIGIN: "true"
+    # Monad Staking Catchup - Historical staking events backfill
+    INDEXER_MONAD_STAKING_CATCHUP_ENABLED: "false"  # Enable to backfill historical staking events
+    INDEXER_MONAD_STAKING_CATCHUP_START_BLOCK: "1"  # Block to start catchup from
+    INDEXER_MONAD_STAKING_CATCHUP_BATCH_SIZE: "1000"  # Blocks per eth_getLogs request
+    INDEXER_MONAD_STAKING_CATCHUP_CHECK_INTERVAL: "5000"  # Interval (ms) to check for new blocks
   # Extra environment variables from ExternalSecret
   # Temporarily disable read-only DB URL until replica is healthy.
   extraEnv: []
@@ -640,7 +646,7 @@ backendApi:
   image:
     registry: ghcr.io
     repository: hoodrunio/blockscout
-    tag: "9.2.2-on-demand"
+    tag: "9.2.2-staking"
     pullPolicy: Always
 
   config:
@@ -656,6 +662,7 @@ backendApi:
       behindProxy: "true"     # Behind Cilium Gateway
 
   env:
+    CHAIN_TYPE: "monad"
     LOG_LEVEL: "warn"
     TZDATA_AUTOUPDATE: "disabled"
     DISPLAY_TOKEN_ICONS: "true"

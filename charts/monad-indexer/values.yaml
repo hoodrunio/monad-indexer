@@ -175,7 +175,17 @@ backend:
   # See: docs/secrets-management.md
   existingSecret: "monad-indexer-backend-secret"
 
-  # Extra environment variables (for values not in config structure)
+  # Environment variables (key-value pairs)
+  env:
+    CHAIN_TYPE: "monad"
+    # Monad Staking Catchup - Historical staking events backfill
+    # Set INDEXER_MONAD_STAKING_CATCHUP_ENABLED to "true" to enable backfill
+    INDEXER_MONAD_STAKING_CATCHUP_ENABLED: "false"
+    INDEXER_MONAD_STAKING_CATCHUP_START_BLOCK: "1"
+    INDEXER_MONAD_STAKING_CATCHUP_BATCH_SIZE: "1000"
+    INDEXER_MONAD_STAKING_CATCHUP_CHECK_INTERVAL: "5000"
+
+  # Extra environment variables (for secrets, etc.)
   extraEnv: []
 
   # Container command (Elixir release start)

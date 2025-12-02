@@ -21,9 +21,15 @@ backend:
     enabled: false
 
   env:
+    CHAIN_TYPE: "monad"
     INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER: "true"
     INDEXER_DISABLE_INTERNAL_TRANSACTIONS_FETCHER: "true"  # Disable to avoid RPC rate limits
     LOG_LEVEL: "debug"
+    # Monad Staking Catchup - Historical staking events backfill
+    INDEXER_MONAD_STAKING_CATCHUP_ENABLED: "false"  # Enable to backfill historical staking events
+    INDEXER_MONAD_STAKING_CATCHUP_START_BLOCK: "1"  # Block to start catchup from
+    INDEXER_MONAD_STAKING_CATCHUP_BATCH_SIZE: "1000"  # Blocks per eth_getLogs request
+    INDEXER_MONAD_STAKING_CATCHUP_CHECK_INTERVAL: "5000"  # Interval (ms) to check for new blocks
 
   config:
     # RPC endpoints with fallback
