@@ -127,8 +127,8 @@ postgresql:
 
 # Redis - minimal (single master, no replicas for dev)
 redis:
-  image:
-    tag: "latest"  # Bitnami only supports latest tag now
+  # Use chart default image tag (7.2.4-debian-12-r9) for stability
+  # Removed: tag: "latest" - caused pod restarts on every sync
   replica:
     replicaCount: 1  # Schema requires minimum 1
   sentinel:
