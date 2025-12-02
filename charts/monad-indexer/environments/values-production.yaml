@@ -530,11 +530,17 @@ postgresql:
 
 # Redis - production HA
 redis:
-  # Use chart default image tag (7.2.4-debian-12-r9) for stability
-  # Removed: tag: "latest" - caused pod restarts on every sync
+  image:
+    # Use digest for immutable, stable deployments
+    # This prevents pod restarts on every sync
+    digest: "sha256:3ce86caf8a61f43679bb62ce21f7283c996cb072dbcd6f380c794d051b60265f"
+    pullPolicy: IfNotPresent
   sentinel:
     enabled: true
     quorum: 2
+    image:
+      digest: "sha256:3ce86caf8a61f43679bb62ce21f7283c996cb072dbcd6f380c794d051b60265f"
+      pullPolicy: IfNotPresent
   metrics:
     enabled: true
   master:
