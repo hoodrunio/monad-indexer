@@ -543,6 +543,9 @@ redis:
       pullPolicy: IfNotPresent
   metrics:
     enabled: true
+    image:
+      digest: "sha256:70d74dcb553b6a48569ec8f4e8dd859c8bd143c6cce070630857d61780190282"
+      pullPolicy: IfNotPresent
   master:
     persistence:
       size: 100Gi
