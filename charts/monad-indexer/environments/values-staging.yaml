@@ -114,7 +114,7 @@ redis:
   sentinel:
     enabled: true
     image:
-      digest: "sha256:3ce86caf8a61f43679bb62ce21f7283c996cb072dbcd6f380c794d051b60265f"
+      digest: "sha256:723501f2bd59d916acc1ff5a0b0ed88b7078cd769c4f0fed90bf48dc1d25bacc"
       pullPolicy: IfNotPresent
   metrics:
     enabled: true
