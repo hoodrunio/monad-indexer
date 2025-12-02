@@ -366,8 +366,10 @@ DECLARE
         -- Token tables FK (must drop before distributing token_instances)
         ARRAY['token_instances', 'token_instances_token_contract_address_hash_fkey'],
         -- Monad staking tables FKs (must drop before distributing)
-        ARRAY['monad_staking_events', 'monad_staking_events_block_number_fkey'],
-        ARRAY['monad_staking_events', 'monad_staking_events_validator_id_fkey']
+        -- Note: FKs are not created by migration (Citus-compatible), but if they exist, drop them
+        ARRAY['monad_staking_events', 'monad_staking_events_block_hash_fkey'],
+        ARRAY['monad_staking_events', 'monad_staking_events_delegator_address_hash_fkey'],
+        ARRAY['monad_validators', 'monad_validators_auth_address_hash_fkey']
         -- Note: Local tables' FKs to distributed tables must be dropped
         -- Citus does not allow FK from local table to distributed table
     ];
@@ -459,11 +461,10 @@ DECLARE
         -- Block rewards (distributed by block_hash for block-based queries)
         ARRAY['block_rewards', 'block_hash', 'distributed'],
 
-        -- Monad staking tables
-        -- monad_validators: Reference table (small, frequently joined)
+        -- Monad staking tables (both reference tables - small data size)
+        -- Reference tables are replicated to all workers for fast JOINs
         ARRAY['monad_validators', 'id', 'reference'],
-        -- monad_staking_events: Distributed by delegator for address-based queries
-        ARRAY['monad_staking_events', 'delegator_address_hash', 'distributed']
+        ARRAY['monad_staking_events', 'block_number', 'reference']
     ];
     v_config TEXT[];
 BEGIN
@@ -676,9 +677,12 @@ DECLARE
         -- Token tables (colocated distributed tables can have FKs)
         ARRAY['token_instances', 'token_instances_token_contract_address_hash_fkey', 'FOREIGN KEY (token_contract_address_hash) REFERENCES tokens(contract_address_hash)'],
 
-        -- Monad staking tables (distributed -> reference table FKs are allowed)
-        ARRAY['monad_staking_events', 'monad_staking_events_block_number_fkey', 'FOREIGN KEY (block_number) REFERENCES blocks(number) ON DELETE CASCADE'],
-        ARRAY['monad_staking_events', 'monad_staking_events_validator_id_fkey', 'FOREIGN KEY (validator_id) REFERENCES monad_validators(id)']
+        -- Monad staking tables (reference -> reference FKs are allowed)
+        -- NOTE: transaction_hash FK is NOT created because transactions is distributed (not reference)
+        -- Citus does not support FK from reference table to distributed table
+        ARRAY['monad_staking_events', 'monad_staking_events_block_hash_fkey', 'FOREIGN KEY (block_hash) REFERENCES blocks(hash) ON DELETE CASCADE'],
+        ARRAY['monad_staking_events', 'monad_staking_events_delegator_address_hash_fkey', 'FOREIGN KEY (delegator_address_hash) REFERENCES addresses(hash) ON DELETE CASCADE'],
+        ARRAY['monad_validators', 'monad_validators_auth_address_hash_fkey', 'FOREIGN KEY (auth_address_hash) REFERENCES addresses(hash) ON DELETE CASCADE']
     ];
     v_config TEXT[];
     v_table_name TEXT;
