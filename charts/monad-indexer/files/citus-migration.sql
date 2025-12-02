@@ -369,7 +369,8 @@ DECLARE
         -- Note: FKs are not created by migration (Citus-compatible), but if they exist, drop them
         ARRAY['monad_staking_events', 'monad_staking_events_block_hash_fkey'],
         ARRAY['monad_staking_events', 'monad_staking_events_delegator_address_hash_fkey'],
-        ARRAY['monad_validators', 'monad_validators_auth_address_hash_fkey']
+        ARRAY['monad_validators', 'monad_validators_auth_address_hash_fkey'],
+        ARRAY['monad_delegator_positions', 'monad_delegator_positions_delegator_address_hash_fkey']
         -- Note: Local tables' FKs to distributed tables must be dropped
         -- Citus does not allow FK from local table to distributed table
     ];
@@ -461,10 +462,11 @@ DECLARE
         -- Block rewards (distributed by block_hash for block-based queries)
         ARRAY['block_rewards', 'block_hash', 'distributed'],
 
-        -- Monad staking tables (both reference tables - small data size)
+        -- Monad staking tables (reference tables - small data size)
         -- Reference tables are replicated to all workers for fast JOINs
         ARRAY['monad_validators', 'id', 'reference'],
-        ARRAY['monad_staking_events', 'block_number', 'reference']
+        ARRAY['monad_staking_events', 'block_number', 'reference'],
+        ARRAY['monad_delegator_positions', 'delegator_address_hash', 'reference']
     ];
     v_config TEXT[];
 BEGIN
@@ -682,7 +684,8 @@ DECLARE
         -- Citus does not support FK from reference table to distributed table
         ARRAY['monad_staking_events', 'monad_staking_events_block_hash_fkey', 'FOREIGN KEY (block_hash) REFERENCES blocks(hash) ON DELETE CASCADE'],
         ARRAY['monad_staking_events', 'monad_staking_events_delegator_address_hash_fkey', 'FOREIGN KEY (delegator_address_hash) REFERENCES addresses(hash) ON DELETE CASCADE'],
-        ARRAY['monad_validators', 'monad_validators_auth_address_hash_fkey', 'FOREIGN KEY (auth_address_hash) REFERENCES addresses(hash) ON DELETE CASCADE']
+        ARRAY['monad_validators', 'monad_validators_auth_address_hash_fkey', 'FOREIGN KEY (auth_address_hash) REFERENCES addresses(hash) ON DELETE CASCADE'],
+        ARRAY['monad_delegator_positions', 'monad_delegator_positions_delegator_address_hash_fkey', 'FOREIGN KEY (delegator_address_hash) REFERENCES addresses(hash) ON DELETE CASCADE']
     ];
     v_config TEXT[];
     v_table_name TEXT;
