@@ -725,7 +725,7 @@ nftIconFetcher:
   apiKey: "6b8355a5fdfc224625e37adfecb66a96fd696a5d6fde72ae22a4fe255a5069ab"
 
   blockscoutApiUrl: "https://monad-mainnet-indexer.hoodscan.io"
-  rpcUrl: "https://monad-rpc.hoodscan.io"
+  rpcUrl: "https://monad-rpc-mainnet.hoodscan.io"
   ipfsGateway: "https://ipfs.io/ipfs/"
   concurrency: "5"
   requestTimeoutSeconds: "30"
