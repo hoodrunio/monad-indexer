@@ -140,8 +140,8 @@ spec:
               current_timestamp
             )
             ON CONFLICT (hash) DO UPDATE SET
-              contract_code = COALESCE(addresses.contract_code, precompile_bytecode),
-              updated_at = current_timestamp;
+              contract_code = COALESCE(addresses.contract_code, EXCLUDED.contract_code),
+              updated_at = EXCLUDED.updated_at;
 
             RAISE NOTICE 'Ensured address entry with contract_code for: ${PRECOMPILE_ADDRESS}';
 
