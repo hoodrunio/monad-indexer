@@ -118,8 +118,34 @@ spec:
             -- Citus-compatible: Capture timestamp at transaction start to use IMMUTABLE value
             -- NOW() is VOLATILE and cannot be used in ON CONFLICT DO UPDATE on distributed tables
             current_timestamp TIMESTAMP := CURRENT_TIMESTAMP;
+            -- Minimal bytecode for precompile (required for Blockscout to recognize as smart contract)
+            precompile_bytecode BYTEA := decode('00', 'hex');
           BEGIN
-            -- Insert or update the precompile contract
+            -- Step 1: Ensure the address exists in addresses table with contract_code
+            -- This is required for Blockscout to recognize the precompile as a smart contract
+            -- Without contract_code, Address.smart_contract?() returns false and method names won't be decoded
+            INSERT INTO addresses (
+              hash,
+              fetched_coin_balance,
+              fetched_coin_balance_block_number,
+              contract_code,
+              inserted_at,
+              updated_at
+            ) VALUES (
+              precompile_address,
+              0,
+              0,
+              precompile_bytecode,
+              current_timestamp,
+              current_timestamp
+            )
+            ON CONFLICT (hash) DO UPDATE SET
+              contract_code = COALESCE(addresses.contract_code, precompile_bytecode),
+              updated_at = current_timestamp;
+
+            RAISE NOTICE 'Ensured address entry with contract_code for: ${PRECOMPILE_ADDRESS}';
+
+            -- Step 2: Insert or update the precompile contract ABI in smart_contracts table
             INSERT INTO smart_contracts (
               address_hash,
               name,
@@ -166,18 +192,18 @@ spec:
             RAISE NOTICE 'Successfully seeded precompile ABI for address: ${PRECOMPILE_ADDRESS}';
           END \$\$;
 
-          -- Verify insertion
+          -- Verify insertion in both tables
           SELECT
-            '0x' || encode(address_hash, 'hex') as address,
-            name,
-            compiler_version,
-            contract_code_md5,
-            license_type,
-            jsonb_array_length(abi) as abi_entries,
-            inserted_at,
-            updated_at
-          FROM smart_contracts
-          WHERE address_hash = decode('${PRECOMPILE_ADDRESS#0x}', 'hex');
+            '0x' || encode(sc.address_hash, 'hex') as address,
+            sc.name,
+            sc.compiler_version,
+            jsonb_array_length(sc.abi) as abi_entries,
+            a.contract_code IS NOT NULL as has_contract_code,
+            sc.inserted_at,
+            sc.updated_at
+          FROM smart_contracts sc
+          JOIN addresses a ON a.hash = sc.address_hash
+          WHERE sc.address_hash = decode('${PRECOMPILE_ADDRESS#0x}', 'hex');
           EOF
 
           if [ $? -eq 0 ]; then
