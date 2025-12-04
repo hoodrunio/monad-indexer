@@ -49,10 +49,9 @@ backend:
     enabled: true
     minAvailable: 1  # Reduced from 2 - minimum 1 pod must be available (2 total pods)
 
-  # Node selector removed - allow scheduling on any node for better distribution
-  # Backend pods will be distributed across nodes via topologySpreadConstraints below
-  # nodeSelector:
-  #   postgres-role: worker  # Removed to allow distribution
+  # Backend runs on node2 (128GB RAM) for catchup indexing
+  nodeSelector:
+    kubernetes.io/hostname: node2
 
   # Pod anti-affinity to prefer different nodes (soft requirement)
   affinity:
@@ -646,6 +645,10 @@ externalSecrets:
 backendApi:
   enabled: true
   replicaCount: 1
+
+  # Backend-API runs on ubuntu node (control plane)
+  nodeSelector:
+    kubernetes.io/hostname: ubuntu-2204-jammy-amd64-base
 
   # Custom Blockscout image with On-Demand Fetching
   image:
