@@ -1,0 +1,79 @@
+name: Security - Build Quality Gates
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+concurrency:
+  group: security-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security:
+    name: Static analysis, secrets, and SBOM
+    runs-on: ubuntu-latest
+    env:
+      GO_VERSION_FILE: services/nft-icon-fetcher/go.mod
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ env.GO_VERSION_FILE }}
+          cache: true
+
+      - name: Install gosec
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          echo "${HOME}/go/bin" >> "${GITHUB_PATH}"
+
+      - name: Secret scanning (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          args: detect --no-git --redact
+
+      - name: SAST (gosec)
+        working-directory: services/nft-icon-fetcher
+        run: gosec -fmt sarif -out gosec.sarif ./...
+
+      - name: Dependency and IaC scan (Trivy)
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: fs
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-results.sarif
+          scanners: vuln,config,secret,license
+
+      - name: Upload Trivy report
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Upload gosec report
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: services/nft-icon-fetcher/gosec.sarif
+
+      - name: Generate SBOM (Syft)
+        uses: anchore/sbom-action@v0.20.11
+        with:
+          path: .
+          format: spdx-json
+          output-file: sbom-spdx.json
+          artifact-name: sbom-spdx
+          upload-artifact-retention: 30
